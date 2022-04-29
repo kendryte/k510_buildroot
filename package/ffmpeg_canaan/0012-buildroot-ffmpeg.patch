@@ -1,0 +1,65 @@
+Index: b/libavcodec/libk510_h264.c
+===================================================================
+--- a/libavcodec/libk510_h264.c
++++ b/libavcodec/libk510_h264.c
+@@ -411,7 +411,7 @@ static const AVOption options[] =
+   { "g",                    "Set gop size",                                   OFFSET(gop_size),        AV_OPT_TYPE_INT,  {.i64 = 25}, 0, 1000, FLAGS },
+   { "b",                    "Set video bitrate",                              OFFSET(bit_rate),        AV_OPT_TYPE_INT,  {.i64 = 4000000}, 0, 100000000, FLAGS },
+   { "r",                    "Set video framerate",                            OFFSET(framerate),       AV_OPT_TYPE_INT,  {.i64 = 30}, 25, 60, FLAGS },
+-  { "ch",                   "Set encode channel ",                            OFFSET(channel),         AV_OPT_TYPE_INT,  {.i64 = 0}, 0, 2, FLAGS },
++  { "ch",                   "Set encode channel ",                            OFFSET(channel),         AV_OPT_TYPE_INT,  {.i64 = 0}, 0, (VENC_MAX_CHANNELS-1), FLAGS },
+   { "idr_freq",             "IDR frequency. -1=No IDRs",                      OFFSET(idrFreq),         AV_OPT_TYPE_INT,  {.i64 = 25 }, -1, 256, FLAGS },
+   // ***** Rate Control options ******
+   { "qp",                   "Use constant QP for encoding.",                  OFFSET(cqp),             AV_OPT_TYPE_INT,  {.i64 = -1}, -1, 100, FLAGS },
+Index: b/libavcodec/libk510_jpeg.c
+===================================================================
+--- a/libavcodec/libk510_jpeg.c
++++ b/libavcodec/libk510_jpeg.c
+@@ -316,7 +316,7 @@ static const AVOption options[] =
+   { "qp",                   "Use constant QP for encoding.",                  OFFSET(cqp),             AV_OPT_TYPE_INT,  {.i64 = 25}, -1, 100, FLAGS },
+   { "r",                    "Set video framerate",                            OFFSET(framerate),       AV_OPT_TYPE_INT,  {.i64 = 30}, 25, 60, FLAGS },
+   { "b",                    "Set video bitrate",                              OFFSET(bit_rate),        AV_OPT_TYPE_INT,  {.i64 = 4000000}, 0, 100000000, FLAGS },
+-  { "ch",                   "Set encode channel ",                            OFFSET(channel),         AV_OPT_TYPE_INT,  {.i64 = 0}, 0, 2, FLAGS },
++  { "ch",                   "Set encode channel ",                            OFFSET(channel),         AV_OPT_TYPE_INT,  {.i64 = 0}, 0, (VENC_MAX_CHANNELS-1), FLAGS },
+   { "maxrate",              "Maximum bitrate. (0=ignore)",                    OFFSET(maxrate),         AV_OPT_TYPE_INT,  {.i64 = 4000000}, 0, 100000000, FLAGS },
+   { "ar",                   "Set aspect ratio",                               OFFSET(ar),         AV_OPT_TYPE_INT,  {.i64 = ASPECT_RATIO_AUTO}, ASPECT_RATIO_AUTO, ASPECT_RATIO_16_9, FLAGS, "profile_flags"},
+   {     "auto",               "",  0, AV_OPT_TYPE_CONST, { .i64 = ASPECT_RATIO_AUTO },     0, 0, FLAGS, "profile_flags" },
+Index: b/libavdevice/v4l2.c
+===================================================================
+--- a/libavdevice/v4l2.c
++++ b/libavdevice/v4l2.c
+@@ -111,6 +111,7 @@ struct video_data {
+     unsigned int reg_QoS_ctrl1;
+     unsigned int reg_QoS_ctrl2;
+     unsigned int reg_h264_bw;
++    unsigned int reg_h264_mode;
+     unsigned int reg_isp_pri;
+     unsigned int reg_isp_mode;
+     unsigned int reg_ddr_cli;
+@@ -197,6 +198,9 @@ static void isp_init(AVFormatContext *ct
+     s->reg_h264_bw = *(volatile unsigned int *)(reg+0x290);
+     *(volatile unsigned int *)(reg+0x290) = 0x110;
+     printf("0x99900290: from 0x%08x to 0x%08x\n", s->reg_h264_bw, *(volatile unsigned int *)(reg+0x290));
++    s->reg_h264_mode = *(volatile unsigned int *)(reg+0x28c);
++    *(volatile unsigned int *)(reg+0x28c) = 0;
++    printf("0x9990028c: from 0x%08x to 0x%08x\n", s->reg_h264_mode, *(volatile unsigned int *)(reg+0x28c));
+     s->reg_isp_mode = *(volatile unsigned int *)(reg+0x38c);
+     *(volatile unsigned int *)(reg+0x38c) = 0;
+     printf("0x9990038c: from 0x%08x to 0x%08x\n", s->reg_isp_mode, *(volatile unsigned int *)(reg+0x38c));
+@@ -224,6 +228,7 @@ static void isp_deinit(AVFormatContext *
+     munmap(reg, MEMORY_TEST_BLOCK_ALIGN);
+     reg=(unsigned char * )mmap(NULL, MEMORY_TEST_BLOCK_ALIGN, PROT_READ | PROT_WRITE, MAP_SHARED, s->fd_ddr, NOC_QOS_REG_BASE);
+     *(volatile unsigned int *)(reg+0x290) = s->reg_h264_bw;
++    *(volatile unsigned int *)(reg+0x28c) = s->reg_h264_mode;
+     *(volatile unsigned int *)(reg+0x388) = s->reg_isp_pri;
+     *(volatile unsigned int *)(reg+0x38c) = s->reg_isp_mode;
+     munmap(reg, MEMORY_TEST_BLOCK_ALIGN);
+@@ -1434,7 +1439,7 @@ static int v4l2_read_close(AVFormatConte
+ {
+     struct video_data *s = ctx->priv_data;
+ 
+-    if (atomic_load(&s->buffers_queued) != s->buffers)
++    if (s->memory == V4L2_MEMORY_MMAP && atomic_load(&s->buffers_queued) != s->buffers)
+         av_log(ctx, AV_LOG_WARNING, "Some buffers are still owned by the caller on "
+                "close.\n");    
+ 

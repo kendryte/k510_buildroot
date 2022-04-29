@@ -1,0 +1,20 @@
+
+config BR2_PACKAGE_DSP_APP_NEW
+	bool "dsp_app_new"
+	depends on BR2_riscv
+	help
+	  k510 dsp demo, dsp firmware load address is 0x5800000(88M~96M)
+
+	  
+if BR2_PACKAGE_DSP_APP_NEW
+
+config BR2_TARGET_EVB_FIRMWARE_LOAD_ADD
+    hex "dsp firmware load address"
+    default 0x0000000
+    help
+      dsp firmware load address.
+	  
+endif
+
+
+

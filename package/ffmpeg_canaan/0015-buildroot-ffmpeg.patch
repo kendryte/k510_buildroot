@@ -1,0 +1,16 @@
+Index: b/libavfilter/af_audio3a.c
+===================================================================
+--- a/libavfilter/af_audio3a.c
++++ b/libavfilter/af_audio3a.c
+@@ -611,6 +611,11 @@ static av_cold void uninit(AVFilterConte
+         if (ioctl(s->fd_mailbox, MBOX_CHAN_1_TX, &s->msg) < 0)
+             printf("disable task 0: tx 0 error\n");
+ 
++        while(!(s->audio3a_deinit_done))
++        {
++            usleep(500);//usleep(20*1000);
++        }
++
+         s->received_sigterm = 0;
+         s->audio3a_init_done = 0;
+         s->audio3a_process_done = 0;

@@ -1,0 +1,17 @@
+# Locally computed
+#sha256  53072fda7ec68ccd46ff442a79344efd4f8cbee69c24aea434f0e081e4c914d4  nncase_v1.4.0.tgz
+sha256 61d735fa4dfda3aa977eb07a520dda19ddee01cf0daaa5643cc2f096b3b1b3d8  nncase_v1.5.0.tgz
+#none x nncase-1.5.0.20220331-cp310-cp310-manylinux_2_24_x86_64.whl 
+#none x nncase-1.5.0.20220331-cp36-cp36m-manylinux_2_24_x86_64.whl
+#none x nncase-1.5.0.20220331-cp37-cp37m-manylinux_2_24_x86_64.whl
+#none x nncase-1.5.0.20220331-cp38-cp38-manylinux_2_24_x86_64.whl
+#none x nncase-1.5.0.20220331-cp39-cp39-manylinux_2_24_x86_64.whl
+
+
+sha256  7844a5e9d9e95c4f7e0f00f59edf3bd61a7df26c944d0fcc123d56f5c8e01f01  nncase-1.5.0.20220331-cp310-cp310-manylinux_2_24_x86_64.whl
+sha256  a412409152698518480825b1b5989cc6d67e4522644b9fc32751b885681579e8  nncase-1.5.0.20220331-cp36-cp36m-manylinux_2_24_x86_64.whl
+sha256  050e17bd621f83859d15c7a4468b49f43419c3b6a60f3c4cecf829dc97822e6a  nncase-1.5.0.20220331-cp37-cp37m-manylinux_2_24_x86_64.whl
+sha256  8392a974ca8e1f3d933c9fe5aee2995e490b1c97b78f843224adaea12693b879  nncase-1.5.0.20220331-cp38-cp38-manylinux_2_24_x86_64.whl
+sha256  a19f18ef9c5401f6a2d4150de895177d601f65f0746003fb50978548d4e8dbc9  nncase-1.5.0.20220331-cp39-cp39-manylinux_2_24_x86_64.whl
+
+

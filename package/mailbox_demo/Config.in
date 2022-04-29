@@ -1,0 +1,5 @@
+config BR2_PACKAGE_MAILBOX_DEMO
+    bool "mailbox_demo"
+    depends on BR2_riscv
+    help 
+        k510 mailbox demo, It shows the simple communication between cpu and dsp.

@@ -1,0 +1,29 @@
+
+config BR2_PACKAGE_DSP_SCHEDULER
+	bool "dsp scheduler"
+	depends on BR2_riscv
+	depends on BR2_PACKAGE_AUDIO3A_LIB
+	help
+	  k510 dsp scheduler
+	
+config BR2_TARGET_BOARD_TYPE
+	string "target board type"
+	help
+	  target board type
+
+menuconfig BR2_PACKAGE_DSP_SCHEDULER
+	bool "dsp scheduler"
+	help
+		"dsp scheduler tasks"
+
+if BR2_PACKAGE_DSP_SCHEDULER
+
+config BR2_PACKAGE_DSP_SCHEDULER_AUDIO3A_TASK
+	bool "enable audio3a task"
+	default y
+	depends on BR2_PACKAGE_AUDIO3A_LIB
+	help
+		enable audio3a task
+
+endif
+

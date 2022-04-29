@@ -1,0 +1,4 @@
+/dev/ram0	/		minix	defaults	1	1
+none		/proc		proc	defaults	0	0
+none	    	/dev/pts        devpts  mode=620        0       0
+shm             /dev/shm        tmpfs   nodev,nosuid    0 	0

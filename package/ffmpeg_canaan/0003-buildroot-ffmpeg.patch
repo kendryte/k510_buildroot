@@ -1,0 +1,56 @@
+Index: b/libavdevice/isp_video.h
+===================================================================
+--- a/libavdevice/isp_video.h
++++ b/libavdevice/isp_video.h
+@@ -86,6 +86,12 @@ typedef enum _SENSOR_TYPE
+ 	OV5647_SENSOR = 4,
+ }SENSOR_TYPE;
+ 
++typedef enum _SENSOR_MODE
++{
++    IMX219_1920_1080 = 0,
++    IMX219_1080_1920 = 1,
++}SENSOR_MODE;
++
+ typedef struct _DS2_INFO
+ {
+     unsigned int ds2_en;
+@@ -645,7 +651,7 @@ int video_set_bt1120(struct hdmi_bt1120_
+ /*********************************************************************
+  *pipeline
+ *********************************************************************/
+-int run_video(enum _SENSOR_TYPE sensor_type,enum _LCD_TYPE lcd_type,enum _ISP_PIPELINE_E isp_pipeline,unsigned int debug_en);
++int run_video(enum _SENSOR_TYPE sensor_type,enum _SENSOR_MODE sensor_mode, enum _LCD_TYPE lcd_type,enum _ISP_PIPELINE_E isp_pipeline,unsigned int debug_en);
+ void isp_exit(void);
+ void isp_video_exit(void);
+ void imx219_close_sensor(void);
+@@ -654,4 +660,4 @@ void video_set_ae_again_cfg(unsigned int
+ #ifdef __cplusplus
+ } 
+ #endif
+-#endif /*_ISP_VIDEO_H_*/
+\ No newline at end of file
++#endif /*_ISP_VIDEO_H_*/
+Index: b/libavdevice/video_app.c
+===================================================================
+--- a/libavdevice/video_app.c
++++ b/libavdevice/video_app.c
+@@ -792,8 +792,9 @@ int isp_video(DS1_INFO *ds1_info, SENSOR
+     {
+         set_isp_r2k_params(sensor_type,&isp_info);
+     }
+-    
+-    fd_isp = run_video(sensor_type,lcd_type,isp_info.isp_pipeline,0);
++   
++    enum _SENSOR_MODE sensor_mode= IMX219_1920_1080; 
++    fd_isp = run_video(sensor_type, sensor_mode, lcd_type,isp_info.isp_pipeline,0);
+ 
+     // ds1 
+     if (ioctl(fd_isp, ISP_CMD_DS1_ADDR, ds1_info->y_addr) < 0) 
+@@ -851,4 +852,4 @@ void isp_video_exit(void)
+         }
+     }
+     imx219_close_sensor();
+-}
+\ No newline at end of file
++}

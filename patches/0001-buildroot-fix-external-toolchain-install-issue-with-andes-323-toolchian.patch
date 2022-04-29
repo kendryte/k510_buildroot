@@ -1,0 +1,35 @@
+Index: buildroot-2020.02.11/toolchain/helpers.mk
+===================================================================
+--- buildroot-2020.02.11.orig/toolchain/helpers.mk
++++ buildroot-2020.02.11/toolchain/helpers.mk
+@@ -135,9 +135,14 @@ copy_toolchain_sysroot = \
+ 			$(call simplify_symlink,$$i,$(STAGING_DIR)) ; \
+ 		done ; \
+ 	fi ; \
+-	if [ ! -e $(STAGING_DIR)/lib/ld*.so.* ]; then \
+-		if [ -e $${ARCH_SYSROOT_DIR}/lib/ld*.so.* ]; then \
+-			cp -a $${ARCH_SYSROOT_DIR}/lib/ld*.so.* $(STAGING_DIR)/lib/ ; \
++	if [ "$(TOOLCHAIN_EXTERNAL_READELF)" != "" ]; then \
++		LD_NAME=`$(TOOLCHAIN_EXTERNAL_READELF) -d $${ARCH_SYSROOT_DIR}$${ARCH_LIB_DIR}/libc-*.so|grep ld-linux|grep so|awk '{print $$NF}'|sed "s/\[//g"|sed "s/\]//g"`; \
++	else \
++		LD_NAME="ld*.so.*"; \
++	fi; \
++	if [ ! -e $(STAGING_DIR)/lib/$${LD_NAME} ]; then \
++		if [ -e $${ARCH_SYSROOT_DIR}/lib/$${LD_NAME} ]; then \
++			cp -a $${ARCH_SYSROOT_DIR}/lib/$${LD_NAME} $(STAGING_DIR)/lib/ ; \
+ 		fi ; \
+ 	fi ; \
+ 	if [ `readlink -f $${SYSROOT_DIR}` != `readlink -f $${ARCH_SYSROOT_DIR}` ] ; then \
+Index: buildroot-2020.02.11/toolchain/toolchain-external/pkg-toolchain-external.mk
+===================================================================
+--- buildroot-2020.02.11.orig/toolchain/toolchain-external/pkg-toolchain-external.mk
++++ buildroot-2020.02.11/toolchain/toolchain-external/pkg-toolchain-external.mk
+@@ -463,6 +463,8 @@ create_lib_symlinks = \
+ 	ARCH_LIB_DIR="$(call toolchain_find_libdir,$(TOOLCHAIN_EXTERNAL_CC) $(TOOLCHAIN_EXTERNAL_CFLAGS))" ; \
+ 	if [ ! -e "$${DESTDIR}/$${ARCH_LIB_DIR}" -a ! -e "$${DESTDIR}/usr/$${ARCH_LIB_DIR}" ]; then \
+ 		relpath="$(call relpath_prefix,$${ARCH_LIB_DIR})" ; \
++		mkdir -p `dirname "$${DESTDIR}/$${ARCH_LIB_DIR}"` ; \
++		mkdir -p `dirname "$${DESTDIR}/usr/$${ARCH_LIB_DIR}"` ; \
+ 		ln -snf $${relpath}lib "$${DESTDIR}/$${ARCH_LIB_DIR}" ; \
+ 		ln -snf $${relpath}lib "$${DESTDIR}/usr/$${ARCH_LIB_DIR}" ; \
+ 	fi

@@ -1,0 +1,12 @@
+event0    c 13 64 0666
+event1    c 13 65 0666
+event2    c 13 66 0666
+event3    c 13 67 0666
+event4    c 13 68 0666
+event5    c 13 69 0666
+event6    c 13 70 0666
+event7    c 13 71 0666
+event8    c 13 72 0666
+event9    c 13 73 0666
+mice      c 13 63 0666
+mouse0    c 13 32 0666

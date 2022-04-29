@@ -1,0 +1,12 @@
+auto lo
+iface lo inet loopback
+
+
+auto eth0
+iface eth0 inet dhcp 
+#iface eth0 inet static 
+#	address 10.20.132.4
+#	netmask 255.255.255.0
+#	gateway 10.20.132.254
+
+

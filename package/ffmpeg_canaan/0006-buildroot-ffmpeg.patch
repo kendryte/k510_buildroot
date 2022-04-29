@@ -1,0 +1,207 @@
+Index: b/libavcodec/enc_interface.h
+===================================================================
+--- a/libavcodec/enc_interface.h
++++ /dev/null
+@@ -1,138 +0,0 @@
+-/******************************************************************************
+-
+-  Copyright (C), 2021, Canaan Tech. Co., Ltd.
+-
+- ******************************************************************************
+-  File Name     : enc_interface.h
+-  Version       : Initial Draft
+-  Author        : 
+-  Created       : 
+-  Description   : 
+-  History       :
+-  1.Date        : 
+-    Author      :
+-    Modification: Created file
+-
+-******************************************************************************/
+-#pragma once
+-
+-#include <string.h>
+-
+-#ifdef __cplusplus
+-extern "C" {
+-#endif
+-
+-typedef void* EncoderHandle;
+-
+-typedef enum
+-{
+-    Enc_SUCCESS = 0, 
+-    Enc_ERR = 1,
+-}EncStatus;
+-
+-typedef enum
+-{
+-    B_SLICE,
+-    P_SLICE,
+-    I_SLICE,
+-    IDR_SLICE
+-}EncSliceType;
+-
+-typedef enum
+-{
+-    CONST_QP, 
+-    CBR, 
+-    VBR
+-} RateCtrlMode;
+-
+-typedef enum
+-{
+-    AVC_BASELINE, 
+-    AVC_MAIN, 
+-    AVC_HIGH,
+-    JPEG
+-} AVC_Profile;
+-
+-typedef enum
+-{
+-    ASPECT_RATIO_AUTO, 
+-    ASPECT_RATIO_4_3, 
+-    ASPECT_RATIO_16_9, 
+-    ASPECT_RATIO_NONE
+-} AVC_AspectRatio;
+-
+-typedef enum
+-{
+-    SECTION_SEI_PREFIX_FLAG = 0x80000000, /*< this section data is from a SEI prefix */
+-    SECTION_SYNC_FLAG = 0x40000000, /*< this section data is from an IDR */
+-    SECTION_END_FRAME_FLAG = 0x20000000, /*< this section denotes the end of a frame */
+-    SECTION_CONFIG_FLAG = 0x10000000, /*< section data is an sps, pps, vps, aud */
+-    SECTION_FILLER_FLAG = 0x08000000, /*< section data contains filler data */
+-    SECTION_APP_FILLER_FLAG = 0x04000000, /*< section data contains uninitialized filler data that should be filled by the application layer*/
+-}SectionFlags;
+-
+-typedef struct
+-{
+-    unsigned short width;
+-    unsigned short height;
+-    unsigned char FrameRate;
+-    RateCtrlMode rcMode;
+-    unsigned int BitRate;
+-    unsigned int MaxBitRate;
+-    int SliceQP;  //auto: -1, or from 0 to 51
+-    AVC_Profile profile;
+-    unsigned int level;  //1 .. 51, 51 is 5.1
+-    AVC_AspectRatio AspectRatio;
+-    int FreqIDR; //default value  : -1
+-    unsigned int gopLen;
+-}EncSettings;
+-
+-typedef struct
+-{
+-    unsigned short width;
+-    unsigned short height;
+-    unsigned short stride;
+-    unsigned char *data;
+-}EncInputFrame;
+-
+-typedef struct
+-{
+-    unsigned int uOffset; /*!< Start offset of the section (in bytes from the beginning of the buffer) */
+-    unsigned int uLength; /*!< Length in bytes of the section */
+-    SectionFlags uFlags; /*!< Flags associated with the section; see macro SectionFlags*/
+-}StreamSection;
+-
+-
+-typedef struct
+-{
+-    unsigned char *bufAddr;
+-    unsigned int bufSize;  
+-}EncOutputStream;
+-
+-typedef struct
+-{
+-    unsigned char *bufAddr;
+-    unsigned int bufSize; 
+-    unsigned int uNumSection; /*!< number of sections inside the buffer */ 
+-    StreamSection* pSections;  /*!< Array of sections */
+-}EncOutputStreamSection;
+-
+-EncoderHandle* VideoEncoder_Create(EncSettings *pCfg);
+-
+-EncStatus VideoEncoder_Destroy(EncoderHandle *hEnc);
+-
+-EncStatus VideoEncoder_EncodeOneFrame(EncoderHandle *hEnc, EncInputFrame *input);
+-
+-EncStatus VideoEncoder_GetStream(EncoderHandle *hEnc, EncOutputStream *output);
+-
+-EncStatus VideoEncoder_GetStreamSection(EncoderHandle *hEnc, EncOutputStreamSection *output);
+-
+-EncStatus VideoEncoder_ReleaseStream(EncoderHandle *hEnc, EncOutputStream *output);
+-
+-EncStatus VideoEncoder_ReleaseStreamSection(EncoderHandle *hEnc, EncOutputStreamSection *output);
+-
+-#ifdef __cplusplus
+-}
+-#endif
+-
+-
+Index: b/libavcodec/libk510_h264.c
+===================================================================
+--- a/libavcodec/libk510_h264.c
++++ b/libavcodec/libk510_h264.c
+@@ -39,14 +39,16 @@
+ #include <string.h>
+ #include <stdlib.h>
+ #include <dlfcn.h>
++#include <enc_interface.h>
+ 
+ #include "libavutil/internal.h"
++#include "libavformat/internal.h"
+ #include "libavutil/common.h"
+ #include "libavutil/opt.h"
+ #include "libavutil/pixdesc.h"
+ #include "avcodec.h"
+ #include "internal.h"
+-#include "enc_interface.h"
++
+ 
+ //#define YUV_DUMP  1
+ //#define H264_DUMP 1
+@@ -340,9 +342,8 @@ static int k510_h264_encode_frame(AVCode
+ 
+             VideoEncoder_ReleaseStream(pCtx->hEnc, &output);
+             pCtx->out_pic++;
+-
++            //printf("%s>out: ntp time %ld, pic %d\n", __FUNCTION__, ff_ntp_time()/1000, pCtx->out_pic);
+             //printf("%s>out pts %d, size %d, time %.4f ms\n", __FUNCTION__, pkt->pts, pkt->size, get_time());
+-            //av_log(avctx, AV_LOG_WARNING, "out pts %d, size %d, time %.4f ms\n", pkt->pts, pkt->size, get_time()/1000000.0);
+         }   
+         *got_packet = 1;
+     }
+@@ -389,8 +390,8 @@ static const AVOption options[] =
+   { "qp",                   "Use constant QP for encoding.",                  OFFSET(cqp),             AV_OPT_TYPE_INT,  {.i64 = -1}, -1, 100, FLAGS },
+   { "maxrate",              "Maximum bitrate. (0=ignore)",                    OFFSET(maxrate),         AV_OPT_TYPE_INT,  {.i64 = 0}, 0, 100000000, FLAGS },
+   // ***** Input/Output options ******
+-  { "profile",              "Set profile restrictions",                       OFFSET(profile),         AV_OPT_TYPE_INT,  {.i64 = AVC_HIGH}, AVC_BASELINE, AVC_HIGH, FLAGS, "profile_flags"},
+-  {     "baseline",           "",  0, AV_OPT_TYPE_CONST, { .i64 = AVC_BASELINE },     0, 0, FLAGS, "profile_flags" },
++  { "profile",              "Set profile restrictions",                       OFFSET(profile),         AV_OPT_TYPE_INT,  {.i64 = AVC_HIGH}, AVC_C_BASELINE, AVC_HIGH, FLAGS, "profile_flags"},
++  {     "baseline",           "",  0, AV_OPT_TYPE_CONST, { .i64 = AVC_C_BASELINE },     0, 0, FLAGS, "profile_flags" },
+   {     "main",               "",  0, AV_OPT_TYPE_CONST, { .i64 = AVC_MAIN },     0, 0, FLAGS, "profile_flags" },
+   {     "high",               "",  0, AV_OPT_TYPE_CONST, { .i64 = AVC_HIGH },   0, 0, FLAGS, "profile_flags" },
+   { "level",                "Specify level",                                  OFFSET(level),           AV_OPT_TYPE_INT,  {.i64 = 42}, 10, 42, FLAGS, "level_flags"},
+Index: b/libavdevice/libk510_video.c
+===================================================================
+--- a/libavdevice/libk510_video.c
++++ b/libavdevice/libk510_video.c
+@@ -47,7 +47,6 @@
+ 
+ #include "video_app.h"
+ #include "isp_video.h"
+-#include "libavcodec/enc_interface.h"
+ #include "libavutil/imgutils.c"
+ #include "libavutil/time.h"
+ 
+@@ -470,6 +469,7 @@ static int k510_video_read_packet(AVForm
+         pCtx->isp_rp %= ISP_ADDR_BUFFER_CNT;
+         
+         pCtx->out_pic++;  
++		 //printf("vin_out>ntp time %ld, pic %d\n", ff_ntp_time()/1000, pCtx->out_pic);
+         //printf("%s>pts %ld, size %d, time %.4f ms\n", __FUNCTION__, pkt->pts, pkt->size, time/1000000.0);
+     }
+  

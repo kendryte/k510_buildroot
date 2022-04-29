@@ -1,0 +1,13 @@
+#! /bin/sh
+
+PATH=/bin:/sbin:/usr/bin:/usr/sbin
+export PATH
+
+# turn off swap
+/sbin/swapoff -a
+
+# unmount filesystems
+/bin/umount -a -r
+
+# reboot
+/sbin/reboot

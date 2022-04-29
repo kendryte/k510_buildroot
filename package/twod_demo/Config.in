@@ -1,0 +1,5 @@
+config BR2_PACKAGE_TWOD_DEMO
+    bool "twod_demo"
+    depends on BR2_riscv
+    help 
+        k510 twod demo, It shows the simple rotation and scaler.

@@ -1,0 +1,15 @@
+
+config BR2_PACKAGE_ENCODE_APP
+	bool "encode app"
+	depends on BR2_riscv
+	depends on BR2_PACKAGE_VIDEO_LIB
+	depends on BR2_PACKAGE_LIVE555_CANAAN
+	depends on BR2_PACKAGE_VENC_LIB
+	depends on BR2_PACKAGE_MEDIACTL_LIB
+	help
+	  k510 encode app
+	
+config BR2_TARGET_BOARD_TYPE
+	string "target board type"
+	help
+	  target board type

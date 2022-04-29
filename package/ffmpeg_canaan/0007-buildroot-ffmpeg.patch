@@ -1,0 +1,81 @@
+Index: b/libavdevice/isp_video.h
+===================================================================
+--- a/libavdevice/isp_video.h
++++ b/libavdevice/isp_video.h
+@@ -18,6 +18,8 @@
+ extern "C"{
+ #endif
+ 
++#include <stdint.h>
++
+ #define calc_stride(width)   (((width) + 15)/16*16)
+ 
+ typedef struct FRAME_COORDINATE{
+@@ -259,14 +261,12 @@ typedef enum _SENSOR_INTERFACE_E
+ 	DVP0,
+ 	MAX_SENSOR_INTERFACE_NUM,
+ }SENSOR_INTERFACE_E;
+-//
+-enum _CRB_SENSOR_I2C
++
++enum _SENSOR_I2C
+ {
+-    EVB_MIPI_I2C,
+-    CRB_MIPI_CSI0_I2C,
+-    CRB_MIPI_CSI1_I2C,
+-    EVB_DVP_I2C,
+-    CRB_DVP_I2C,
++    MIPI_CSI0_I2C,
++    MIPI_CSI1_I2C,
++    DVP_I2C,
+ };
+ //
+ struct isp_pipeline_info
+@@ -504,6 +504,7 @@ int video_set_ispf2kldc(enum _SENSOR_TYP
+ int video_set_ispf2kwdr(enum _SENSOR_TYPE sensor_type,struct isp_wdr_info *wdr_info);
+ int video_set_ispf2knr3d(enum _SENSOR_TYPE sensor_type,struct isp_nr3d_info *nr3d_info);
+ int video_set_ispf2kint(struct isp_int_info *intinfo);
++int video_set_ispf2k(unsigned int addr,unsigned int data);
+ //r2k
+ int video_set_ispr2kcommon(enum _SENSOR_TYPE sensor_type,struct isp_common_info *commoninfo);
+ int video_set_ispr2kmain0(enum _SENSOR_TYPE sensor_type,struct isp_main_info *main_info);
+@@ -513,6 +514,7 @@ int video_set_ispr2kds2(enum _SENSOR_TYP
+ int video_set_ispr2krgbir(enum _SENSOR_TYPE sensor_type,struct isp_rgbir_info *rgbir_info);
+ int video_set_ispr2kldc(enum _SENSOR_TYPE sensor_type,struct isp_ldc_info *ldc_info);
+ int video_set_ispr2kint(struct isp_int_info *intinfo);
++int video_set_ispr2k(unsigned int addr,unsigned int data);
+ /*********************************************************************
+  *vo 
+ *********************************************************************/
+@@ -651,7 +653,9 @@ int video_set_bt1120(struct hdmi_bt1120_
+ /*********************************************************************
+  *pipeline
+ *********************************************************************/
++//int run_video(enum _SENSOR_TYPE sensor_type,enum _LCD_TYPE lcd_type,enum _ISP_PIPELINE_E isp_pipeline,unsigned int debug_en);
+ int run_video(enum _SENSOR_TYPE sensor_type,enum _SENSOR_MODE sensor_mode, enum _LCD_TYPE lcd_type,enum _ISP_PIPELINE_E isp_pipeline,unsigned int debug_en);
++int run_multi_video(struct isp_pipeline_info *isp_pipeline,enum _LCD_TYPE lcd_type,unsigned int debug_en);
+ void isp_exit(void);
+ void isp_video_exit(void);
+ void imx219_close_sensor(void);
+Index: b/libavdevice/libk510_video.c
+===================================================================
+--- a/libavdevice/libk510_video.c
++++ b/libavdevice/libk510_video.c
+@@ -383,7 +383,7 @@ static int k510_video_read_header(AVForm
+     {
+       video_set_ae_dgain_cfg(pCtx->exp);
+     }
+-    if(pCtx->agc >= 0)
++    if(pCtx->agc > 0)
+     {
+       video_set_ae_again_cfg(pCtx->agc);
+     }
+@@ -526,7 +526,7 @@ static const AVOption options[] = {
+     {     "TOF",               "",  0, AV_OPT_TYPE_CONST, { .i64 = TOF_SENSOR },   0, 0, DEC, "sensor_type" },
+     {     "IMX219",               "",  0, AV_OPT_TYPE_CONST, { .i64 = IMX219_SENSOR },     0, 0, DEC, "sensor_type" },
+     {     "OV5647",               "",  0, AV_OPT_TYPE_CONST, { .i64 = OV5647_SENSOR },   0, 0, DEC, "sensor_type" },
+-    { "exp", "set exposure parameter", OFFSET(exp), AV_OPT_TYPE_INT, {.i64 = 64}, 1, 128, DEC},
++    { "exp", "set exposure parameter", OFFSET(exp), AV_OPT_TYPE_INT, {.i64 = 0}, 0, 128, DEC},
+     { "agc", "set analog gain", OFFSET(agc), AV_OPT_TYPE_INT, {.i64 = 0}, 0, 232, DEC},
+     { NULL },
+ };

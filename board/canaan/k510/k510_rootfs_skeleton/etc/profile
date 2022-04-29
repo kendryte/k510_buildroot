@@ -1,0 +1,30 @@
+ulimit -c unlimited
+PATH=/usr/bin:/usr/sbin:/bin:/sbin:/usr/local/bin:/usr/local/bin
+PS1="[\u@\h \w ]\$ "
+
+# PATH environment setting
+export PATH=/demo:$PATH
+# LD_LIBRARY_PATH environment setting
+export LD_LIBRARY_PATH=/lib:/usr/lib:/usr/local/lib
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/X11R6/lib
+#tslib environment setting
+export TS_ROOT=
+export TSLIB_CONFFILE=$TS_ROOT/etc/ts.conf
+export TSLIB_PLUGINDIR=$TS_ROOT/lib/ts
+export TSLIB_CALIBFILE=$TS_ROOT/etc/pointercal
+# settings for ttyS0
+#if echo `/usr/bin/tty` | /bin/grep -q ttyS0 ; then
+if [ ! -e /proc/mounts ]; then
+/bin/mount -t proc none /proc
+/bin/mount -t devpts -o mode=620 none /dev/pts
+#/bin/mount -t tmpfs tmpfs /dev/shm
+/bin/mount -t sysfs none /sys
+/bin/hostname -F /etc/hostname
+/sbin/syslogd
+/sbin/klogd
+#date -s 093008002009
+date -s 2010.12.01-10:00:00
+ifconfig lo 127.0.0.1
+printf "\033[9;0]" > /dev/tty0
+fi
+

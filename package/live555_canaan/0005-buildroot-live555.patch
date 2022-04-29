@@ -1,0 +1,1097 @@
+Index: b/liveMedia/StreamParser.cpp
+===================================================================
+--- a/liveMedia/StreamParser.cpp
++++ b/liveMedia/StreamParser.cpp
+@@ -23,7 +23,7 @@ along with this library; if not, write t
+ #include <string.h>
+ #include <stdlib.h>
+ 
+-#define BANK_SIZE 150000
++#define BANK_SIZE 1500000
+ 
+ void StreamParser::flushInput() {
+   fCurParserIndex = fSavedParserIndex = 0;
+Index: b/testProgs/DataBufCtrlEX.cpp
+===================================================================
+--- /dev/null
++++ b/testProgs/DataBufCtrlEX.cpp
+@@ -0,0 +1,181 @@
++#include "DataBufCtrlEX.h"
++#include <string.h>
++#include <stdio.h>
++
++#include<string.h>
++
++//#define   HI_MAX_DATA_SIZE  5000000
++#define   HI_MAX_VIDEO_DATA_SIZE  5000000
++#define   HI_MAX_AUDIO_DATA_SIZE  500000
++CDataBufCtrlEX::CDataBufCtrlEX(void)
++{
++	m_nBufferLen = 0;
++//	memset(m_Buffer, 0, HI_MAX_DATA_SIZE);
++	pthread_mutex_init(&m_FrameMutex, NULL);
++	pthread_cond_init(&m_DataCond, NULL);
++	m_nPushIndex = 0;
++	m_nPopIndex = 0;
++	m_nId = -1;
++	m_Buffer = NULL;
++}
++
++
++CDataBufCtrlEX::~CDataBufCtrlEX(void)
++{
++	pthread_mutex_destroy(&m_FrameMutex);
++	pthread_cond_destroy(&m_DataCond);
++	if (m_Buffer != NULL)
++	{
++		delete[] m_Buffer;
++		m_Buffer = NULL;
++	}
++}
++
++void CDataBufCtrlEX::SetID(int nId)
++{
++	m_nId = nId;
++	if (0 == nId)
++	{
++		m_Buffer = new unsigned char[HI_MAX_VIDEO_DATA_SIZE];
++		memset(m_Buffer, 0, HI_MAX_VIDEO_DATA_SIZE);
++	}
++	else if (1 == nId)
++	{
++		m_Buffer = new unsigned char[HI_MAX_AUDIO_DATA_SIZE];
++		memset(m_Buffer, 0, HI_MAX_AUDIO_DATA_SIZE);
++	}
++	
++}
++
++int CDataBufCtrlEX::GetBufferSize()
++{
++	pthread_mutex_lock(&m_FrameMutex);
++	int nSize = m_nBufferLen;
++	pthread_mutex_unlock(&m_FrameMutex);
++	return nSize;
++}
++
++bool CDataBufCtrlEX::PullBuffer(unsigned char*pBuffer, int nSize, unsigned long long dTimestamp, bool bBlock/* = true*/)
++{
++	pthread_mutex_lock(&m_FrameMutex);
++	//if (m_nBufferLen + nSize > HI_MAX_DATA_SIZE)
++	if (m_nPushIndex - m_nPopIndex > 100)
++	{
++		m_nBufferLen = 0;
++		char sInfo[1000] = { 0 };
++		sprintf(sInfo, "the buffer is full,empty the buffer:%x,id:%d\n", this,m_nId);
++		printf(sInfo);
++		m_mapFrameTimeStamp.clear();
++		m_nPopIndex = m_nPushIndex;//清空之前的数据，popindex也要清空
++	}
++	memcpy(m_Buffer + m_nBufferLen, pBuffer, nSize);
++	m_nBufferLen += nSize;
++
++	DATA_BUF_FRAME_INFO  Info;
++	Info.nLen = nSize;
++	Info.dTimeStamp = dTimestamp;
++	if (m_nPushIndex < 0)
++	{
++		m_nPushIndex = 0;
++	}
++	m_mapFrameTimeStamp[m_nPushIndex++] = Info;
++	
++	pthread_mutex_unlock(&m_FrameMutex);
++	if (bBlock)
++	{
++		pthread_cond_signal(&m_DataCond);
++	}
++	return true;
++}
++
++bool CDataBufCtrlEX::PopBuffer(int &nSize, unsigned char* &pBuffer, unsigned long long &dTimestamp, bool bBlock /*= true*/)
++{
++
++	pthread_mutex_lock(&m_FrameMutex);
++	if (bBlock)
++	{
++		pthread_cond_wait(&m_DataCond, &m_FrameMutex);
++	}
++
++	int nTmpSize = nSize;
++
++	if (m_nBufferLen <= 0)
++	{
++		nSize = 0;
++		pthread_mutex_unlock(&m_FrameMutex);
++		return false;
++	}
++
++	int nIndex = m_nPopIndex++;
++	int nLen = m_mapFrameTimeStamp[nIndex].nLen;
++	unsigned long long dTime = m_mapFrameTimeStamp[nIndex].dTimeStamp;
++	int nLeftTmpSize = nLen;
++	//如果当前帧大于要取得大小，则将该帧剩余部分保存到该帧中
++	if (nLen > nSize)
++	{
++
++		m_mapFrameTimeStamp[nIndex].nLen = nLen - nSize;
++		m_nPopIndex--;
++		nLen = nSize;
++		printf("=========================nlen > nSize\n");
++	}
++	else
++	{
++		//删除
++		m_mapFrameTimeStamp.erase(nIndex);
++	}
++
++	nSize = nLen;
++	memcpy(pBuffer, m_Buffer, nLen);
++	dTimestamp = dTime;
++	int nLeft = m_nBufferLen - nLen;
++
++	memmove(m_Buffer, m_Buffer + nLen, nLeft);
++	m_nBufferLen = nLeft;
++	pthread_mutex_unlock(&m_FrameMutex);
++
++	if (m_nId == 0)
++	{
++		if (m_nPushIndex - m_nPopIndex > 80)
++		{
++			char buf[100] = { 0 };
++			sprintf(buf, "video=============================left:%d_%d[%d-%d]_total:%d\n", nLeftTmpSize, nTmpSize, m_nPushIndex, m_nPopIndex, m_nBufferLen);
++			printf(buf);
++		}
++
++
++	}
++	else if (1 == m_nId)
++	{
++		if (m_nPushIndex - m_nPopIndex > 80)
++		{
++			char buf[100] = { 0 };
++			sprintf(buf, "audio=============================left:%d_%d[%d-%d]_total:%d\n", nLeftTmpSize, nTmpSize, m_nPushIndex, m_nPopIndex, m_nBufferLen);
++			printf(buf);
++		}
++
++	}
++	return true;
++}
++
++bool CDataBufCtrlEX::PopBufferAll(int &nsize, unsigned char* &pBuffer)
++{
++	memcpy(pBuffer, m_Buffer, m_nBufferLen);
++
++	nsize = m_nBufferLen;
++	m_nBufferLen = 0;
++
++	return true;
++}
++
++bool CDataBufCtrlEX::Reset()
++{
++	pthread_mutex_lock(&m_FrameMutex);
++	m_nBufferLen = 0;
++	m_nPushIndex = 0;
++	m_nPopIndex = 0;
++	m_mapFrameTimeStamp.clear();
++	pthread_mutex_unlock(&m_FrameMutex);
++
++	return true;
++}
+\ No newline at end of file
+Index: b/testProgs/DataBufCtrlEX.h
+===================================================================
+--- /dev/null
++++ b/testProgs/DataBufCtrlEX.h
+@@ -0,0 +1,51 @@
++#pragma once
++#include <stdlib.h>  
++#include <pthread.h>  
++#include <stdint.h>
++#include <semaphore.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <pthread.h>
++#include <unistd.h>
++#include <string.h>
++#include <map>
++using namespace std;
++
++
++struct DATA_BUF_FRAME_INFO
++{
++	int    nLen;
++	unsigned long long dTimeStamp;
++	DATA_BUF_FRAME_INFO()
++	{
++		nLen = 0;
++		dTimeStamp = 0;
++	}
++};
++typedef std::map<int, DATA_BUF_FRAME_INFO>   FRAME_TIMESTAMP_MAP;
++class CDataBufCtrlEX
++{
++public:
++	CDataBufCtrlEX(void);
++	~CDataBufCtrlEX(void);
++	void SetID(int nId);
++	int  GetBufferSize();
++	bool PullBuffer(unsigned char*pBuffer, int nSize, unsigned long long dTimestamp,bool bBlock = true);
++	bool PopBuffer(int &nSize, unsigned char* &pBuffer, unsigned long long &dTimestamp, bool bBlock = true);
++	bool PopBufferAll(int &nsize, unsigned char* &pBuffer);
++	bool Reset();
++
++private:
++//	char     m_Buffer[HI_MAX_DATA_SIZE];
++	unsigned char*    m_Buffer;
++	int      m_nBufferLen;
++	FRAME_TIMESTAMP_MAP    m_mapFrameTimeStamp;
++	pthread_mutex_t      m_FrameMutex;
++	pthread_cond_t       m_DataCond;
++
++	int                  m_nPushIndex;
++	int                  m_nPopIndex;
++
++	int                  m_nId;
++
++};
+\ No newline at end of file
+Index: b/testProgs/H264AACSourceData.cpp
+===================================================================
+--- /dev/null
++++ b/testProgs/H264AACSourceData.cpp
+@@ -0,0 +1,113 @@
++#include "H264AACSourceData.h"
++
++CH264AACSourceData::CH264AACSourceData(void)
++{
++	m_bGetVideoData = false; 
++	m_bGetAudioData = false;
++
++	m_VideoFrameBufCtrl.SetID(0);
++	m_AudioFrameBufCtrl.SetID(1);
++
++	memset(m_pAudioAdtsHead, 0, 7);
++}
++
++
++CH264AACSourceData::~CH264AACSourceData(void)
++{
++}
++
++
++bool CH264AACSourceData::GetVideoFrame(unsigned char* &pBuffer, int &nLen, unsigned long long &dTimestamp)
++{
++	//if (!m_bGetVideoData)
++	//{
++	//	m_bGetVideoData = true;
++	//}
++
++	bool bRet = m_VideoFrameBufCtrl.PopBuffer(nLen, pBuffer,dTimestamp,false);
++	return bRet;
++}
++
++bool CH264AACSourceData::GetAudioFrame(unsigned char* &pBuffer, int &nLen, unsigned long long &dTimestamp)
++{
++
++	//if (!m_bGetAudioData)
++	//{
++	//	m_bGetAudioData = true;
++	//}
++	//音频不阻塞
++	bool bRet = m_AudioFrameBufCtrl.PopBuffer(nLen, pBuffer,dTimestamp,false);
++	return bRet;
++}
++
++
++
++bool CH264AACSourceData::AddVideoFrame(unsigned      char*pBuffer,int nLen,unsigned long long dTimestamp )
++{
++	if (m_bGetVideoData)
++	{
++		m_VideoFrameBufCtrl.PullBuffer(pBuffer, nLen,dTimestamp,false);
++	}
++	return true;
++}
++
++bool CH264AACSourceData::AddAudioFrame(unsigned char*pBuffer,int nLen,unsigned long long dTimestamp )
++{
++	if (m_pAudioAdtsHead[0] == 0 || m_pAudioAdtsHead[1] == 0)
++	{
++		memcpy(m_pAudioAdtsHead, pBuffer, 7);
++	}
++
++	if (m_bGetAudioData)
++	{
++		//音频不阻塞
++		m_AudioFrameBufCtrl.PullBuffer(pBuffer, nLen,dTimestamp,false);
++	}
++	return true;
++}
++
++bool CH264AACSourceData::SetVideoDataState(bool bget)
++{
++	m_bGetVideoData = bget;
++	if (!m_bGetVideoData)
++	{
++		m_VideoFrameBufCtrl.Reset();
++	}
++
++	{
++		char sInfo[100] = { 0 };
++		sprintf(sInfo, "rtspserver->SetVideoDataState:%d,0x%x\n", bget,this);
++		printf(sInfo);
++	}
++	return true;
++}
++
++bool CH264AACSourceData::SetAuidoDataState(bool bget)
++{
++	m_bGetAudioData = bget;
++	if (!m_bGetAudioData)
++	{
++		m_AudioFrameBufCtrl.Reset();
++	}
++
++	{
++		char sInfo[100] = { 0 };
++		sprintf(sInfo, "rtspserver->SetAuidoDataState:%d,0x%x\n", bget,this);
++		printf(sInfo);
++	}
++	return true;
++}
++
++void CH264AACSourceData::GetAdtsHead(char* &pAdtsHead)
++{
++	pAdtsHead = m_pAudioAdtsHead;
++}
++
++bool CH264AACSourceData::ClearData()
++{
++	m_VideoFrameBufCtrl.Reset();
++	m_AudioFrameBufCtrl.Reset();
++	m_bGetAudioData = false;
++	m_bGetVideoData = false;
++	return true;
++}
+Index: b/testProgs/H264AACSourceData.h
+===================================================================
+--- /dev/null
++++ b/testProgs/H264AACSourceData.h
+@@ -0,0 +1,32 @@
++#ifndef _H264AACSOURCEDATA_H
++#define _H264AACSOURCEDATA_H
++
++#include "PullDataObj.h"
++
++#include "DataBufCtrlEX.h"
++
++class CH264AACSourceData:public CRtspSourceDataObj
++{
++public:
++	CH264AACSourceData(void);
++	~CH264AACSourceData(void);
++
++	virtual bool       GetVideoFrame(unsigned char* &pBuffer,int &nLen, unsigned long long &dTimestamp);
++	virtual bool       GetAudioFrame(unsigned char* &pBuffer, int &nLen,unsigned long long &dTimestamp);
++	virtual bool       AddVideoFrame(unsigned char*pBuffer, int nLen, unsigned long long dTimestamp);
++	virtual bool       AddAudioFrame(unsigned char*pBuffer, int nLen, unsigned long long dTimestamp);
++	virtual bool       ClearData();
++	virtual bool       SetVideoDataState(bool bget);
++	virtual bool       SetAuidoDataState(bool bget);
++	virtual void       GetAdtsHead(char* &pAdtsHead);
++
++private:
++	CDataBufCtrlEX       m_VideoFrameBufCtrl;
++	CDataBufCtrlEX         m_AudioFrameBufCtrl;
++
++
++	bool               m_bGetVideoData;
++	bool               m_bGetAudioData;
++};
++
++#endif 
+Index: b/testProgs/H264FramedLiveSource.cpp
+===================================================================
+--- /dev/null
++++ b/testProgs/H264FramedLiveSource.cpp
+@@ -0,0 +1,105 @@
++#include "H264FramedLiveSource.h"
++#include <GroupsockHelper.hh>
++#include<liveMedia.hh>
++#include<BasicUsageEnvironment.hh>
++H264FramedLiveSource::H264FramedLiveSource( UsageEnvironment& env,CRtspSourceDataObj* pObj) : FramedSource(env)
++{	
++	//printf("=============================new H264FramedLiveSource\n");
++	//fDurationInMicroseconds = 40000;
++	m_pPullDataObj = pObj;
++	m_startPts = 0;
++	fLastPlayTime = 0;
++	m_dLastTimeStamp = 0;
++	m_dFirstTimeStamp = 0;
++
++	pObj->SetVideoDataState(true);
++	printf("=============================new H264FramedLiveSource\n");
++}
++
++
++H264FramedLiveSource::~H264FramedLiveSource(void)
++{
++	m_pPullDataObj->SetVideoDataState(false);
++	printf("=============================delete H264FramedLiveSource\n");
++
++}
++
++void H264FramedLiveSource::doGetNextFrame()
++{
++	//用光该帧的所有数据，再去用下一帧，如果当前没有数据，则framesize 设置成 0
++
++	fDurationInMicroseconds = 0;
++	fFrameSize = 0;
++	fNumTruncatedBytes = 0;
++
++	
++	int nLen = fMaxSize;
++	unsigned char *pBuffer = m_pBuffer;
++	unsigned long long dTimeStamp = 0;
++	if (m_pPullDataObj->GetVideoFrame(pBuffer, nLen, dTimeStamp))
++	{
++
++		//if (fPresentationTime.tv_sec == 0 && fPresentationTime.tv_usec == 0) {
++		if (m_dFirstTimeStamp == 0) {
++			// This is the first frame, so use the current time:
++			fDurationInMicroseconds = 0;
++			//gettimeofday(&m_fFirstPresentationTime, NULL);
++			////gettimeofday(&fPresentationTime, NULL);
++			//fPresentationTime = m_fFirstPresentationTime;
++			m_dLastTimeStamp = dTimeStamp;
++			m_dFirstTimeStamp = dTimeStamp;
++			gettimeofday(&fPresentationTime, NULL);
++			gettimeofday(&m_fFirstPresentationTime, NULL);
++
++		}
++		else {
++
++			unsigned differTime = dTimeStamp - m_dLastTimeStamp;
++			fDurationInMicroseconds = differTime;
++			m_dLastTimeStamp = dTimeStamp;
++
++
++			unsigned long long uSeconds = m_fFirstPresentationTime.tv_usec + (dTimeStamp - m_dFirstTimeStamp);
++			long tv_sec = uSeconds / 1000000;
++			long tv_usec = uSeconds % 1000000;
++			fPresentationTime.tv_sec = m_fFirstPresentationTime.tv_sec + tv_sec;
++			fPresentationTime.tv_usec = tv_usec;
++		}
++		
++		if (nLen > fMaxSize)
++		{
++			nLen = fMaxSize;
++			fNumTruncatedBytes = nLen - fMaxSize;
++		}
++		memcpy(fTo, pBuffer, nLen);
++		fFrameSize = nLen;
++	}
++	else
++	{
++		if (fPresentationTime.tv_sec == 0 && fPresentationTime.tv_usec == 0) {
++			gettimeofday(&fPresentationTime, NULL);
++		}
++		fDurationInMicroseconds = 40000;
++		nextTask() = envir().taskScheduler().scheduleDelayedTask(20000,
++			(TaskFunc*)FramedSource::afterGetting, this);//表示延迟0秒后再执行 afterGetting 函数
++
++		return;
++	}
++
++	//if (fFrameSize == 0)
++	//{
++	//	printf("video fFrameSize is 0\n");
++	//}
++
++	nextTask() = envir().taskScheduler().scheduleDelayedTask( 0,
++		(TaskFunc*)FramedSource::afterGetting, this);//表示延迟0秒后再执行 afterGetting 函数
++
++
++}
++
++unsigned int H264FramedLiveSource::maxFrameSize() const
++{
++//	return 150000;
++
++	return 1500000;
++}
+Index: b/testProgs/H264FramedLiveSource.h
+===================================================================
+--- /dev/null
++++ b/testProgs/H264FramedLiveSource.h
+@@ -0,0 +1,29 @@
++#pragma once
++
++#include "PullDataObj.h"
++class H264FramedLiveSource:public FramedSource
++{
++public:
++	H264FramedLiveSource(UsageEnvironment& env, CRtspSourceDataObj *pObj);
++	~H264FramedLiveSource(void);
++
++
++protected:
++	virtual void doGetNextFrame();
++	virtual unsigned int maxFrameSize() const;
++
++private:
++	CRtspSourceDataObj *     m_pPullDataObj;
++
++	long long          m_startPts ;
++	timeval            m_start_tval;
++
++	struct timeval fTempTime;
++
++	unsigned char      m_pBuffer[1500000] ;
++	unsigned long long             m_dLastTimeStamp;
++	unsigned long long             m_dFirstTimeStamp;
++	struct timeval                 m_fFirstPresentationTime; 
++	unsigned fLastPlayTime;
++};
++
+Index: b/testProgs/H264LiveVideoServerMediaSubssion.cpp
+===================================================================
+--- /dev/null
++++ b/testProgs/H264LiveVideoServerMediaSubssion.cpp
+@@ -0,0 +1,117 @@
++#include "H264LiveVideoServerMediaSubssion.h"
++#include "H264FramedLiveSource.h"
++
++
++H264LiveVideoServerMediaSubssion::~H264LiveVideoServerMediaSubssion(void)
++{
++	//m_pPullDataObj->SubClientRef();
++}
++
++H264LiveVideoServerMediaSubssion* H264LiveVideoServerMediaSubssion::createNew( UsageEnvironment& env,CRtspSourceDataObj *pObj )
++{
++	return new H264LiveVideoServerMediaSubssion(env,pObj);
++}
++
++H264LiveVideoServerMediaSubssion::H264LiveVideoServerMediaSubssion( UsageEnvironment& env, CRtspSourceDataObj *pObj ):\
++	OnDemandServerMediaSubsession(env, true)
++{
++	m_pSourceDataObj = pObj;
++	m_pSDPLine = NULL;
++	m_pDummyRTPSink = NULL;
++}
++char const * H264LiveVideoServerMediaSubssion::getAuxSDPLine2(RTPSink * rtpSink, FramedSource * inputSource)
++{
++	if (m_pSDPLine)
++	{
++		return m_pSDPLine;
++	}
++	m_pDummyRTPSink = rtpSink;
++
++	//mp_dummy_rtpsink->startPlaying(*source, afterPlayingDummy, this);  
++	m_pDummyRTPSink->startPlaying(*inputSource, 0, 0);
++
++	chkForAuxSDPLine(this);
++
++	m_done = 0;
++
++	envir().taskScheduler().doEventLoop(&m_done);
++
++	m_pSDPLine = strdup(m_pDummyRTPSink->auxSDPLine());
++
++	m_pDummyRTPSink->stopPlaying();
++
++	return m_pSDPLine;
++}
++FramedSource* H264LiveVideoServerMediaSubssion::createNewStreamSource( unsigned clientSessionId, unsigned& estBitrate )
++{
++	printf("=====================createNewStreamSource\n");
++	m_pSourceDataObj->ClearData();
++	FramedSource* pFrameSource = new H264FramedLiveSource(envir(),m_pSourceDataObj);
++	estBitrate = 500;
++	OutPacketBuffer::increaseMaxSizeTo(100000); // bytes
++	FramedSource* result = H264VideoStreamFramer::createNew(envir(),pFrameSource);
++	return result;
++}
++
++RTPSink* H264LiveVideoServerMediaSubssion::createNewRTPSink( Groupsock* rtpGroupsock, unsigned char rtpPayloadTypeIfDynamic, FramedSource* inputSource )
++{
++	RTPSink* result = NULL;
++	result = H264VideoRTPSink::createNew(envir(), rtpGroupsock, rtpPayloadTypeIfDynamic);
++	return result;
++}
++
++void H264LiveVideoServerMediaSubssion::startStream( unsigned clientSessionId, void* streamToken, TaskFunc* rtcpRRHandler, void* rtcpRRHandlerClientData, unsigned short& rtpSeqNum, unsigned& rtpTimestamp, ServerRequestAlternativeByteHandler* serverRequestAlternativeByteHandler, void* serverRequestAlternativeByteHandlerClientData )
++{
++	//m_pPullDataObj->AddClientRef();
++
++	OnDemandServerMediaSubsession::startStream(clientSessionId, streamToken, rtcpRRHandler, rtcpRRHandlerClientData, rtpSeqNum,
++		rtpTimestamp, serverRequestAlternativeByteHandler, serverRequestAlternativeByteHandlerClientData);
++}
++void H264LiveVideoServerMediaSubssion::afterPlayingDummy(void * ptr)
++{
++	H264LiveVideoServerMediaSubssion * This = (H264LiveVideoServerMediaSubssion *)ptr;
++
++	This->m_done = 0xff;
++}
++
++void H264LiveVideoServerMediaSubssion::chkForAuxSDPLine(void * ptr)
++{
++	H264LiveVideoServerMediaSubssion * This = (H264LiveVideoServerMediaSubssion *)ptr;
++
++	This->chkForAuxSDPLine1();
++}
++
++void H264LiveVideoServerMediaSubssion::chkForAuxSDPLine1()
++{
++	if (NULL == m_pDummyRTPSink)
++	{
++		return;
++	}
++	if (m_pDummyRTPSink->auxSDPLine())
++	{
++		m_done = 0xff;
++	}
++	else
++	{
++		double delay = 1000.0 / (25);  // ms  
++		int to_delay = delay * 1000;  // us  
++
++		nextTask() = envir().taskScheduler().scheduleDelayedTask(to_delay, chkForAuxSDPLine, this);
++	}
++}
++
++void H264LiveVideoServerMediaSubssion::deleteStream(unsigned clientSessionId, void*& streamToken)
++{
++	OnDemandServerMediaSubsession::deleteStream(clientSessionId, streamToken);
++	{
++		char sInfo[1000] = { 0 };
++		sprintf(sInfo, "==============================H264LiveVideoServerMediaSubssion::deleteStream:0x%x,  fDestinationsHashTable size : %d\n", this, fDestinationsHashTable->numEntries());
++		printf(sInfo);
++	}
++	
++	if (fDestinationsHashTable->IsEmpty())
++	{
++
++		m_pSourceDataObj->SetVideoDataState(false);
++	}
++}
+Index: b/testProgs/H264LiveVideoServerMediaSubssion.h
+===================================================================
+--- /dev/null
++++ b/testProgs/H264LiveVideoServerMediaSubssion.h
+@@ -0,0 +1,37 @@
++#pragma once
++#include <OnDemandServerMediaSubsession.hh>
++#include "PullDataObj.h"
++
++class H264LiveVideoServerMediaSubssion: public OnDemandServerMediaSubsession
++{
++public:
++	static H264LiveVideoServerMediaSubssion* createNew(UsageEnvironment& env,CRtspSourceDataObj *pObj);
++	~H264LiveVideoServerMediaSubssion(void);
++
++protected:
++	virtual char const * getAuxSDPLine2(RTPSink * rtpSink, FramedSource * inputSource);
++	H264LiveVideoServerMediaSubssion(UsageEnvironment& env, CRtspSourceDataObj *pObj);
++	virtual FramedSource* createNewStreamSource(unsigned clientSessionId, unsigned& estBitrate);
++	virtual RTPSink* createNewRTPSink(Groupsock* rtpGroupsock, unsigned char rtpPayloadTypeIfDynamic, FramedSource* inputSource);
++	virtual void startStream(unsigned clientSessionId, void* streamToken,
++		TaskFunc* rtcpRRHandler,
++		void* rtcpRRHandlerClientData,
++		unsigned short& rtpSeqNum,
++		unsigned& rtpTimestamp,
++		ServerRequestAlternativeByteHandler* serverRequestAlternativeByteHandler,
++		void* serverRequestAlternativeByteHandlerClientData);
++
++	static void afterPlayingDummy(void * ptr);
++
++	static void chkForAuxSDPLine(void * ptr);
++	void chkForAuxSDPLine1();
++	virtual void deleteStream(unsigned clientSessionId, void*& streamToken);
++
++private:
++	CRtspSourceDataObj*            m_pSourceDataObj;
++
++	char * m_pSDPLine;
++	RTPSink * m_pDummyRTPSink;
++	char m_done;
++};
++
+Index: b/testProgs/IRtspServer.h
+===================================================================
+--- /dev/null
++++ b/testProgs/IRtspServer.h
+@@ -0,0 +1,15 @@
++#pragma once
++class IRtspServerEX
++{
++public:
++	static IRtspServerEX*   CreateRTSPServerEX();
++	virtual ~IRtspServerEX() {};
++	virtual int     Init(short sPort) = 0;//初始化端口号
++	virtual int     CreateStreamUrl(char const* streamName) = 0;//创建流地址
++	virtual bool    PushVideoData(unsigned char *pBuf, int nlen, unsigned long long dTime) = 0;  //视频数据(I帧带SPS，PPS，内部自动识别视频参数配置)
++};
++
++
++
++
++
+Index: b/testProgs/Makefile
+===================================================================
+--- a/testProgs/Makefile
++++ b/testProgs/Makefile
+@@ -1,5 +1,5 @@
+ PREFIX = /usr/local
+-INCLUDES = -I../UsageEnvironment/include -I../groupsock/include -I../liveMedia/include -I../BasicUsageEnvironment/include
++INCLUDES =-I../UsageEnvironment/include -I../groupsock/include -I../liveMedia/include -I../BasicUsageEnvironment/include
+ # Default library filename suffixes for each library that we link with.  The "config.*" file might redefine these later.
+ libliveMedia_LIB_SUFFIX = $(LIB_SUFFIX)
+ libBasicUsageEnvironment_LIB_SUFFIX = $(LIB_SUFFIX)
+@@ -42,6 +42,9 @@ HELPER_OBJS = announceURL.$(OBJ)
+ 
+ VIDEO_STREAMER_OBJS = VideoStreamer.$(OBJ)
+ VIDEO_STREAMER_FILE_OBJS = VideoStreamerFile.$(OBJ)
++RTSP_OBJS = DataBufCtrlEX.o H264AACSourceData.o H264FramedLiveSource.o H264LiveVideoServerMediaSubssion.o  RtspServerEX.o
++
++
+ 
+ announceURL.$(CPP): 			   announceURL.hh
+ VideoStreamer.$(CPP):                       announceURL.hh VideoStreamer.hh
+@@ -51,6 +54,15 @@ openRTSP.$(CPP):	playCommon.hh
+ playCommon.$(CPP):	playCommon.hh
+ playSIP.$(CPP):		playCommon.hh
+ 
++
++
++DataBufCtrlEX.$(CPP):DataBufCtrlEX.h
++H264AACSourceData.$(CPP):H264AACSourceData.h
++H264FramedLiveSource.$(CPP):H264FramedLiveSource.h
++H264LiveVideoServerMediaSubssion.$(CPP):H264LiveVideoServerMediaSubssion.h
++RtspServerEX.$(CPP):announceURL.hh IRtspServer.h RtspServerEX.h H264AACSourceData.h H264LiveVideoServerMediaSubssion.h 
++
++
+ USAGE_ENVIRONMENT_DIR = ../UsageEnvironment
+ USAGE_ENVIRONMENT_LIB = $(USAGE_ENVIRONMENT_DIR)/libUsageEnvironment.$(libUsageEnvironment_LIB_SUFFIX)
+ BASIC_USAGE_ENVIRONMENT_DIR = ../BasicUsageEnvironment
+@@ -63,8 +75,8 @@ LOCAL_LIBS =	$(LIVEMEDIA_LIB) $(GROUPSOC
+ 		$(BASIC_USAGE_ENVIRONMENT_LIB) $(USAGE_ENVIRONMENT_LIB)
+ LIBS =			$(LOCAL_LIBS) $(LIBS_FOR_CONSOLE_APPLICATION)
+ 
+-VideoStreamer.$(LIB_SUFFIX):$(VIDEO_STREAMER_OBJS)  $(HELPER_OBJS) $(LOCAL_LIBS)
+-	$(LIBRARY_LINK)$@ $(LIBRARY_LINK_OPTS) $(VIDEO_STREAMER_OBJS) $(HELPER_OBJS) $(LOCAL_LIBS)
++VideoStreamer.$(LIB_SUFFIX):$(VIDEO_STREAMER_OBJS) $(RTSP_OBJS)  $(HELPER_OBJS) $(LOCAL_LIBS)
++	$(LIBRARY_LINK)$@ $(LIBRARY_LINK_OPTS) $(VIDEO_STREAMER_OBJS) $(RTSP_OBJS) $(HELPER_OBJS) $(LOCAL_LIBS)
+ VideoStreamerFile$(EXE):$(VIDEO_STREAMER_FILE_OBJS)  $(HELPER_OBJS) $(LOCAL_LIBS)
+ 	$(LINK)$@ $(CONSOLE_LINK_OPTS) $(VIDEO_STREAMER_FILE_OBJS) $(HELPER_OBJS) $(LOCAL_LIBS)
+ 
+Index: b/testProgs/PullDataObj.h
+===================================================================
+--- /dev/null
++++ b/testProgs/PullDataObj.h
+@@ -0,0 +1,106 @@
++#pragma once
++#include<iostream>
++using namespace std;
++#include<string>
++#include <list>
++#include<string.h>
++#include<liveMedia.hh>
++
++#define TEST_NEW  1
++typedef enum tag_TrackType
++{
++	emTrackUnknown =0,
++	emTrackVideo = 1,
++	emTrackAudio,
++	emTrackSubtitle,
++}TRACK_TYPE;
++typedef struct  tag_StreamTrack {
++	// track parameters
++	unsigned trackNumber;
++	TRACK_TYPE trackType;
++	unsigned samplingRate;
++	unsigned numChannels;
++	std::string mimeType;
++	unsigned codecPrivateSize;
++	unsigned char* codecPrivate;
++	tag_StreamTrack()
++	{
++		trackNumber = -1;
++		trackType = emTrackUnknown;
++		samplingRate = 0;
++		numChannels = 0;
++		codecPrivateSize = 0;
++		codecPrivate = NULL;
++	}
++}STREAM_TRACK;
++
++typedef struct tag_FrameInfo
++{
++	unsigned char *pBuffer;
++	int    dwSize;
++	long long  pts;
++	long long  dts;
++	bool       bkey;
++
++	tag_FrameInfo()
++	{
++		pBuffer = NULL;
++		dwSize = 0;
++		pts = 0;
++		dts = 0;
++		bkey = false;
++	}
++
++	void SetInfo(unsigned char*p1,int size1,long long pts1,long long dts1, bool key1)
++	{
++		if (pBuffer != NULL)
++		{
++			delete[] pBuffer;
++			pBuffer = NULL;
++		}
++
++		pBuffer = new unsigned char[size1];
++		memcpy(pBuffer,p1,size1);
++		pts = pts1;
++		dts = dts1;
++		bkey = key1;
++		dwSize = size1;
++	}
++
++	~tag_FrameInfo()
++	{
++		if (pBuffer != NULL)
++		{
++			delete[] pBuffer;
++			pBuffer = NULL;
++		}
++		pts = 0;
++		dts = 0;
++		bkey = false;
++		dwSize = 0;
++	}
++
++
++}FRAME_INFO;
++
++typedef std::list<FRAME_INFO*> FRAME_INFO_LIST;
++
++
++
++class CRtspSourceDataObj
++{
++public:
++	virtual        ~CRtspSourceDataObj(){}
++	virtual bool       GetVideoFrame(unsigned char* &pBuffer, int &nLen,unsigned long long &dTimestamp) = 0;
++	virtual bool       GetAudioFrame(unsigned char* &pBuffer, int &nLen, unsigned long long &dTimestamp) = 0;
++	virtual bool       AddVideoFrame(unsigned char*pBuffer,int nLen,unsigned long long dTimestamp) = 0;
++	virtual bool       AddAudioFrame(unsigned char*pBuffer,int nLen,unsigned long long dTimestamp) = 0;
++	virtual bool       SetVideoDataState(bool bget) = 0;
++	virtual bool       SetAuidoDataState(bool bget) = 0;
++	virtual bool       ClearData() = 0;
++	virtual void       GetAdtsHead(char* &pAdtsHead) =0;
++
++public:
++	char    m_pAudioAdtsHead[7];
++};
++
+Index: b/testProgs/RtspServerEX.cpp
+===================================================================
+--- /dev/null
++++ b/testProgs/RtspServerEX.cpp
+@@ -0,0 +1,122 @@
++#include "RtspServerEX.h"
++#include "VideoStreamer.hh"
++#include "H264AACSourceData.h"
++#include "H264LiveVideoServerMediaSubssion.h"
++#include<liveMedia.hh>
++#include<BasicUsageEnvironment.hh>
++#include"announceURL.hh"
++
++IRtspServerEX* IRtspServerEX::CreateRTSPServerEX()
++{
++	IRtspServerEX *pRtspServerEX = new CRtspServerEX;
++	return pRtspServerEX;
++}
++
++
++bool CRtspServerEX::m_sbInitLog = false;
++CRtspServerEX::CRtspServerEX()
++{
++	m_pSourceData = NULL;
++	m_nCurUrlIndex = -1;
++	m_bInit = false;
++	m_rtspServer = NULL;
++	m_Port = 0;
++	m_pEnv = NULL;
++	memset(m_sStreamName, 0, 256);
++	m_bInitStream = false;
++}
++
++
++CRtspServerEX::~CRtspServerEX()
++{
++}
++
++
++int CRtspServerEX::CreateStreamUrl(char const* streamName)
++{
++	strcpy(m_sStreamName, streamName);
++
++
++	return _InitStreamUrl();
++
++}
++
++
++
++bool CRtspServerEX::PushVideoData(unsigned char *pBuf, int nlen, unsigned long long dTime)
++{
++
++	if (m_pSourceData == NULL)
++	{
++		return false;
++	}
++	return m_pSourceData->AddVideoFrame(pBuf, nlen, dTime);
++}
++
++
++void* CRtspServerEX::StartRtspEventLoop(void* pUser)
++{
++	CRtspServerEX *pThis = (CRtspServerEX*)pUser;
++	pThis->m_pEnv->taskScheduler().doEventLoop(); // does not return
++	return NULL;
++}
++
++
++
++int CRtspServerEX::_InitStreamUrl()
++{
++	m_nCurUrlIndex++;
++	m_pSourceData = new CH264AACSourceData();
++
++	char const* descriptionString = "Session streamed by \"testOnDemandRTSPServer\"";
++	ServerMediaSession* sms = ServerMediaSession::createNew(*m_pEnv, m_sStreamName, m_sStreamName, descriptionString);
++
++
++	//OutPacketBuffer::maxSize = 10000000;
++	OutPacketBuffer::maxSize = 10000000;//max framesize
++	sms->addSubsession(H264LiveVideoServerMediaSubssion
++		::createNew(*m_pEnv, m_pSourceData));//修改为自己实现的servermedia  H264LiveVideoServerMediaSubssion
++
++	m_rtspServer->addServerMediaSession(sms);
++
++	announceURL(m_rtspServer, sms);
++
++	//	s_pEnv<< "create url:rtsp://ip:" << CRtspServer::s_Port << "/" << streamName << "\n"; 
++	m_bInitStream = true;
++	return m_nCurUrlIndex;
++}
++
++int CRtspServerEX::Init(short sPort)
++{
++	if (m_bInit)
++	{
++		return -1;
++	}
++
++	m_bInit = true;
++	m_Port = sPort;
++
++	TaskScheduler* scheduler = BasicTaskScheduler::createNew();
++	m_pEnv = BasicUsageEnvironment::createNew(*scheduler);
++
++	UserAuthenticationDatabase* authDB = NULL;
++	m_rtspServer = RTSPServer::createNew(*m_pEnv, sPort, authDB,30);
++	if (m_rtspServer == NULL) {
++		*m_pEnv << "Failed to create RTSP server: " << m_pEnv->getResultMsg() << "\n";
++		return -1;
++		//exit(1);
++	}
++
++	*m_pEnv << "create rtspserver:" << sPort << "success" << "\n";
++
++
++
++
++
++	OutPacketBuffer::maxSize = 10000000;//max framesize
++	//CreateThread(NULL, 0, StartRtspEventLoop, (LPVOID)NULL, 0, NULL);
++	pthread_t tid1;
++	pthread_create(&tid1, NULL, StartRtspEventLoop, this);
++
++	return 0;
++}
+Index: b/testProgs/RtspServerEX.h
+===================================================================
+--- /dev/null
++++ b/testProgs/RtspServerEX.h
+@@ -0,0 +1,35 @@
++#pragma once
++class CRtspSourceDataObj;
++class UsageEnvironment;
++class RTSPServer;
++#include"IRtspServer.h"
++
++
++class CRtspServerEX:public IRtspServerEX
++{
++public:
++	CRtspServerEX();
++	~CRtspServerEX();
++
++	int     Init(short sPort) ;
++	int     CreateStreamUrl(char const* streamName);
++	bool    PushVideoData(unsigned char *pBuf, int nlen, unsigned long long dTime);
++
++protected:
++	static void* StartRtspEventLoop(void* pUser);
++
++	int    _InitStreamUrl();
++
++private:
++	bool     m_bInitStream;
++	char     m_sStreamName[256];
++	static bool m_sbInitLog;
++	short m_Port;
++	bool  m_bInit;
++	RTSPServer* m_rtspServer;
++	UsageEnvironment* m_pEnv;
++
++	CRtspSourceDataObj  *m_pSourceData;
++	int          m_nCurUrlIndex;
++};
++
+Index: b/testProgs/VideoStreamer.hh
+===================================================================
+--- a/testProgs/VideoStreamer.hh
++++ b/testProgs/VideoStreamer.hh
+@@ -1,12 +1,14 @@
+-#include <iostream>
+-#include <string>
+-#include <stdlib.h>
+-#include <stdio.h>
+-
+-//#define SYNC_WITH_ENC    1
+-
+-#define BANK_SIZE 150000
+-
+-int VideoStreamer_init(double framerate);
+-int VideoStreamer(long bufAddr, uint32_t bufSize, void *shared_vAddr);
+-int VideoStreamer_deinit();
++#include <iostream>
++#include <string>
++#include <stdlib.h>
++#include <stdio.h>
++
++//#define SYNC_WITH_ENC    1
++
++#define BANK_SIZE 150000
++
++int VideoStreamer_init(double framerate);
++int VideoStreamer(long bufAddr, uint32_t bufSize, void *shared_vAddr);
++int VideoStreamer_deinit();
++
++

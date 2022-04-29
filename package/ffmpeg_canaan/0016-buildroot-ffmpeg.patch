@@ -1,0 +1,13 @@
+Index: b/libavdevice/v4l2.c
+===================================================================
+--- a/libavdevice/v4l2.c
++++ b/libavdevice/v4l2.c
+@@ -316,7 +316,7 @@ static void isp_init(AVFormatContext *ct
+     *(volatile unsigned int *)(reg+0x290) = 0x110;
+     printf("0x99900290: from 0x%08x to 0x%08x\n", s->reg_h264_bw, *(volatile unsigned int *)(reg+0x290));
+     s->reg_h264_mode = *(volatile unsigned int *)(reg+0x28c);
+-    *(volatile unsigned int *)(reg+0x28c) = 1;
++    *(volatile unsigned int *)(reg+0x28c) = 0;
+     printf("0x9990028c: from 0x%08x to 0x%08x\n", s->reg_h264_mode, *(volatile unsigned int *)(reg+0x28c));
+     s->reg_isp_mode = *(volatile unsigned int *)(reg+0x38c);
+     *(volatile unsigned int *)(reg+0x38c) = 0;

@@ -1,0 +1,986 @@
+Index: b/libavdevice/v4l2.c
+===================================================================
+--- a/libavdevice/v4l2.c
++++ b/libavdevice/v4l2.c
+@@ -36,6 +36,7 @@
+ #include <dirent.h>
+ #include "media_ctl.h"
+ #include "libavutil/time.h"
++#include "cJSON.h"
+ 
+ #if CONFIG_LIBV4L2
+ #include <libv4l2.h>
+@@ -77,6 +78,7 @@ struct share_memory_alloc_align_args {
+ 
+ #define SHARE_MEMORY_DEV "/dev/k510-share-memory"
+ #define DEV_NAME_DDR "/dev/mem"
++#define REAL_CONF_FILENAME "video_real.conf"
+ #define MEMORY_TEST_BLOCK_ALIGN 4096        /* align 4k for mmap */
+ #define SHARE_MEMORY_ALLOC          _IOWR('m', 1, unsigned long)
+ #define SHARE_MEMORY_ALIGN_ALLOC    _IOWR('m', 2, unsigned long)
+@@ -106,7 +108,7 @@ struct video_data {
+     int fd_share_memory;
+     int pts;
+ 	  int repeat_index;
+-	  unsigned int buf_bytesused;
++	  unsigned int buf_bytesused;
+     unsigned int reg_QoS_ctrl0;
+     unsigned int reg_QoS_ctrl1;
+     unsigned int reg_QoS_ctrl2;
+@@ -117,8 +119,8 @@ struct video_data {
+     unsigned int reg_ddr_cli;
+     unsigned long int time;
+     unsigned long int start_time;
+-    unsigned long int check_time;
+-    int fr;
++    unsigned long int check_time;
++    int fr;
+     int isp_pic_cnt;
+     /*----------------------------------------*/
+ 
+@@ -147,6 +149,9 @@ struct video_data {
+     ssize_t (*read_f)(int fd, void *buffer, size_t n);
+     void *(*mmap_f)(void *start, size_t length, int prot, int flags, int fd, int64_t offset);
+     int (*munmap_f)(void *_start, size_t length);
++
++    char *conf_filename;
++    struct video_info dev_info[2];
+ };
+ 
+ struct buff_data {
+@@ -154,10 +159,115 @@ struct buff_data {
+     int index;
+ };
+ 
+-static void isp_init(AVFormatContext *ctx)
++int parse_conf(char* dev_name, char* filename, int width, int height);
++int parse_conf(char* dev_name, char* filename, int width, int height)
++{
++  printf("%s\n",__FUNCTION__);
++  FILE *fp;
++  long len;
++  char* data;
++  char* out;
++  char* out2;
++
++  cJSON *root;
++  cJSON *arrayItem;
++  cJSON *item;
++  cJSON *newitem;
++  cJSON *object;
++  cJSON *sensor0;
++  cJSON *video;
++  int i = 0;
++
++  fp=fopen(filename,"rb");
++  if(NULL == fp)
++  {
++    printf("read %s:file no exist!\n",__func__);
++    return -1;
++  }
++  fseek(fp,0,SEEK_END);
++  len=ftell(fp);
++  fseek(fp,0,SEEK_SET);
++  data=(char*)malloc(len+1);
++  fread(data,1,len,fp);
++  fclose(fp);
++  // doit_video_cfg(data,vi_cfg,sensor0,sensor1,dev_info);
++
++  root=cJSON_Parse(data);
++  if (!root) 
++  {
++      printf("Error before: [%s]\n",cJSON_GetErrorPtr());
++  }
++  else
++  {
++    out=cJSON_Print(root);
++
++    sensor0 = cJSON_GetObjectItem(root,"sensor0");
++    if(sensor0 != NULL)
++    {
++      // int size=cJSON_GetArraySize(arrayItem);
++      if(strcmp(dev_name, "/dev/video3") == 0)
++      {
++        video = cJSON_GetObjectItem(sensor0,"/dev/video3");
++        item = cJSON_GetObjectItem(video, "video3_used");
++        cJSON_SetIntValue(item, 1);
++
++        item = cJSON_GetObjectItem(video, "video3_width");
++        cJSON_SetIntValue(item, width);
++
++        item = cJSON_GetObjectItem(video, "video3_height");
++        cJSON_SetIntValue(item, height);
++      }
++      else if(strcmp(dev_name, "/dev/video5") == 0)
++      {
++        video = cJSON_GetObjectItem(sensor0,"/dev/video5");
++        item = cJSON_GetObjectItem(video, "video5_used");
++        cJSON_SetIntValue(item, 1);
++
++        item = cJSON_GetObjectItem(video, "video5_width");
++        cJSON_SetIntValue(item, width);
++
++        item = cJSON_GetObjectItem(video, "video5_height");
++        cJSON_SetIntValue(item, height);
++      }
++      else if(strcmp(dev_name, "/dev/video9") == 0)
++      {
++        video = cJSON_GetObjectItem(sensor0,"/dev/video9");
++        item = cJSON_GetObjectItem(video, "video9_used");
++        cJSON_SetIntValue(item, 1);
++        item = cJSON_GetObjectItem(video, "video9_width");
++        cJSON_SetIntValue(item, width);
++        item = cJSON_GetObjectItem(video, "video9_height");
++        cJSON_SetIntValue(item, height);
++      }      
++
++    }
++  }
++
++  printf("%s>modified\n", __FUNCTION__);
++  // fp=fopen(filename,"w");
++  fp=fopen(REAL_CONF_FILENAME,"w+");
++  if(NULL == fp)
++  {
++    printf("write %s:file no exist!\n",__func__);
++    return -1;
++  }
++
++  out2 = cJSON_Print(root);
++  fprintf(fp,"%s",out2);
++  fprintf(fp,"%s",out);
++
++  fclose(fp);
++  free(out);
++  free(out2);
++
++  free(data);
++  return 0;
++}
++
++static void isp_init(AVFormatContext *ctx, char* device_path)
+ {
+     struct video_data *s = ctx->priv_data;
+-    struct mediactl_info m_info;
++    // struct mediactl_info m_info;
+     unsigned char *reg;
+   
+     s->fd_share_memory = open(SHARE_MEMORY_DEV,O_RDWR | O_SYNC);
+@@ -171,12 +281,19 @@ static void isp_init(AVFormatContext *ct
+     {
+         av_log(ctx, AV_LOG_ERROR, "Open %s Error!\n", DEV_NAME_DDR);
+     } 
+-    
+-    m_info.active_width = s->width;
+-    m_info.active_height = s->height;
+-    m_info.video_width = s->width;
+-    m_info.video_height = s->height;
+-    mediactl_init(&m_info);
++
++    printf("%s>device_path: %s\n", __FUNCTION__, device_path);
++    if(parse_conf(device_path, s->conf_filename, s->width, s->height) < 0)
++    {
++      printf("parse_conf error\n");
++      return -1;
++    }
++
++    if(mediactl_init(REAL_CONF_FILENAME, &s->dev_info) < 0)
++    {
++        printf("mediactl_init error!\n");
++        return -1;
++    }
+   
+     //mediactl_set_ae();
+     
+@@ -199,7 +316,7 @@ static void isp_init(AVFormatContext *ct
+     *(volatile unsigned int *)(reg+0x290) = 0x110;
+     printf("0x99900290: from 0x%08x to 0x%08x\n", s->reg_h264_bw, *(volatile unsigned int *)(reg+0x290));
+     s->reg_h264_mode = *(volatile unsigned int *)(reg+0x28c);
+-    *(volatile unsigned int *)(reg+0x28c) = 0;
++    *(volatile unsigned int *)(reg+0x28c) = 1;
+     printf("0x9990028c: from 0x%08x to 0x%08x\n", s->reg_h264_mode, *(volatile unsigned int *)(reg+0x28c));
+     s->reg_isp_mode = *(volatile unsigned int *)(reg+0x38c);
+     *(volatile unsigned int *)(reg+0x38c) = 0;
+@@ -248,15 +365,15 @@ static unsigned long int get_time()
+   clock_gettime(CLOCK_REALTIME, &time);
+   
+   return time.tv_sec * 1000LL * 1000LL * 1000LL + time.tv_nsec;
+-}
++}
+ 
+ static int isp_sync(AVFormatContext *ctx)
+-{
+-  struct video_data *s = ctx->priv_data;
+-
+-  s->isp_pic_cnt++;
+-
+-  s->time = get_time();
++{
++  struct video_data *s = ctx->priv_data;
++
++  s->isp_pic_cnt++;
++
++  s->time = get_time();
+   
+   if(s->start_time == 0)
+   {
+@@ -266,7 +383,7 @@ static int isp_sync(AVFormatContext *ctx
+   if(s->check_time == 0)
+   {
+     s->check_time = s->time;
+-  }     
++  }     
+         
+   if(s->time - s->check_time >= 1000000000)
+   {
+@@ -283,7 +400,7 @@ static int isp_sync(AVFormatContext *ctx
+       if(delta > duration/2)
+       {
+         //printf("repeat: cnt %d, elasp_time %.4f ms, cap_time %.4f ms\n", s->isp_pic_cnt, elasp_time/1000.0, cap_time/1000.0);
+-        return 1;
++        return 1;
+       }
+     }
+     else
+@@ -292,13 +409,13 @@ static int isp_sync(AVFormatContext *ctx
+       if(delta > duration/2)
+       {
+         //printf("drop: cnt %d, elasp_time %.4f ms, cap_time %.4f ms\n", s->isp_pic_cnt, elasp_time/1000.0, cap_time/1000.0);
+-        return -1;
++        return -1;
+       }
+     }
+   }
+   
+-  return 0;
+-}
++  return 0;
++}
+ 
+ static int device_open(AVFormatContext *ctx, const char* device_path)
+ {
+@@ -343,7 +460,7 @@ static int device_open(AVFormatContext *
+ 
+     if(s->isp)
+     {
+-        isp_init(ctx);
++        isp_init(ctx, device_path);
+ 		    s->repeat_index = ISP_ADDR_BUFFER_CNT;
+     }
+ 
+@@ -665,7 +782,7 @@ static void mmap_release_buffer(void *op
+     struct v4l2_buffer buf = { 0 };
+     struct buff_data *buf_descriptor = opaque;
+     struct video_data *s = buf_descriptor->s;
+-
++
+     if(s->fd < 0)  return;
+ 
+     buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+@@ -677,18 +794,18 @@ static void mmap_release_buffer(void *op
+         buf.m.userptr = (unsigned long)s->buf_start[buf.index];
+     }
+     av_free(buf_descriptor);
+-
++
+     //printf("%s>index %d\n", __FUNCTION__, buf_descriptor->index);
+-    
++    
+     enqueue_buffer(s, &buf);
+ }
+-
+-static void mmap_no_release_buffer(void *opaque, uint8_t *data)
+-{
+-    //do nothing
+-    return;
++
++static void mmap_no_release_buffer(void *opaque, uint8_t *data)
++{
++    //do nothing
++    return;
+ }
+-
++
+ #if HAVE_CLOCK_GETTIME && defined(CLOCK_MONOTONIC)
+ static int64_t av_gettime_monotonic(void)
+ {
+@@ -749,7 +866,7 @@ static int convert_timestamp(AVFormatCon
+ #endif
+     return 0;
+ }
+-
++
+ static int mmap_read_frame_usrptr(AVFormatContext *ctx, AVPacket *pkt)
+ {
+     struct video_data *s = ctx->priv_data;
+@@ -759,8 +876,8 @@ static int mmap_read_frame_usrptr(AVForm
+     };
+     struct timeval buf_ts;
+     int res, ret;
+-    int repeat = 0;
+-    struct buff_data *buf_descriptor;
++    int repeat = 0;
++    struct buff_data *buf_descriptor;
+ 
+     pkt->size = 0;
+ 
+@@ -768,7 +885,7 @@ static int mmap_read_frame_usrptr(AVForm
+     {
+       buf.index = s->repeat_index;
+       buf.bytesused = s->buf_bytesused;
+-      s->repeat_index = ISP_ADDR_BUFFER_CNT;
++      s->repeat_index = ISP_ADDR_BUFFER_CNT;
+     }
+     else
+     {
+@@ -789,29 +906,29 @@ static int mmap_read_frame_usrptr(AVForm
+       ret = isp_sync(ctx);
+       if(ret == -1)
+       {
+-        struct buff_data *buf_descriptor;
+-        
++        struct buff_data *buf_descriptor;
++        
+         pkt->size = 0;
+         s->repeat_index = ISP_ADDR_BUFFER_CNT;
+-
+-        buf_descriptor = av_malloc(sizeof(struct buff_data));
+-        buf_descriptor->index = buf.index;
+-        buf_descriptor->s     = s;
+-        mmap_release_buffer(buf_descriptor, NULL);
+-        //printf("%s>drop index %d\n", __FUNCTION__, buf.index);
++
++        buf_descriptor = av_malloc(sizeof(struct buff_data));
++        buf_descriptor->index = buf.index;
++        buf_descriptor->s     = s;
++        mmap_release_buffer(buf_descriptor, NULL);
++        //printf("%s>drop index %d\n", __FUNCTION__, buf.index);
+         return 0;
+       }
+       else if(ret == 1)
+       {
+         s->repeat_index = buf.index;
+-        s->buf_bytesused = buf.bytesused;
+-        repeat = 1;
+-        //printf("%s>repeat index %d\n", __FUNCTION__, buf.index);
++        s->buf_bytesused = buf.bytesused;
++        repeat = 1;
++        //printf("%s>repeat index %d\n", __FUNCTION__, buf.index);
+       }
+       else
+       {
+         s->repeat_index = ISP_ADDR_BUFFER_CNT;
+-        //printf("%s>index %d\n", __FUNCTION__, buf.index);
++        //printf("%s>index %d\n", __FUNCTION__, buf.index);
+       }
+     }    
+     
+@@ -838,16 +955,16 @@ static int mmap_read_frame_usrptr(AVForm
+     }
+     buf_descriptor->index = buf.index;
+     buf_descriptor->s = s;
+-
+-    if(repeat == 1)
++
++    if(repeat == 1)
+     {
+-        pkt->buf = av_buffer_create(pkt->data, pkt->size, mmap_no_release_buffer, buf_descriptor, 0);
+-    }
++        pkt->buf = av_buffer_create(pkt->data, pkt->size, mmap_no_release_buffer, buf_descriptor, 0);
++    }
+     else
+-    {
++    {
+         pkt->buf = av_buffer_create(pkt->data, pkt->size, mmap_release_buffer, buf_descriptor, 0);
+-    }
+-    
++    }
++    
+     if (!pkt->buf) {
+         av_log(ctx, AV_LOG_ERROR, "Failed to create a buffer\n");
+         enqueue_buffer(s, &buf);
+@@ -864,114 +981,114 @@ static int mmap_read_frame_usrptr(AVForm
+     
+     //printf("%s>data 0x%x, pts %ld, size %d\n", __FUNCTION__, pkt->data, pkt->pts, pkt->size);
+     return pkt->size;
+-}
+-
++}
++
+ 
+ static int mmap_read_frame(AVFormatContext *ctx, AVPacket *pkt)
+-{
+-    struct video_data *s = ctx->priv_data;
+-    struct v4l2_buffer buf = {
+-        .type   = V4L2_BUF_TYPE_VIDEO_CAPTURE,
+-        .memory = V4L2_MEMORY_MMAP
+-    };
+-    struct timeval buf_ts;
+-    int res;
+-
+-    pkt->size = 0;
+-
+-    /* FIXME: Some special treatment might be needed in case of loss of signal... */
+-    while ((res = v4l2_ioctl(s->fd, VIDIOC_DQBUF, &buf)) < 0 && (errno == EINTR));
+-    if (res < 0) {
+-        if (errno == EAGAIN)
+-            return AVERROR(EAGAIN);
+-
+-        res = AVERROR(errno);
+-        av_log(ctx, AV_LOG_ERROR, "ioctl(VIDIOC_DQBUF): %s\n",
+-               av_err2str(res));
+-        return res;
+-    }
+-
+-    buf_ts = buf.timestamp;
+-
+-    if (buf.index >= s->buffers) {
+-        av_log(ctx, AV_LOG_ERROR, "Invalid buffer index received.\n");
+-        return AVERROR(EINVAL);
+-    }
+-    atomic_fetch_add(&s->buffers_queued, -1);
+-    // always keep at least one buffer queued
+-    av_assert0(atomic_load(&s->buffers_queued) >= 1);
+-
+-#ifdef V4L2_BUF_FLAG_ERROR
+-    if (buf.flags & V4L2_BUF_FLAG_ERROR) {
+-        av_log(ctx, AV_LOG_WARNING,
+-               "Dequeued v4l2 buffer contains corrupted data (%d bytes).\n",
+-               buf.bytesused);
+-        buf.bytesused = 0;
+-    } else
+-#endif
+-    {
+-        /* CPIA is a compressed format and we don't know the exact number of bytes
+-         * used by a frame, so set it here as the driver announces it. */
+-        if (ctx->video_codec_id == AV_CODEC_ID_CPIA)
+-            s->frame_size = buf.bytesused;
+-
+-        if (s->frame_size > 0 && buf.bytesused != s->frame_size) {
+-            av_log(ctx, AV_LOG_WARNING,
+-                   "Dequeued v4l2 buffer contains %d bytes, but %d were expected. Flags: 0x%08X.\n",
+-                   buf.bytesused, s->frame_size, buf.flags);
+-            buf.bytesused = 0;
+-        }
+-    }
+-
+-    /* Image is at s->buff_start[buf.index] */
+-    if (atomic_load(&s->buffers_queued) == FFMAX(s->buffers / 8, 1)) {
+-        /* when we start getting low on queued buffers, fall back on copying data */
+-        res = av_new_packet(pkt, buf.bytesused);
+-        if (res < 0) {
+-            av_log(ctx, AV_LOG_ERROR, "Error allocating a packet.\n");
+-            enqueue_buffer(s, &buf);
+-            return res;
+-        }
+-        memcpy(pkt->data, s->buf_start[buf.index], buf.bytesused);
+-
+-        res = enqueue_buffer(s, &buf);
+-        if (res) {
+-            av_packet_unref(pkt);
+-            return res;
+-        }
+-    } else {
+-        struct buff_data *buf_descriptor;
+-
+-        pkt->data     = s->buf_start[buf.index];
+-        pkt->size     = buf.bytesused;
+-
+-        buf_descriptor = av_malloc(sizeof(struct buff_data));
+-        if (!buf_descriptor) {
+-            /* Something went wrong... Since av_malloc() failed, we cannot even
+-             * allocate a buffer for memcpying into it
+-             */
+-            av_log(ctx, AV_LOG_ERROR, "Failed to allocate a buffer descriptor\n");
+-            enqueue_buffer(s, &buf);
+-
+-            return AVERROR(ENOMEM);
+-        }
+-        buf_descriptor->index = buf.index;
+-        buf_descriptor->s     = s;
+-
+-        pkt->buf = av_buffer_create(pkt->data, pkt->size, mmap_release_buffer,
+-                                    buf_descriptor, 0);
+-        if (!pkt->buf) {
+-            av_log(ctx, AV_LOG_ERROR, "Failed to create a buffer\n");
+-            enqueue_buffer(s, &buf);
+-            av_freep(&buf_descriptor);
+-            return AVERROR(ENOMEM);
+-        }
+-    }
+-    pkt->pts = buf_ts.tv_sec * INT64_C(1000000) + buf_ts.tv_usec;
+-    convert_timestamp(ctx, &pkt->pts);
+-
+-    return pkt->size;
+-}
++{
++    struct video_data *s = ctx->priv_data;
++    struct v4l2_buffer buf = {
++        .type   = V4L2_BUF_TYPE_VIDEO_CAPTURE,
++        .memory = V4L2_MEMORY_MMAP
++    };
++    struct timeval buf_ts;
++    int res;
++
++    pkt->size = 0;
++
++    /* FIXME: Some special treatment might be needed in case of loss of signal... */
++    while ((res = v4l2_ioctl(s->fd, VIDIOC_DQBUF, &buf)) < 0 && (errno == EINTR));
++    if (res < 0) {
++        if (errno == EAGAIN)
++            return AVERROR(EAGAIN);
++
++        res = AVERROR(errno);
++        av_log(ctx, AV_LOG_ERROR, "ioctl(VIDIOC_DQBUF): %s\n",
++               av_err2str(res));
++        return res;
++    }
++
++    buf_ts = buf.timestamp;
++
++    if (buf.index >= s->buffers) {
++        av_log(ctx, AV_LOG_ERROR, "Invalid buffer index received.\n");
++        return AVERROR(EINVAL);
++    }
++    atomic_fetch_add(&s->buffers_queued, -1);
++    // always keep at least one buffer queued
++    av_assert0(atomic_load(&s->buffers_queued) >= 1);
++
++#ifdef V4L2_BUF_FLAG_ERROR
++    if (buf.flags & V4L2_BUF_FLAG_ERROR) {
++        av_log(ctx, AV_LOG_WARNING,
++               "Dequeued v4l2 buffer contains corrupted data (%d bytes).\n",
++               buf.bytesused);
++        buf.bytesused = 0;
++    } else
++#endif
++    {
++        /* CPIA is a compressed format and we don't know the exact number of bytes
++         * used by a frame, so set it here as the driver announces it. */
++        if (ctx->video_codec_id == AV_CODEC_ID_CPIA)
++            s->frame_size = buf.bytesused;
++
++        if (s->frame_size > 0 && buf.bytesused != s->frame_size) {
++            av_log(ctx, AV_LOG_WARNING,
++                   "Dequeued v4l2 buffer contains %d bytes, but %d were expected. Flags: 0x%08X.\n",
++                   buf.bytesused, s->frame_size, buf.flags);
++            buf.bytesused = 0;
++        }
++    }
++
++    /* Image is at s->buff_start[buf.index] */
++    if (atomic_load(&s->buffers_queued) == FFMAX(s->buffers / 8, 1)) {
++        /* when we start getting low on queued buffers, fall back on copying data */
++        res = av_new_packet(pkt, buf.bytesused);
++        if (res < 0) {
++            av_log(ctx, AV_LOG_ERROR, "Error allocating a packet.\n");
++            enqueue_buffer(s, &buf);
++            return res;
++        }
++        memcpy(pkt->data, s->buf_start[buf.index], buf.bytesused);
++
++        res = enqueue_buffer(s, &buf);
++        if (res) {
++            av_packet_unref(pkt);
++            return res;
++        }
++    } else {
++        struct buff_data *buf_descriptor;
++
++        pkt->data     = s->buf_start[buf.index];
++        pkt->size     = buf.bytesused;
++
++        buf_descriptor = av_malloc(sizeof(struct buff_data));
++        if (!buf_descriptor) {
++            /* Something went wrong... Since av_malloc() failed, we cannot even
++             * allocate a buffer for memcpying into it
++             */
++            av_log(ctx, AV_LOG_ERROR, "Failed to allocate a buffer descriptor\n");
++            enqueue_buffer(s, &buf);
++
++            return AVERROR(ENOMEM);
++        }
++        buf_descriptor->index = buf.index;
++        buf_descriptor->s     = s;
++
++        pkt->buf = av_buffer_create(pkt->data, pkt->size, mmap_release_buffer,
++                                    buf_descriptor, 0);
++        if (!pkt->buf) {
++            av_log(ctx, AV_LOG_ERROR, "Failed to create a buffer\n");
++            enqueue_buffer(s, &buf);
++            av_freep(&buf_descriptor);
++            return AVERROR(ENOMEM);
++        }
++    }
++    pkt->pts = buf_ts.tv_sec * INT64_C(1000000) + buf_ts.tv_usec;
++    convert_timestamp(ctx, &pkt->pts);
++
++    return pkt->size;
++}
+ 
+ 
+ static int mmap_start(AVFormatContext *ctx)
+@@ -1408,20 +1525,20 @@ FF_DISABLE_DEPRECATION_WARNINGS
+ FF_ENABLE_DEPRECATION_WARNINGS
+ #endif
+     int res;
+-
++
+     if(s->isp && s->memory == V4L2_MEMORY_USERPTR)
+-    {
+-        if ((res = mmap_read_frame_usrptr(ctx, pkt)) < 0)
+-        {
++    {
++        if ((res = mmap_read_frame_usrptr(ctx, pkt)) < 0)
++        {
+             return res;
+-        }
+-    }
+-    else
+-    {
++        }
++    }
++    else
++    {
+         if ((res = mmap_read_frame(ctx, pkt)) < 0) {
+             return res;
+         }
+-    }
++    }
+ 
+ #if FF_API_CODED_FRAME && FF_API_LAVF_AVCTX
+ FF_DISABLE_DEPRECATION_WARNINGS
+@@ -1564,6 +1681,7 @@ static const AVOption options[] = {
+     {     "V4L2_MEMORY_USERPTR",        "",  0, AV_OPT_TYPE_CONST, { .i64 = 2 },     0, 0, DEC, "memory" },
+     {     "V4L2_MEMORY_OVERLAY",        "",  0, AV_OPT_TYPE_CONST, { .i64 = 3 },     0, 0, DEC, "memory" },
+     {     "V4L2_MEMORY_DMABUF",         "",  0, AV_OPT_TYPE_CONST, { .i64 = 4 },     0, 0, DEC, "memory" },
++    { "conf",         "v4l2 config file",                                         OFFSET(conf_filename), AV_OPT_TYPE_STRING,{.str = NULL}, 0, 0, DEC },
+     { NULL },
+ };
+ 
+Index: b/libavdevice/video_sample.conf
+===================================================================
+--- /dev/null
++++ b/libavdevice/video_sample.conf
+@@ -0,0 +1,320 @@
++{
++    "sensor0":{	
++		"sensor0_name":"m00_f_imx219_0 0-0010",
++		"sensor0_cfg_file":"imx219_0.conf",
++        "sensor0_total_size":{
++            "sensor0_total_width":3476,
++            "sensor0_total_height":1166
++        },
++        "sensor0_active_size":{
++            "sensor0_active_width":1920,
++            "sensor0_active_height":1080
++        },
++        "/dev/video2":{
++            "video2_used":0,
++            "video2_width":1920,
++            "video2_height":1080,
++			"video2_out_format":1
++        },
++        "/dev/video3":{
++            "video3_used":0,
++            "video3_width":1080,
++			"video3_height":720,
++			"video3_out_format":1
++        },
++        "/dev/video4":{
++            "video4_used":0,
++            "video4_width":640,
++            "video4_height":480,
++			"video4_out_format":1
++        },
++        "/dev/video5":{
++            "video5_used":0,
++            "video5_width":320,
++            "video5_height":320,
++			"video5_height_r":240,
++			"video5_out_format":1
++        }
++	},	
++	"sensor1":{
++		"sensor1_name":"m01_f_imx219_1 3-0010",
++		"sensor1_cfg_file":"imx219_1.conf",
++        "sensor1_total_size":{
++            "sensor1_total_width":3476,
++            "sensor1_total_height":1166
++        },
++        "sensor1_active_size":{
++            "sensor1_active_width":1920,
++            "sensor1_active_height":1080
++        },
++        "/dev/video6":{
++            "video6_used":0,
++            "video6_width":1920,
++            "video6_height":1080,
++			"video6_out_format":1
++        },
++        "/dev/video7":{
++            "video7_used":0,
++            "video7_width":1080,
++			"video7_height":720,
++			"video7_out_format":1
++        },
++        "/dev/video8":{
++            "video8_used":0,
++            "video8_width":640,
++            "video8_height":480,
++			"video8_out_format":1
++        },
++        "/dev/video9":{
++            "video9_used":0,
++            "video9_width":320,
++            "video9_height":240,
++			"video9_height_r":240,
++			"video9_out_format":1
++        }
++    },
++	"mipi_csi2":{
++		"csi0_used":1,
++		"csi0_sony_wdr":0,
++		"csi0_lane_nb":2,
++		"csi0_dl0_map":1,
++		"csi0_dl1_map":2,
++		"csi0_dl2_map":3,
++		"csi0_dl3_map":4,
++		"csi00_datatype_select0":43,
++		"csi00_datatype_select1":42,
++		"csi00_vc_select":1,
++		"csi01_datatype_select0":43,
++		"csi01_datatype_select1":42,
++		"csi01_vc_select":2,
++		"csi02_datatype_select0":43,
++		"csi02_datatype_select1":42,
++		"csi02_vc_select":4,
++		"csi1_used":1,
++		"csi1_sony_wdr":0,
++		"csi1_lane_nb":2,
++		"csi1_dl0_map":3,
++		"csi1_dl1_map":4,
++		"csi1_dl2_map":1,
++		"csi1_dl3_map":2,
++		"csi10_datatype_select0":43,
++		"csi10_datatype_select1":42,
++		"csi10_vc_select":1
++	},
++	"isp_vi":{
++		"vi_wrap":{
++			"dphy_mode":0,
++			"sony_mode":0,
++			"sensor0_interface_en":1,
++			"sensor0_tpg_w_en":0,
++			"sensor0_tpg_r_en":0,
++			"sensor0_wdr_sensor_vendor":0,
++			"sensor0_wdr_mode":0,
++			"sensor0_mipi_mode":0,
++			"sensor0_isp_pipeline":1,
++			"sensor1_interface_en":1,
++			"sensor1_tpg_w_en":0,
++			"sensor1_tpg_r_en":0,
++			"sensor1_wdr_sensor_vendor":0,
++			"sensor1_wdr_mode":0,
++			"sensor1_mipi_mode":0,
++			"sensor1_isp_pipeline":2,
++			"sensor2_interface_en":0,
++			"sensor2_tpg_w_en":0,
++			"sensor2_tpg_r_en":0,
++			"sensor2_wdr_sensor_vendor":0,
++			"sensor2_wdr_mode":0,
++			"sensor2_mipi_mode":0,
++			"sensor2_isp_pipeline":2
++		},
++		"vi_pipe00":{
++			"p00_win_mode_en":1,	
++			"p00_input_ch_sel":1,
++			"p00_ch_mode_sel":1,
++			"p00_pixel_type":0,
++			"p00_yuv_in_format":0,
++			"p00_yuv_out_format":0,
++			"p00_yuv422_order":0,
++			"p00_pixel_width":1,
++			"p00_data_out_timming_ctrl":3,
++			"p00_sync_pulse_mode":0,
++			"p00_sen_mipi_clk_pol":1,
++			"p00_sen_mipi_vsync_pol":0,
++			"p00_sen_mipi_hsync_pol":0,
++			"p00_sen_mipi_field_pol":1,
++			"p00_isp_clk_pol":1,
++			"p00_isp_vsync_pol":1,
++			"p00_isp_hsync_pol":1,
++			"p00_isp_field_pol":1,
++			"p00_tpg_w_en":0,
++			"p00_tpg_r_en":0,
++			"p00_w_st_width":0,
++			"p00_w_st_height":16383,
++			"p00_r_st_width":279,
++			"p00_r_st_height":44,
++			"p00_tof_mode_enable":0,
++			"p00_vi_pipe_tpg_tof_frm_num":3,
++			"p00_vi_pipe_tpg_tof_frm_stride":66432
++		},
++		"vi_pipe01":{
++			"p01_win_mode_en":1,	
++			"p01_input_ch_sel":1,
++			"p01_ch_mode_sel":1,
++			"p01_pixel_type":0,
++			"p01_yuv_in_format":0,
++			"p01_yuv_out_format":0,
++			"p01_yuv422_order":0,
++			"p01_pixel_width":1,
++			"p01_data_out_timming_ctrl":3,
++			"p01_sync_pulse_mode":0,
++			"p01_sen_mipi_clk_pol":1,
++			"p01_sen_mipi_vsync_pol":0,
++			"p01_sen_mipi_hsync_pol":0,
++			"p01_sen_mipi_field_pol":1,
++			"p01_isp_clk_pol":1,
++			"p01_isp_vsync_pol":1,
++			"p01_isp_hsync_pol":1,
++			"p01_isp_field_pol":1,
++			"p01_tpg_w_en":0,
++			"p01_tpg_r_en":0,
++			"p01_total_width":3476,
++			"p01_total_height":1166,
++			"p01_in_width":1920,
++			"p01_in_height":1080,
++			"p01_w_st_width":0,
++			"p01_w_st_height":16383,
++			"p01_r_st_width":279,
++			"p01_r_st_height":44,
++			"p01_vi_pipe_w_addr_y0 ":0,
++			"p01_vi_pipe_w_addr_y1 ":0,
++			"p01_vi_pipe_w_addr_uv0":0,
++			"p01_vi_pipe_w_addr_uv1":0,
++			"p01_vi_pipe_r_addr_y0 ":0,
++			"p01_vi_pipe_r_addr_y1 ":0,
++			"p01_vi_pipe_addr_stride":0,
++			"p01_tof_mode_enable":0,
++			"p01_vi_pipe_tpg_tof_frm_num":3,
++			"p01_vi_pipe_tpg_tof_frm_stride":66432
++		},
++		"vi_pipe02":{
++			"p02_win_mode_en":1,	
++			"p02_input_ch_sel":1,
++			"p02_ch_mode_sel":1,
++			"p02_pixel_type":0,
++			"p02_yuv_in_format":0,
++			"p02_yuv_out_format":0,
++			"p02_yuv422_order":0,
++			"p02_pixel_width":1,
++			"p02_data_out_timming_ctrl":3,
++			"p02_sync_pulse_mode":0,
++			"p02_sen_mipi_clk_pol":1,
++			"p02_sen_mipi_vsync_pol":0,
++			"p02_sen_mipi_hsync_pol":0,
++			"p02_sen_mipi_field_pol":1,
++			"p02_isp_clk_pol":1,
++			"p02_isp_vsync_pol":1,
++			"p02_isp_hsync_pol":1,
++			"p02_isp_field_pol":1,
++			"p02_tpg_w_en":0,
++			"p02_tpg_r_en":0,
++			"p02_total_width":3476,
++			"p02_total_height":1166,
++			"p02_in_width":1920,
++			"p02_in_height":1080,
++			"p02_w_st_width":0,
++			"p02_w_st_height":16383,
++			"p02_r_st_width":279,
++			"p02_r_st_height":44,
++			"p02_vi_pipe_w_addr_y0 ":0,
++			"p02_vi_pipe_w_addr_y1 ":0,
++			"p02_vi_pipe_w_addr_uv0":0,
++			"p02_vi_pipe_w_addr_uv1":0,
++			"p02_vi_pipe_r_addr_y0 ":0,
++			"p02_vi_pipe_r_addr_y1 ":0,
++			"p02_vi_pipe_addr_stride":0,
++			"p02_tof_mode_enable":0,
++			"p02_vi_pipe_tpg_tof_frm_num":3,
++			"p02_vi_pipe_tpg_tof_frm_stride":66432
++		},
++		"vi_pipe10":{
++			"p10_win_mode_en":1,	
++			"p10_input_ch_sel":1,
++			"p10_ch_mode_sel":1,
++			"p10_pixel_type":0,
++			"p10_yuv_in_format":0,
++			"p10_yuv_out_format":0,
++			"p10_yuv422_order":0,
++			"p10_pixel_width":1,
++			"p10_data_out_timming_ctrl":3,
++			"p10_sync_pulse_mode":0,
++			"p10_sen_mipi_clk_pol":1,
++			"p10_sen_mipi_vsync_pol":0,
++			"p10_sen_mipi_hsync_pol":0,
++			"p10_sen_mipi_field_pol":1,
++			"p10_isp_clk_pol":1,
++			"p10_isp_vsync_pol":1,
++			"p10_isp_hsync_pol":1,
++			"p10_isp_field_pol":1,
++			"p10_tpg_w_en":0,
++			"p10_tpg_r_en":0,
++			"p10_total_width":3476,
++			"p10_total_height":1166,
++			"p10_in_width":1920,
++			"p10_in_height":1080,
++			"p10_w_st_width":0,
++			"p10_w_st_height":16383,
++			"p10_r_st_width":279,
++			"p10_r_st_height":44,
++			"p10_vi_pipe_w_addr_y0 ":0,
++			"p10_vi_pipe_w_addr_y1 ":0,
++			"p10_vi_pipe_w_addr_uv0":0,
++			"p10_vi_pipe_w_addr_uv1":0,
++			"p10_vi_pipe_r_addr_y0 ":0,
++			"p10_vi_pipe_r_addr_y1 ":0,
++			"p10_vi_pipe_addr_stride":0,
++			"p10_tof_mode_enable":0,
++			"p10_vi_pipe_tpg_tof_frm_num":3,
++			"p10_vi_pipe_tpg_tof_frm_stride":66432
++		},
++		"vi_dvp00":{
++			"dvp00_win_mode_en":1,	
++			"dvp00_input_ch_sel":1,
++			"dvp00_ch_mode_sel":1,
++			"dvp00_pixel_type":0,
++			"dvp00_yuv_in_format":0,
++			"dvp00_yuv_out_format":0,
++			"dvp00_yuv422_order":0,
++			"dvp00_pixel_width":1,
++			"dvp00_data_out_timming_ctrl":3,
++			"dvp00_sync_pulse_mode":0,
++			"dvp00_sen_mipi_clk_pol":1,
++			"dvp00_sen_mipi_vsync_pol":0,
++			"dvp00_sen_mipi_hsync_pol":0,
++			"dvp00_sen_mipi_field_pol":1,
++			"dvp00_isp_clk_pol":1,
++			"dvp00_isp_vsync_pol":1,
++			"dvp00_isp_hsync_pol":1,
++			"dvp00_isp_field_pol":1,
++			"dvp00_tpg_w_en":0,
++			"dvp00_tpg_r_en":0,
++			"dvp00_total_width":3476,
++			"dvp00_total_height":1166,
++			"dvp00_in_width":1920,
++			"dvp00_in_height":1080,
++			"dvp00_w_st_width":0,
++			"dvp00_w_st_height":16383,
++			"dvp00_r_st_width":279,
++			"dvp00_r_st_height":44,
++			"dvp00_vi_pipe_w_addr_y0 ":0,
++			"dvp00_vi_pipe_w_addr_y1 ":0,
++			"dvp00_vi_pipe_w_addr_uv0":0,
++			"dvp00_vi_pipe_w_addr_uv1":0,
++			"dvp00_vi_pipe_r_addr_y0 ":0,
++			"dvp00_vi_pipe_r_addr_y1 ":0,
++			"dvp00_vi_pipe_addr_stride":0,
++			"dvp00_tof_mode_enable":0,
++			"dvp00_vi_pipe_tpg_tof_frm_num":3,
++			"dvp00_vi_pipe_tpg_tof_frm_stride":66432
++		}
++	}
++}    
+\ No newline at end of file

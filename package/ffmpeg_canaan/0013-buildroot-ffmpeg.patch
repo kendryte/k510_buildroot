@@ -1,0 +1,265 @@
+Index: b/libavfilter/af_audio3a.c
+===================================================================
+--- a/libavfilter/af_audio3a.c
++++ b/libavfilter/af_audio3a.c
+@@ -31,6 +31,7 @@
+ #include <stdlib.h>
+ #include <poll.h>
+ 
++#include "libavutil/audio_fifo.h"
+ #include "libavutil/opt.h"
+ #include "libavutil/time.h"
+ #include "avfilter.h"
+@@ -103,6 +104,11 @@ typedef struct Audio3aContext {
+     int wp;
+     int input_samples;
+     uint8_t input[AUDIO_3A_INPUT_BUF_SIZE];
++    // uint8_t process_inbuf[AUDIO_3A_MIN_SAMPLES*4];
++    // uint8_t process_outbuf[AUDIO_3A_MIN_SAMPLES*4];
++    uint8_t *process_indata;
++    uint8_t *process_outdata;
++
+ 	int dsp_task;
+ 
+     int fd_ddr;
+@@ -137,6 +143,10 @@ typedef struct Audio3aContext {
+     int audio3a_init_done;
+     int audio3a_process_done;
+     int audio3a_deinit_done;
++    AVAudioFifo * audio_in_fifo;
++    AVAudioFifo * audio_out_fifo;
++    // int *audio3a_inbuf;
++    // int *audio3a_outbuf;
+ } Audio3aContext;
+ 
+ #define OFFSET(x) offsetof(Audio3aContext, x)
+@@ -299,6 +309,27 @@ static void *cpu2dsp_task1(void *arg)
+     return 0;
+ }
+ 
++static int config_input(AVFilterLink *inlink)
++{
++    printf("%s\n",__FUNCTION__);
++    AVFilterContext *ctx = inlink->dst;
++    Audio3aContext *s = ctx->priv;
++
++    s->audio_in_fifo = av_audio_fifo_alloc(inlink->format, inlink->channels, AUDIO_3A_MIN_SAMPLES*4);
++    
++    return 0;
++}
++
++static int config_output(AVFilterLink *outlink)
++{
++    printf("%s\n",__FUNCTION__);
++    AVFilterContext *ctx = outlink->src;
++    Audio3aContext *s = ctx->priv;
++
++    s->audio_out_fifo = av_audio_fifo_alloc(outlink->format, outlink->channels, AUDIO_3A_MIN_SAMPLES*4);
++    return 0;
++}
++
+ static av_cold int init(AVFilterContext *ctx)
+ {
+     Audio3aContext *s = ctx->priv;
+@@ -419,6 +450,8 @@ static av_cold int init(AVFilterContext
+     }
+     else
+     {
++        s->process_indata = malloc(AUDIO_3A_MIN_SAMPLES*4);
++        s->process_outdata = malloc(AUDIO_3A_MIN_SAMPLES*4);
+         audio_3a_init(s->sample_rate, s->agc_mode, s->ns_level, s->aec_test_en);
+     }
+ 
+@@ -434,9 +467,9 @@ static int filter_frame(AVFilterLink *in
+     AVFilterContext *ctx = inlink->dst;
+     Audio3aContext *s = ctx->priv;
+     AVFilterLink *outlink = ctx->outputs[0];
+-    AVFrame *outbuf;
+     int index = 0;
+     int size;
++    int ret = 0;
+ 
+     /* 
+ 	printf("inbuf->linesize[0]: %d\n",inbuf->linesize[0]);
+@@ -454,96 +487,103 @@ static int filter_frame(AVFilterLink *in
+     fwrite(inbuf->data[0], 1, inbuf->linesize[0], fp_in);
+ #endif
+ 
+-    s->input_samples += inbuf->nb_samples;
+-    if(s->wp + inbuf->linesize[0] <= AUDIO_3A_INPUT_BUF_SIZE)
+-    {
+-        if(s->dsp_task)
+-        {
+-            memcpy(((s->input_vAddr)+(s->wp)), inbuf->data[0], inbuf->linesize[0]);
+-        }
+-        else
+-        {
+-            memcpy(&s->input[s->wp], inbuf->data[0], inbuf->linesize[0]);
+-        }
+-        s->wp += inbuf->linesize[0];
+-        s->wp %= AUDIO_3A_INPUT_BUF_SIZE;
+-    }
+-    else
+-    {
+-        printf("%s->%s>error: wp %d, input_samples %d\n", __FILE__, __FUNCTION__, s->wp, s->input_samples);
+-    }
+-
+-    if(s->input_samples < AUDIO_3A_MIN_SAMPLES)
+-    {
+-        return 0;
+-    }
+-    
+-    outbuf = ff_get_audio_buffer(outlink, AUDIO_3A_MIN_SAMPLES);
+-    if (!outbuf) {
++    ret = av_audio_fifo_write(s->audio_in_fifo, inbuf->extended_data, inbuf->nb_samples);
++    if(ret < 0)
++    { 
++        printf("write audio_in_fifo error!\n");
+         av_frame_free(&inbuf);
+-        return AVERROR(ENOMEM);
++        return -1;
+     }
+-    // printf("outbuf->nb_samples: %d\n", outbuf->nb_samples);//160
+-    // printf("outbuf->linesize[0]: %d\n", outbuf->linesize[0]);//640
+-
+-    if(s->rp + outbuf->linesize[0] <= AUDIO_3A_INPUT_BUF_SIZE)
+-    { 
++    
++    if(av_audio_fifo_size(s->audio_in_fifo) >= AUDIO_3A_MIN_SAMPLES)
++    {
+         if(s->dsp_task)
+         {
+-            // printf("s->is_task1_enabled: %d\n", s->is_task1_enabled);
+-            // printf("s->audio3a_init_done: %d\n", s->audio3a_init_done);
+             if(s->is_task1_enabled && s->audio3a_init_done)
+             {
+-                // printf("prepare audio_3a_process\n");
++                ret = av_audio_fifo_read(s->audio_in_fifo, &s->input_vAddr, AUDIO_3A_MIN_SAMPLES);
++                if(ret < 0)
++                { 
++                    printf("read audio_in_fifo error!\n");
++                    return -1;
++                }
++
+                 s->msg.msgId = DSP_TASK_USER_MSG;
+                 s->msg.msg_phyAddr = s->task1msg_phyAddr;
+                 s->msg.len = s->task1user_msg_size;
+ 
+                 s->task1_msg = (TASK1_MESSAGE*)(s->task1msg_vAddr);
+                 s->task1_msg->id = DSP_TASK_1_AUDIO3A_PROCESS;
+-                s->task1_msg->inbuf = (int*)(s->input_phyAddr + s->rp);
++                s->task1_msg->inbuf = (int*)(s->input_phyAddr);
+                 s->task1_msg->outbuf = (int*)(s->output_phyAddr);
+                 s->task1_msg->input_size = AUDIO_3A_MIN_SAMPLES * 4;
+-                s->task1_msg->output_size = outbuf->linesize[0];
++                s->task1_msg->output_size = AUDIO_3A_MIN_SAMPLES * 4;
+                 FlushCache(s->input_phyAddr, s->input_vAddr, s->input_size, s);
+                 FlushCache(s->task1user_msg_phyAddr, s->task1user_msg_vAddr, s->task1user_msg_size, s);
+                 FlushCache(s->task1msg_phyAddr, s->task1msg_vAddr, s->task1msg_size, s);
+-                
++
+                 if (ioctl(s->fd_mailbox, MBOX_CHAN_1_TX, &s->msg) < 0)
+                     printf("enable task 1: tx 0 error\n");
+-                // printf("cpu-->dsp process cmd sended.\n");
+                 while(!(s->audio3a_process_done))
+                 {
+                     usleep(500);//usleep(20*1000);
+                 }
+ 
+                 InvalidateCache(s->output_phyAddr, s->output_vAddr, s->output_size, s);
+-                // memcpy(outbuf->data[0], s->output_vAddr, outbuf->linesize[0]);
+-                outbuf->data[0] = s->output_vAddr;
++                ret = av_audio_fifo_write(s->audio_out_fifo, &s->output_vAddr, AUDIO_3A_MIN_SAMPLES);
++                if(ret < 0)
++                { 
++                    printf("write audio_out_fifo error!");
++                    return -1;
++                }
+                 s->audio3a_process_done = 0;
+             }
++
+         }
+         else
+         {
+-            //memcpy(outbuf->data[0], &s->input[s->rp], outbuf->linesize[0]);
+-            audio_3a_process(&s->input[s->rp], outbuf->data[0]);
++            ret = av_audio_fifo_read(s->audio_in_fifo, &s->process_indata, AUDIO_3A_MIN_SAMPLES);
++            if(ret < 0)
++            { 
++                printf("read audio_in_fifo error!\n");
++                return -1;
++            }
++
++            audio_3a_process(s->process_indata, s->process_outdata);
++            ret = av_audio_fifo_write(s->audio_out_fifo, &s->process_outdata, AUDIO_3A_MIN_SAMPLES);
++            if(ret < 0)
++            { 
++                printf("write audio_out_fifo error!");
++                return -1;
++            }
+         }
+     }
+-    else
++
++    while(av_audio_fifo_size(s->audio_out_fifo) >= AUDIO_3A_MIN_SAMPLES)
+     {
+-        printf("%s->%s>error: rp %d, input_samples %d\n", __FILE__, __FUNCTION__, s->rp, s->input_samples); 
+-    }
++        AVFrame *outbuf;
++        outbuf = ff_get_audio_buffer(outlink, inbuf->nb_samples);
++        if (!outbuf) {
++            printf("ff_get_audio_buffer error\n");
++            av_frame_free(&inbuf);
++            return AVERROR(ENOMEM);
++        }
++
++        ret = av_audio_fifo_read(s->audio_out_fifo, &outbuf->data[0], outbuf->nb_samples);
++        if(ret < 0)
++        {
++            printf("read audio_out_fifo error!\n");
++        }
+ 
+ #if DUMP_FILE
+     fwrite(outbuf->data[0], 1, outbuf->linesize[0], fp_out);
+ #endif
+-
+-    s->rp += outbuf->linesize[0];
+-    s->rp %= AUDIO_3A_INPUT_BUF_SIZE;
+-    s->input_samples -= AUDIO_3A_MIN_SAMPLES;
+-    // printf("rp %d, input_samples %d, outbuf->linesize[0] %d\n", s->rp, s->input_samples, outbuf->linesize[0]);
++        ff_filter_frame(outlink, outbuf);
++    }
+     
+-    return ff_filter_frame(outlink, outbuf);
++    av_frame_free(&inbuf);
++
++    return 0;
+ }
+ 
+ static av_cold void uninit(AVFilterContext *ctx)
+@@ -621,6 +661,9 @@ static av_cold void uninit(AVFilterConte
+         audio_3a_deinit();
+     }
+ 
++    av_audio_fifo_free(s->audio_in_fifo);
++    av_audio_fifo_free(s->audio_out_fifo);
++
+ #if DUMP_FILE
+     fclose(fp_in);
+     fclose(fp_out);
+@@ -635,6 +678,7 @@ static const AVFilterPad audio3a_inputs[
+         .name         = "default",
+         .type         = AVMEDIA_TYPE_AUDIO,
+         .filter_frame = filter_frame,
++        .config_props = config_input,
+     },
+     { NULL }
+ };
+@@ -643,6 +687,7 @@ static const AVFilterPad audio3a_outputs
+     {
+         .name = "default",
+         .type = AVMEDIA_TYPE_AUDIO,
++        .config_props = config_output,
+     },
+     { NULL }
+ };

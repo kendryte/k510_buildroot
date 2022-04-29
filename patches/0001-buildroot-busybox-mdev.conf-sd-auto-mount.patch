@@ -1,0 +1,43 @@
+From 0a427d70aa15a8b75af558dc0b48d517eb33c144 Mon Sep 17 00:00:00 2001
+From: wangjianxin <wangjianxin@canaan-creative.com>
+Date: Tue, 14 Sep 2021 17:32:42 +0800
+Subject: [PATCH] sd auto mount
+
+---
+ package/busybox/mdev.conf | 11 ++++++-----
+ 1 file changed, 6 insertions(+), 5 deletions(-)
+ mode change 100644 => 100755 package/busybox/mdev.conf
+
+diff --git a/package/busybox/mdev.conf b/package/busybox/mdev.conf
+old mode 100644
+new mode 100755
+index eaece1b..776e77b
+--- a/package/busybox/mdev.conf
++++ b/package/busybox/mdev.conf
+@@ -23,11 +23,11 @@ ttyS[0-9]*	root:root 660
+ ttyUSB[0-9]*	root:root 660
+ 
+ # alsa sound devices
+-snd/pcm.*	root:audio 660
+-snd/control.*	root:audio 660
+-snd/midi.*	root:audio 660
+-snd/seq		root:audio 660
+-snd/timer	root:audio 660
++#snd/pcm.*	root:audio 660
++#snd/control.*	root:audio 660
++#snd/midi.*	root:audio 660
++#snd/seq		root:audio 660
++#snd/timer	root:audio 660
+ 
+ # input stuff
+ input/event[0-9]+	root:root 640
+@@ -35,5 +35,6 @@ input/mice		root:root 640
+ input/mouse[0-9]	root:root 640
+ input/ts[0-9]		root:root 600
+ 
++mmcblk[0-2]p[0-9]  root:root 660  */etc/automount.sh 
+ # load modules
+ $MODALIAS=.*	root:root 660 @modprobe "$MODALIAS"
+-- 
+2.17.1
+

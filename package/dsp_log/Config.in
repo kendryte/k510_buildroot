@@ -1,0 +1,5 @@
+config BR2_PACKAGE_DSP_LOG
+    bool "dsp_log"
+    depends on BR2_riscv
+    help 
+        k510 share memory, it will start automatically when booting up.

@@ -1,0 +1,462 @@
+Index: b/configure
+===================================================================
+--- a/configure
++++ b/configure
+@@ -3443,7 +3443,8 @@ pulse_outdev_deps="libpulse"
+ sdl2_outdev_deps="sdl2"
+ sndio_indev_deps="sndio"
+ sndio_outdev_deps="sndio"
+-v4l2_indev_deps_any="linux_videodev2_h sys_videoio_h"
++#v4l2_indev_deps_any="linux_videodev2_h sys_videoio_h"
++v4l2_indev_extralibs="-lmediactl"
+ v4l2_indev_suggest="libv4l2"
+ v4l2_outdev_deps_any="linux_videodev2_h sys_videoio_h"
+ v4l2_outdev_suggest="libv4l2"
+Index: b/libavdevice/v4l2.c
+===================================================================
+--- a/libavdevice/v4l2.c
++++ b/libavdevice/v4l2.c
+@@ -34,6 +34,8 @@
+ 
+ #include "v4l2-common.h"
+ #include <dirent.h>
++#include "media_ctl.h"
++#include "libavutil/time.h"
+ 
+ #if CONFIG_LIBV4L2
+ #include <libv4l2.h>
+@@ -67,6 +69,24 @@ static const int desired_video_buffers =
+  */
+ #define V4L_TS_CONVERT_READY V4L_TS_DEFAULT
+ 
++struct share_memory_alloc_align_args {
++    unsigned int size;
++    unsigned int alignment;
++    unsigned int phyAddr;
++};
++
++#define SHARE_MEMORY_DEV "/dev/k510-share-memory"
++#define DEV_NAME_DDR "/dev/mem"
++#define MEMORY_TEST_BLOCK_ALIGN 4096        /* align 4k for mmap */
++#define SHARE_MEMORY_ALLOC          _IOWR('m', 1, unsigned long)
++#define SHARE_MEMORY_ALIGN_ALLOC    _IOWR('m', 2, unsigned long)
++#define SHARE_MEMORY_FREE           _IOWR('m', 3, unsigned long)
++#define SHARE_MEMORY_SHOW           _IOWR('m', 4, unsigned long)
++#define DDR_CTRL_REG_BASE 0x98000000
++#define NOC_QOS_REG_BASE  0x99900000
++#define MAILBOX_REG_BASE  0x970E0000
++#define ISP_ADDR_BUFFER_CNT  10
++
+ struct video_data {
+     AVClass *class;
+     int fd;
+@@ -79,9 +99,25 @@ struct video_data {
+     TimeFilter *timefilter;
+     int64_t last_time_m;
+ 
++    /*---------------for k510 isp------------*/
++    int isp;
++    enum v4l2_memory memory;
++    int fd_ddr;
++    int fd_share_memory;
++    int pts;
++    unsigned int    reg_QoS_ctrl0;
++    unsigned int    reg_QoS_ctrl1;
++    unsigned int    reg_QoS_ctrl2;
++    unsigned int    reg_h264_bw;
++    unsigned int    reg_isp_pri;
++    unsigned int    reg_isp_mode;
++    unsigned int    reg_ddr_cli;
++    /*----------------------------------------*/
++
+     int buffers;
+     atomic_int buffers_queued;
+     void **buf_start;
++    unsigned int *buf_paddr;
+     unsigned int *buf_len;
+     char *standard;
+     v4l2_std_id std_id;
+@@ -110,6 +146,89 @@ struct buff_data {
+     int index;
+ };
+ 
++static void isp_init(AVFormatContext *ctx)
++{
++    struct video_data *s = ctx->priv_data;
++    struct mediactl_info m_info;
++    unsigned char *reg;
++  
++    s->fd_share_memory = open(SHARE_MEMORY_DEV,O_RDWR | O_SYNC);
++    if(s->fd_share_memory < 0)
++    {
++        av_log(ctx, AV_LOG_ERROR, "Open %s Error!\n", SHARE_MEMORY_DEV);
++    }
++  
++    s->fd_ddr = open(DEV_NAME_DDR,O_RDWR|O_SYNC); 
++    if(s->fd_ddr < 0)
++    {
++        av_log(ctx, AV_LOG_ERROR, "Open %s Error!\n", DEV_NAME_DDR);
++    } 
++    
++    m_info.active_width = s->width;
++    m_info.active_height = s->height;
++    m_info.video_width = s->width;
++    m_info.video_height = s->height;
++    mediactl_init(&m_info);
++  
++    mediactl_set_ae();
++    
++    s->pts = 0;
++  
++    //QoS setting for memory bandwidth
++    reg=(unsigned char * )mmap(NULL, MEMORY_TEST_BLOCK_ALIGN, PROT_READ | PROT_WRITE, MAP_SHARED, s->fd_ddr, MAILBOX_REG_BASE);
++    s->reg_QoS_ctrl0 = *(volatile unsigned int *)(reg+0xf4);
++    *(volatile unsigned int *)(reg+0xf4) = 0x00110000;
++    printf("0x970E00f4: from 0x%08x to 0x%08x\n", s->reg_QoS_ctrl0, *(volatile unsigned int *)(reg+0xf4));
++    s->reg_QoS_ctrl1 = *(volatile unsigned int *)(reg+0xf8);
++    *(volatile unsigned int *)(reg+0xf8) = 0x00770000;
++    printf("0x970E00f8: from 0x%08x to 0x%08x\n", s->reg_QoS_ctrl1, *(volatile unsigned int *)(reg+0xf8));
++    s->reg_QoS_ctrl2 = *(volatile unsigned int *)(reg+0xfc);
++    *(volatile unsigned int *)(reg+0xfc) = 0x0fffff00;
++    printf("0x970E00fc: from 0x%08x to 0x%08x\n", s->reg_QoS_ctrl2, *(volatile unsigned int *)(reg+0xfc));
++    munmap(reg, MEMORY_TEST_BLOCK_ALIGN);
++    reg=(unsigned char * )mmap(NULL, MEMORY_TEST_BLOCK_ALIGN, PROT_READ | PROT_WRITE, MAP_SHARED, s->fd_ddr, NOC_QOS_REG_BASE);
++    s->reg_h264_bw = *(volatile unsigned int *)(reg+0x290);
++    *(volatile unsigned int *)(reg+0x290) = 0x110;
++    printf("0x99900290: from 0x%08x to 0x%08x\n", s->reg_h264_bw, *(volatile unsigned int *)(reg+0x290));
++    s->reg_isp_mode = *(volatile unsigned int *)(reg+0x38c);
++    *(volatile unsigned int *)(reg+0x38c) = 0;
++    printf("0x9990038c: from 0x%08x to 0x%08x\n", s->reg_isp_mode, *(volatile unsigned int *)(reg+0x38c));
++    s->reg_isp_pri = *(volatile unsigned int *)(reg+0x388);
++    *(volatile unsigned int *)(reg+0x388) = 0x80000707;
++    printf("0x99900388: from 0x%08x to 0x%08x\n", s->reg_isp_pri, *(volatile unsigned int *)(reg+0x388));
++    munmap(reg, MEMORY_TEST_BLOCK_ALIGN);
++    reg=(unsigned char * )mmap(NULL, MEMORY_TEST_BLOCK_ALIGN, PROT_READ | PROT_WRITE, MAP_SHARED, s->fd_ddr, DDR_CTRL_REG_BASE);
++    s->reg_ddr_cli = *(volatile unsigned int *)(reg+0x504);
++    *(volatile unsigned int *)(reg+0x504) = 0x00010303;
++    printf("0x98000504: from 0x%08x to 0x%08x\n", s->reg_ddr_cli, *(volatile unsigned int *)(reg+0x504));
++    munmap(reg, MEMORY_TEST_BLOCK_ALIGN);
++
++}
++
++static void isp_deinit(AVFormatContext *ctx)
++{
++    struct video_data *s = ctx->priv_data;
++    unsigned char *reg;
++    
++    reg=(unsigned char * )mmap(NULL, MEMORY_TEST_BLOCK_ALIGN, PROT_READ | PROT_WRITE, MAP_SHARED, s->fd_ddr, MAILBOX_REG_BASE);
++    *(volatile unsigned int *)(reg+0xf4) = s->reg_QoS_ctrl0;
++    *(volatile unsigned int *)(reg+0xf8) = s->reg_QoS_ctrl1;
++    *(volatile unsigned int *)(reg+0xfc) = s->reg_QoS_ctrl2;
++    munmap(reg, MEMORY_TEST_BLOCK_ALIGN);
++    reg=(unsigned char * )mmap(NULL, MEMORY_TEST_BLOCK_ALIGN, PROT_READ | PROT_WRITE, MAP_SHARED, s->fd_ddr, NOC_QOS_REG_BASE);
++    *(volatile unsigned int *)(reg+0x290) = s->reg_h264_bw;
++    *(volatile unsigned int *)(reg+0x388) = s->reg_isp_pri;
++    *(volatile unsigned int *)(reg+0x38c) = s->reg_isp_mode;
++    munmap(reg, MEMORY_TEST_BLOCK_ALIGN);
++    reg=(unsigned char * )mmap(NULL, MEMORY_TEST_BLOCK_ALIGN, PROT_READ | PROT_WRITE, MAP_SHARED, s->fd_ddr, DDR_CTRL_REG_BASE);
++    *(volatile unsigned int *)(reg+0x504) = s->reg_ddr_cli;
++    munmap(reg, MEMORY_TEST_BLOCK_ALIGN);
++    printf("QoS restore\n");
++
++    close(s->fd_share_memory);
++    close(s->fd_ddr);
++}
++
+ static int device_open(AVFormatContext *ctx, const char* device_path)
+ {
+     struct video_data *s = ctx->priv_data;
+@@ -151,6 +270,11 @@ static int device_open(AVFormatContext *
+         flags |= O_NONBLOCK;
+     }
+ 
++    if(s->isp)
++    {
++        isp_init(ctx);
++    }
++
+     fd = v4l2_open(device_path, flags, 0);
+     if (fd < 0) {
+         err = AVERROR(errno);
+@@ -334,6 +458,24 @@ static void list_standards(AVFormatConte
+     }
+ }
+ 
++static unsigned int alloc_memory(int fd_share_memory, unsigned int size)
++{
++  struct share_memory_alloc_align_args  allocAlignMem;
++  
++  allocAlignMem.size = (size + 0xfff) & (~0xfff);
++  allocAlignMem.alignment = MEMORY_TEST_BLOCK_ALIGN;
++  allocAlignMem.phyAddr = 0;
++
++  if(ioctl(fd_share_memory, SHARE_MEMORY_ALIGN_ALLOC, &allocAlignMem) < 0)
++	{
++    printf("alloc_memory Error!\n");
++    return -1;
++  }
++  //printf("%s>phy_addr 0x%x, size %d\n", __FUNCTION__, allocAlignMem.phyAddr, allocAlignMem.size);
++  
++  return allocAlignMem.phyAddr;
++}
++
+ static int mmap_init(AVFormatContext *ctx)
+ {
+     int i, res;
+@@ -341,8 +483,13 @@ static int mmap_init(AVFormatContext *ct
+     struct v4l2_requestbuffers req = {
+         .type   = V4L2_BUF_TYPE_VIDEO_CAPTURE,
+         .count  = desired_video_buffers,
+-        .memory = V4L2_MEMORY_MMAP
++        .memory = s->memory
+     };
++    
++    if(s->isp)
++    {
++        req.count = ISP_ADDR_BUFFER_CNT;
++    }
+ 
+     if (v4l2_ioctl(s->fd, VIDIOC_REQBUFS, &req) < 0) {
+         res = AVERROR(errno);
+@@ -360,6 +507,16 @@ static int mmap_init(AVFormatContext *ct
+         av_log(ctx, AV_LOG_ERROR, "Cannot allocate buffer pointers\n");
+         return AVERROR(ENOMEM);
+     }
++    
++    if(s->memory == V4L2_MEMORY_USERPTR)
++    {
++        s->buf_paddr = av_malloc_array(s->buffers, sizeof(void *));
++        if (!s->buf_paddr) {
++            av_log(ctx, AV_LOG_ERROR, "Cannot allocate buffer pointers\n");
++            return AVERROR(ENOMEM);
++        }
++    }
++    
+     s->buf_len = av_malloc_array(s->buffers, sizeof(unsigned int));
+     if (!s->buf_len) {
+         av_log(ctx, AV_LOG_ERROR, "Cannot allocate buffer sizes\n");
+@@ -371,8 +528,9 @@ static int mmap_init(AVFormatContext *ct
+         struct v4l2_buffer buf = {
+             .type   = V4L2_BUF_TYPE_VIDEO_CAPTURE,
+             .index  = i,
+-            .memory = V4L2_MEMORY_MMAP
++            .memory = s->memory
+         };
++        
+         if (v4l2_ioctl(s->fd, VIDIOC_QUERYBUF, &buf) < 0) {
+             res = AVERROR(errno);
+             av_log(ctx, AV_LOG_ERROR, "ioctl(VIDIOC_QUERYBUF): %s\n", av_err2str(res));
+@@ -386,14 +544,30 @@ static int mmap_init(AVFormatContext *ct
+                    i, s->buf_len[i], s->frame_size);
+             return AVERROR(ENOMEM);
+         }
+-        s->buf_start[i] = v4l2_mmap(NULL, buf.length,
++
++        if(s->memory == V4L2_MEMORY_USERPTR)
++        {
++            s->buf_len[i] = (buf.length + 0xfff) & (~0xfff);
++            s->buf_paddr[i] = alloc_memory(s->fd_share_memory, s->buf_len[i]);
++            s->buf_start[i] = mmap(NULL, s->buf_len[i], PROT_READ|PROT_WRITE, MAP_SHARED, s->fd_ddr, s->buf_paddr[i]); 
++
++            if (s->buf_start[i] == MAP_FAILED) {
++                res = AVERROR(errno);
++                av_log(ctx, AV_LOG_ERROR, "mmap: %s\n", av_err2str(res));
++                return res;
++            }
++        }
++        else
++        {
++            s->buf_start[i] = v4l2_mmap(NULL, buf.length,
+                                PROT_READ | PROT_WRITE, MAP_SHARED,
+                                s->fd, buf.m.offset);
+ 
+-        if (s->buf_start[i] == MAP_FAILED) {
+-            res = AVERROR(errno);
+-            av_log(ctx, AV_LOG_ERROR, "mmap: %s\n", av_err2str(res));
+-            return res;
++            if (s->buf_start[i] == MAP_FAILED) {
++                res = AVERROR(errno);
++                av_log(ctx, AV_LOG_ERROR, "mmap: %s\n", av_err2str(res));
++                return res;
++            }
+         }
+     }
+ 
+@@ -420,12 +594,20 @@ static void mmap_release_buffer(void *op
+     struct buff_data *buf_descriptor = opaque;
+     struct video_data *s = buf_descriptor->s;
+ 
++
++    if(s->fd < 0)  return;
++
+     buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+-    buf.memory = V4L2_MEMORY_MMAP;
++    buf.memory = s->memory;
+     buf.index = buf_descriptor->index;
++    if(s->memory == V4L2_MEMORY_USERPTR)
++    {
++        buf.length = s->buf_len[buf.index];
++        buf.m.userptr = (unsigned long)s->buf_start[buf.index];
++    }
+     av_free(buf_descriptor);
+ 
+-    enqueue_buffer(s, &buf);
++    enqueue_buffer(s, &buf);    
+ }
+ 
+ #if HAVE_CLOCK_GETTIME && defined(CLOCK_MONOTONIC)
+@@ -494,7 +676,7 @@ static int mmap_read_frame(AVFormatConte
+     struct video_data *s = ctx->priv_data;
+     struct v4l2_buffer buf = {
+         .type   = V4L2_BUF_TYPE_VIDEO_CAPTURE,
+-        .memory = V4L2_MEMORY_MMAP
++        .memory = s->memory
+     };
+     struct timeval buf_ts;
+     int res;
+@@ -564,7 +746,15 @@ static int mmap_read_frame(AVFormatConte
+     } else {
+         struct buff_data *buf_descriptor;
+ 
+-        pkt->data     = s->buf_start[buf.index];
++        if(s->isp && s->memory == V4L2_MEMORY_USERPTR)
++        {
++            pkt->data = s->buf_paddr[buf.index];
++        }
++        else
++        {
++            pkt->data = s->buf_start[buf.index];
++        }
++
+         pkt->size     = buf.bytesused;
+ 
+         buf_descriptor = av_malloc(sizeof(struct buff_data));
+@@ -589,9 +779,18 @@ static int mmap_read_frame(AVFormatConte
+             return AVERROR(ENOMEM);
+         }
+     }
++    
+     pkt->pts = buf_ts.tv_sec * INT64_C(1000000) + buf_ts.tv_usec;
+     convert_timestamp(ctx, &pkt->pts);
+ 
++    if(s->memory == V4L2_MEMORY_USERPTR && pkt->size > 0)
++    {
++        s->pts += 1;
++        pkt->pts = s->pts;
++        pkt->dts = s->pts;   
++    }
++    
++    //printf("%s>data 0x%x, pts %ld, size %d\n", __FUNCTION__, pkt->data, pkt->pts, pkt->size);
+     return pkt->size;
+ }
+ 
+@@ -605,9 +804,15 @@ static int mmap_start(AVFormatContext *c
+         struct v4l2_buffer buf = {
+             .type   = V4L2_BUF_TYPE_VIDEO_CAPTURE,
+             .index  = i,
+-            .memory = V4L2_MEMORY_MMAP
++            .memory = s->memory
+         };
+ 
++        if(s->memory == V4L2_MEMORY_USERPTR)
++        {
++            buf.length = s->buf_len[i];
++		        buf.m.userptr = (unsigned long)s->buf_start[i];
++        }
++
+         if (v4l2_ioctl(s->fd, VIDIOC_QBUF, &buf) < 0) {
+             res = AVERROR(errno);
+             av_log(ctx, AV_LOG_ERROR, "ioctl(VIDIOC_QBUF): %s\n",
+@@ -624,7 +829,6 @@ static int mmap_start(AVFormatContext *c
+                av_err2str(res));
+         return res;
+     }
+-
+     return 0;
+ }
+ 
+@@ -640,9 +844,21 @@ static void mmap_close(struct video_data
+     v4l2_ioctl(s->fd, VIDIOC_STREAMOFF, &type);
+     for (i = 0; i < s->buffers; i++) {
+         v4l2_munmap(s->buf_start[i], s->buf_len[i]);
++        
++        if(s->memory == V4L2_MEMORY_USERPTR)
++        {
++            if(ioctl(s->fd_share_memory, SHARE_MEMORY_FREE, &s->buf_paddr[i]) < 0)
++            {
++                printf("%s>Error!\n", __FUNCTION__);
++            }
++        }
+     }
+     av_freep(&s->buf_start);
+     av_freep(&s->buf_len);
++    if(s->memory == V4L2_MEMORY_USERPTR)
++    {
++        av_freep(&s->buf_paddr);
++    }
+ }
+ 
+ static int v4l2_set_parameters(AVFormatContext *ctx)
+@@ -972,6 +1188,29 @@ static int v4l2_read_header(AVFormatCont
+     if (st->avg_frame_rate.den)
+         st->codecpar->bit_rate = s->frame_size * av_q2d(st->avg_frame_rate) * 8;
+ 
++    if(s->memory == V4L2_MEMORY_USERPTR)
++    {
++        int packet_size;
++        AVRational framerate_q = { 0 };
++        int ret;
++
++        if (s->framerate &&
++            (ret = av_parse_video_rate(&framerate_q, s->framerate)) < 0) {
++            av_log(ctx, AV_LOG_ERROR, "Could not parse framerate '%s'.\n",
++                   s->framerate);
++            return ret;
++        }
++        
++        st->time_base.num = framerate_q.num;
++        st->time_base.den = framerate_q.den;
++        st->codecpar->format = AV_PIX_FMT_NV12;
++        avpriv_set_pts_info(st, 64, st->time_base.den, st->time_base.num);
++        st->codecpar->codec_tag = avcodec_pix_fmt_to_codec_tag(st->codecpar->format);
++
++        packet_size = av_image_get_buffer_size(st->codecpar->format, st->codecpar->width, st->codecpar->height, 1);      
++        st->codecpar->bit_rate = av_rescale_q(packet_size, (AVRational){8,1}, st->time_base);
++    }
++
+     return 0;
+ 
+ fail:
+@@ -1011,11 +1250,18 @@ static int v4l2_read_close(AVFormatConte
+ 
+     if (atomic_load(&s->buffers_queued) != s->buffers)
+         av_log(ctx, AV_LOG_WARNING, "Some buffers are still owned by the caller on "
+-               "close.\n");
++               "close.\n");    
+ 
+     mmap_close(s);
+ 
+     v4l2_close(s->fd);
++    s->fd = -1;
++
++    if(s->isp)
++    {
++        isp_deinit(ctx);
++    }
++    
+     return 0;
+ }
+ 
+@@ -1121,6 +1367,12 @@ static const AVOption options[] = {
+     { "abs",          "use absolute timestamps (wall clock)",                     OFFSET(ts_mode),      AV_OPT_TYPE_CONST,  {.i64 = V4L_TS_ABS      }, 0, 2, DEC, "timestamps" },
+     { "mono2abs",     "force conversion from monotonic to absolute timestamps",   OFFSET(ts_mode),      AV_OPT_TYPE_CONST,  {.i64 = V4L_TS_MONO2ABS }, 0, 2, DEC, "timestamps" },
+     { "use_libv4l2",  "use libv4l2 (v4l-utils) conversion functions",             OFFSET(use_libv4l2),  AV_OPT_TYPE_BOOL,   {.i64 = 0}, 0, 1, DEC },
++    { "isp",          "enable k510 isp",                                          OFFSET(isp),          AV_OPT_TYPE_BOOL,   {.i64 = 0}, 0, 1, DEC },
++    { "buf_type",      "v4l2 buffer type",                                        OFFSET(memory),       AV_OPT_TYPE_INT,    {.i64 = 1}, 1, 4, DEC },
++    {     "V4L2_MEMORY_MMAP",           "",  0, AV_OPT_TYPE_CONST, { .i64 = 1 },     0, 0, DEC, "memory" },
++    {     "V4L2_MEMORY_USERPTR",        "",  0, AV_OPT_TYPE_CONST, { .i64 = 2 },     0, 0, DEC, "memory" },
++    {     "V4L2_MEMORY_OVERLAY",        "",  0, AV_OPT_TYPE_CONST, { .i64 = 3 },     0, 0, DEC, "memory" },
++    {     "V4L2_MEMORY_DMABUF",         "",  0, AV_OPT_TYPE_CONST, { .i64 = 4 },     0, 0, DEC, "memory" },
+     { NULL },
+ };
+ 

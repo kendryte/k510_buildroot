@@ -1,0 +1,71 @@
+Index: b/libavdevice/isp_video.h
+===================================================================
+--- a/libavdevice/isp_video.h
++++ b/libavdevice/isp_video.h
+@@ -647,6 +647,8 @@ int video_set_bt1120(struct hdmi_bt1120_
+ *********************************************************************/
+ int run_video(enum _SENSOR_TYPE sensor_type,enum _LCD_TYPE lcd_type,enum _ISP_PIPELINE_E isp_pipeline,unsigned int debug_en);
+ void isp_exit(void);
++void isp_video_exit(void);
++void imx219_close_sensor(void);
+ void video_set_ae_dgain_cfg(unsigned int expl);
+ void video_set_ae_again_cfg(unsigned int agc);
+ #ifdef __cplusplus
+Index: b/libavdevice/libk510_video.c
+===================================================================
+--- a/libavdevice/libk510_video.c
++++ b/libavdevice/libk510_video.c
+@@ -105,6 +105,7 @@ typedef struct libk510_videoContext {
+     unsigned int out_pic;
+     unsigned long int start_time;
+     int64_t pts;
++    unsigned int overflow_cnt;
+ #ifdef ISP_OUTPUT_DUMP    
+     long yuv_phyAddr;
+     void *yuv_vAddr;
+@@ -190,8 +191,12 @@ static void *isp_ouput(void *arg)
+       }     
+       
+       if(pCtx->isp_addr[pCtx->isp_wp] != 0)
+-      {
+-          printf("isp buffer overflow\n");
++      {          
++          pCtx->overflow_cnt++;
++          if(pCtx->overflow_cnt % (pCtx->framerate * 10) == 1)
++          {
++              printf("isp buffer overflow count %d\n", pCtx->overflow_cnt);
++          }
+       }
+       else
+       {
+@@ -298,6 +303,7 @@ static int k510_video_read_header(AVForm
+     pCtx->pts = 0;
+     pCtx->isp_rp = 0;
+     pCtx->isp_wp = 0;
++    pCtx->overflow_cnt = 0;
+     memset(pCtx->isp_addr, 0, sizeof(pCtx->isp_addr));
+ 
+     pCtx->fd_share_memory = open(SHARE_MEMORY_DEV,O_RDWR | O_SYNC);
+Index: b/libavdevice/video_app.c
+===================================================================
+--- a/libavdevice/video_app.c
++++ b/libavdevice/video_app.c
+@@ -850,4 +850,5 @@ void isp_video_exit(void)
+             }
+         }
+     }
++    imx219_close_sensor();
+ }
+\ No newline at end of file
+Index: b/libavformat/rtp.c
+===================================================================
+--- a/libavformat/rtp.c
++++ b/libavformat/rtp.c
+@@ -65,6 +65,7 @@ static const struct {
+   {32, "MPV",        AVMEDIA_TYPE_VIDEO,   AV_CODEC_ID_MPEG2VIDEO, 90000, -1},
+   {33, "MP2T",       AVMEDIA_TYPE_DATA,    AV_CODEC_ID_MPEG2TS, 90000, -1},
+   {34, "H263",       AVMEDIA_TYPE_VIDEO,   AV_CODEC_ID_H263, 90000, -1},
++  {97, "AAC",        AVMEDIA_TYPE_AUDIO,   AV_CODEC_ID_AAC, 44100, 2},
+   {-1, "",           AVMEDIA_TYPE_UNKNOWN, AV_CODEC_ID_NONE, -1, -1}
+ };
+ 

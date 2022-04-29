@@ -1,0 +1,296 @@
+Index: b/configure
+===================================================================
+--- a/configure
++++ b/configure
+@@ -296,7 +296,8 @@ External library support:
+   --enable-libxcb-xfixes   enable X11 grabbing mouse rendering [autodetect]
+   --enable-libxcb-shape    enable X11 grabbing shape rendering [autodetect]
+   --enable-libk510_h264    enable H.264 encoding via Canaan K510 [no]
+-  --enable-libk510_video   enable video capture via Cannan K510 [no]
++  --enable-libk510_video   enable video capture via Canaan K510 [no]
++  --enable-audio3a         enalbe audio 3a via Canaan [no]
+   --enable-libxvid         enable Xvid encoding via xvidcore,
+                            native MPEG-4/Xvid encoder exists [no]
+   --enable-libxml2         enable XML parsing using the C library libxml2, needed
+@@ -1741,6 +1742,7 @@ EXTERNAL_LIBRARY_NONFREE_LIST="
+     libtls
+     libk510_h264
+ 	libk510_video
++    audio3a
+ "
+ 
+ EXTERNAL_LIBRARY_VERSION3_LIST="
+@@ -3517,6 +3519,7 @@ libzmq_protocol_deps="libzmq"
+ libzmq_protocol_select="network"
+ 
+ # filters
++audio3a_filter_deps="avcodec"
+ afftdn_filter_deps="avcodec"
+ afftdn_filter_select="fft"
+ afftfilt_filter_deps="avcodec"
+@@ -6485,6 +6488,7 @@ enabled libx265           && require_pkg
+                              require_cpp_condition libx265 x265.h "X265_BUILD >= 70"
+ enabled libk510_h264      && { add_extralibs -lvenc; }
+ enabled libk510_video     && { add_extralibs -lvideo; }
++enabled audio3a           && { add_extralibs -laudio3a; }
+ enabled libxavs           && require libxavs "stdint.h xavs.h" xavs_encoder_encode "-lxavs $pthreads_extralibs $libm_extralibs"
+ enabled libxavs2          && require_pkg_config libxavs2 "xavs2 >= 1.3.0" "stdint.h xavs2.h" xavs2_api_get
+ enabled libxvid           && require libxvid xvid.h xvid_global -lxvidcore
+Index: b/libavfilter/Makefile
+===================================================================
+--- a/libavfilter/Makefile
++++ b/libavfilter/Makefile
+@@ -165,6 +165,8 @@ OBJS-$(CONFIG_SINE_FILTER)
+ 
+ OBJS-$(CONFIG_ANULLSINK_FILTER)              += asink_anullsink.o
+ 
++OBJS-$(CONFIG_AUDIO3A_FILTER)                += af_audio3a.o
++
+ # video filters
+ OBJS-$(CONFIG_ADDROI_FILTER)                 += vf_addroi.o
+ OBJS-$(CONFIG_ALPHAEXTRACT_FILTER)           += vf_extractplanes.o
+Index: b/libavfilter/af_audio3a.c
+===================================================================
+--- /dev/null
++++ b/libavfilter/af_audio3a.c
+@@ -0,0 +1,202 @@
++/*
++ * This file is part of FFmpeg.
++ *
++ * FFmpeg is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2.1 of the License, or (at your option) any later version.
++ *
++ * FFmpeg is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with FFmpeg; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
++ */
++#include <unistd.h>
++
++#include "libavutil/opt.h"
++#include "libavutil/time.h"
++#include "avfilter.h"
++#include "formats.h"
++#include "internal.h"
++#include "audio3a.h"
++#include "audio.h"
++#include "internal.h"
++#include "generate_wave_table.h"
++
++#define DUMP_FILE           0
++#define AUDIO_3A_MIN_SAMPLES  160
++#define AUDIO_3A_INPUT_BUF_SIZE 1280
++
++#if DUMP_FILE
++FILE *fp_in;
++FILE *fp_out;
++#endif
++
++typedef struct Audio3aContext {
++    const AVClass *class;
++	int sample_rate;
++	EAgcMode agc_mode;
++	ENsLevel ns_level;
++    int aec_test_en;
++    int rp;
++    int wp;
++    int input_samples;
++    uint8_t input[AUDIO_3A_INPUT_BUF_SIZE];
++} Audio3aContext;
++
++#define OFFSET(x) offsetof(Audio3aContext, x)
++#define AF  AV_OPT_FLAG_AUDIO_PARAM|AV_OPT_FLAG_FILTERING_PARAM       
++
++static const AVOption audio3a_options[] = {
++    {"sample_rate", "set sample_rate", OFFSET(sample_rate), AV_OPT_TYPE_INT, {.i64 = 16000}, 1, INT_MAX, AF},
++    {"agc",         "set agc mode", OFFSET(agc_mode), AV_OPT_TYPE_INT, {.i64 = AgcModeFixedDigital}, AgcModeUnchanged, AgcModeFixedDigital, AF, "agc_mode"},
++    {   "AgcModeUnchanged",         "", 0, AV_OPT_TYPE_CONST, {.i64 = AgcModeUnchanged}, 0, 0, AF, "agc_mode"},
++    {   "AgcModeAdaptiveAnalog",    "", 0, AV_OPT_TYPE_CONST, {.i64 = AgcModeAdaptiveAnalog}, 0, 0, AF, "agc_mode"},
++    {   "AgcModeAdaptiveDigital",   "", 0, AV_OPT_TYPE_CONST, {.i64 = AgcModeAdaptiveDigital}, 0, 0, AF, "agc_mode"},
++    {   "AgcModeFixedDigital",      "", 0, AV_OPT_TYPE_CONST, {.i64 = AgcModeFixedDigital}, 0, 0, AF, "agc_mode"},
++    {"ns",          "set ns level", OFFSET(ns_level), AV_OPT_TYPE_INT, {.i64 = kVeryHigh}, kLow, kVeryHigh, AF, "ns_level"},
++    {   "Low",                     "", 0, AV_OPT_TYPE_CONST, {.i64 = kLow}, 0, 0, AF, "ns_level"},
++    {   "Moderate",                "", 0, AV_OPT_TYPE_CONST, {.i64 = kModerate}, 0, 0, AF, "ns_level"},
++    {   "High",                    "", 0, AV_OPT_TYPE_CONST, {.i64 = kHigh}, 0, 0, AF, "ns_level"},
++    {   "VeryHigh",                "", 0, AV_OPT_TYPE_CONST, {.i64 = kVeryHigh}, 0, 0, AF, "ns_level"},
++    {"aec_test", "audio echo function, just for test", OFFSET(aec_test_en), AV_OPT_TYPE_INT, {.i64 = 0}, 0, 1, AF},
++    { NULL },
++};
++
++static av_cold int init(AVFilterContext *ctx)
++{
++    Audio3aContext *s = ctx->priv;
++
++    printf("%s->%s>sample_rate %d\n", __FILE__, __FUNCTION__, s->sample_rate);
++
++    s->input_samples = 0;
++    s->rp = 0;
++    s->wp = 0;
++
++    audio_3a_init(s->sample_rate, s->agc_mode, s->ns_level, s->aec_test_en);
++
++#if DUMP_FILE
++    fp_in = fopen("inbuf.pcm","wb+");
++    fp_out = fopen("outbuf.pcm","wb+");
++#endif
++    return 0;
++}
++
++static int filter_frame(AVFilterLink *inlink, AVFrame *inbuf)
++{
++    AVFilterContext *ctx = inlink->dst;
++    Audio3aContext *s = ctx->priv;
++    AVFilterLink *outlink = ctx->outputs[0];
++    AVFrame *outbuf;
++    int index = 0;
++    int size;
++
++    /* 
++	printf("inbuf->linesize[0]: %d\n",inbuf->linesize[0]);
++	printf("inbuf->nb_samples: %d\n",inbuf->nb_samples);//64
++	printf("inbuf->format: %d\n",inbuf->format);
++	printf("inbuf->key_frame: %d\n",inbuf->key_frame);
++	printf("inbuf->pict_type: %d\n",inbuf->pict_type);
++	printf("inbuf->sample_aspect_ratio: %d\n",inbuf->sample_aspect_ratio);
++	printf("inbuf->pts: %d\n",inbuf->pts);	
++	printf("inbuf->sample_rate: %d\n",inbuf->sample_rate);
++    printf("inbuf->channels: %d\n",inbuf->channels); 
++    */
++
++#if DUMP_FILE
++    fwrite(inbuf->data[0], 1, inbuf->linesize[0], fp_in);
++#endif
++
++    s->input_samples += inbuf->nb_samples;
++    if(s->wp + inbuf->linesize[0] <= AUDIO_3A_INPUT_BUF_SIZE)
++    {
++        memcpy(&s->input[s->wp], inbuf->data[0], inbuf->linesize[0]);
++        s->wp += inbuf->linesize[0];
++        s->wp %= AUDIO_3A_INPUT_BUF_SIZE;
++    }
++    else
++    {
++        printf("%s->%s>error: wp %d, input_samples %d\n", __FILE__, __FUNCTION__, s->wp, s->input_samples);
++    }
++
++    if(s->input_samples < AUDIO_3A_MIN_SAMPLES)
++    {
++        return 0;
++    }
++    
++    outbuf = ff_get_audio_buffer(outlink, AUDIO_3A_MIN_SAMPLES);
++    if (!outbuf) {
++        av_frame_free(&inbuf);
++        return AVERROR(ENOMEM);
++    }
++
++    if(s->rp + outbuf->linesize[0] <= AUDIO_3A_INPUT_BUF_SIZE)
++    { 
++        //memcpy(outbuf->data[0], &s->input[s->rp], outbuf->linesize[0]);
++        audio_3a_process(&s->input[s->rp], outbuf->data[0]);
++    }
++    else
++    {
++        printf("%s->%s>error: rp %d, input_samples %d\n", __FILE__, __FUNCTION__, s->rp, s->input_samples); 
++    }
++
++#if DUMP_FILE
++    fwrite(outbuf->data[0], 1, outbuf->linesize[0], fp_out);
++#endif
++
++    s->rp += outbuf->linesize[0];
++    s->rp %= AUDIO_3A_INPUT_BUF_SIZE;
++    s->input_samples -= AUDIO_3A_MIN_SAMPLES;
++    // printf("rp %d, input_samples %d, outbuf->linesize[0] %d\n", s->rp, s->input_samples, outbuf->linesize[0]);
++    
++    return ff_filter_frame(outlink, outbuf);
++}
++
++static av_cold void uninit(AVFilterContext *ctx)
++{
++    Audio3aContext *s = ctx->priv;
++    
++    audio_3a_deinit();
++
++#if DUMP_FILE
++    fclose(fp_in);
++    fclose(fp_out);
++#endif	
++}
++
++
++AVFILTER_DEFINE_CLASS(audio3a);
++
++static const AVFilterPad audio3a_inputs[] = {
++    {
++        .name         = "default",
++        .type         = AVMEDIA_TYPE_AUDIO,
++        .filter_frame = filter_frame,
++    },
++    { NULL }
++};
++
++static const AVFilterPad audio3a_outputs[] = {
++    {
++        .name = "default",
++        .type = AVMEDIA_TYPE_AUDIO,
++    },
++    { NULL }
++};
++
++AVFilter ff_af_audio3a = {
++    .name          = "audio3a",
++    .description   = NULL_IF_CONFIG_SMALL("Audio 3A process."),
++    .priv_size     = sizeof(Audio3aContext),
++    .init          = init,
++    .uninit        = uninit,
++    .inputs        = audio3a_inputs,
++    .outputs       = audio3a_outputs,
++    .priv_class    = &audio3a_class,
++};
++
++
+Index: b/libavfilter/allfilters.c
+===================================================================
+--- a/libavfilter/allfilters.c
++++ b/libavfilter/allfilters.c
+@@ -146,6 +146,7 @@ extern AVFilter ff_af_tremolo;
+ extern AVFilter ff_af_vibrato;
+ extern AVFilter ff_af_volume;
+ extern AVFilter ff_af_volumedetect;
++extern AVFilter ff_af_audio3a;
+ 
+ extern AVFilter ff_asrc_aevalsrc;
+ extern AVFilter ff_asrc_afirsrc;
+Index: b/libavfilter/audio3a.h
+===================================================================
+--- /dev/null
++++ b/libavfilter/audio3a.h
+@@ -0,0 +1,21 @@
++#include <stdio.h>
++
++typedef enum _EAgcMode{
++    AgcModeUnchanged,
++    AgcModeAdaptiveAnalog,
++    AgcModeAdaptiveDigital,
++    AgcModeFixedDigital
++}EAgcMode;
++
++typedef enum nsLevel
++{
++    kLow,
++    kModerate,
++    kHigh,
++    kVeryHigh
++}ENsLevel;
++
++void audio_3a_init(int sample_rate, EAgcMode agcMode, ENsLevel nsLevel, int aec_test_en);
++void audio_3a_process(int *inbuf, int *outbuf);
++void audio_3a_deinit();
++

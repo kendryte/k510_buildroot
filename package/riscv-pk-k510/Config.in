@@ -1,0 +1,11 @@
+comment "riscv-pk needs a Linux kernel to be built"
+	depends on BR2_riscv
+	depends on !BR2_LINUX_KERNEL
+
+config BR2_PACKAGE_RISCV_PK_K510
+	bool "riscv-pk-k510"
+	depends on BR2_riscv
+	depends on BR2_LINUX_KERNEL
+	default y if BR2_riscv
+	help
+	  riscv-pk for k510, which contains the bbl used by k510 linux kernel

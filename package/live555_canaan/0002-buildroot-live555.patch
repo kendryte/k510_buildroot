@@ -1,0 +1,140 @@
+Index: b/liveMedia/H264VideoStreamFramer.cpp
+===================================================================
+--- a/liveMedia/H264VideoStreamFramer.cpp
++++ b/liveMedia/H264VideoStreamFramer.cpp
+@@ -34,6 +34,22 @@ H264VideoStreamFramer
+ 			     includeStartCodeInOutput, insertAccessUnitDelimiters) {
+ }
+ 
++H264VideoStreamFramer* H264VideoStreamFramer
++::createNew(UsageEnvironment& env, FramedSource* inputSource,
++		double framerate,
++	    Boolean includeStartCodeInOutput, Boolean insertAccessUnitDelimiters) {
++  return new H264VideoStreamFramer(env, inputSource, framerate, True,
++				   includeStartCodeInOutput, insertAccessUnitDelimiters);
++}
++
++H264VideoStreamFramer
++::H264VideoStreamFramer(UsageEnvironment& env, FramedSource* inputSource, double framerate, Boolean createParser,
++			Boolean includeStartCodeInOutput, Boolean insertAccessUnitDelimiters)
++  : H264or5VideoStreamFramer(264, env, inputSource, framerate, createParser,
++			     includeStartCodeInOutput, insertAccessUnitDelimiters) {
++}
++
++
+ H264VideoStreamFramer::~H264VideoStreamFramer() {
+ }
+ 
+Index: b/liveMedia/H264or5VideoStreamFramer.cpp
+===================================================================
+--- a/liveMedia/H264or5VideoStreamFramer.cpp
++++ b/liveMedia/H264or5VideoStreamFramer.cpp
+@@ -89,6 +89,24 @@ H264or5VideoStreamFramer
+   fFrameRate = 30.0; // We assume a frame rate of 30 fps, unless we learn otherwise (from parsing a VPS or SPS NAL unit)
+ }
+ 
++
++H264or5VideoStreamFramer
++::H264or5VideoStreamFramer(int hNumber, UsageEnvironment& env, FramedSource* inputSource,
++         double framerate,
++			   Boolean createParser,
++			   Boolean includeStartCodeInOutput, Boolean insertAccessUnitDelimiters)
++  : MPEGVideoStreamFramer(env, inputSource),
++    fHNumber(hNumber), fIncludeStartCodeInOutput(includeStartCodeInOutput),
++    fInsertAccessUnitDelimiters(insertAccessUnitDelimiters),
++    fLastSeenVPS(NULL), fLastSeenVPSSize(0),
++    fLastSeenSPS(NULL), fLastSeenSPSSize(0),
++    fLastSeenPPS(NULL), fLastSeenPPSSize(0) {
++  fParser = createParser
++    ? new H264or5VideoStreamParser(hNumber, this, inputSource, includeStartCodeInOutput)
++    : NULL;
++  fFrameRate = framerate;
++}
++
+ H264or5VideoStreamFramer::~H264or5VideoStreamFramer() {
+   delete[] fLastSeenPPS;
+   delete[] fLastSeenSPS;
+Index: b/liveMedia/MediaSink.cpp
+===================================================================
+--- a/liveMedia/MediaSink.cpp
++++ b/liveMedia/MediaSink.cpp
+@@ -110,7 +110,7 @@ Boolean MediaSink::isRTPSink() const {
+ 
+ ////////// OutPacketBuffer //////////
+ 
+-unsigned OutPacketBuffer::maxSize = 60000; // by default
++unsigned OutPacketBuffer::maxSize = 3000000;//zxj, 60000; // by default
+ 
+ OutPacketBuffer
+ ::OutPacketBuffer(unsigned preferredPacketSize, unsigned maxPacketSize, unsigned maxBufferSize)
+Index: b/liveMedia/MultiFramedRTPSource.cpp
+===================================================================
+--- a/liveMedia/MultiFramedRTPSource.cpp
++++ b/liveMedia/MultiFramedRTPSource.cpp
+@@ -73,7 +73,8 @@ MultiFramedRTPSource
+   fReorderingBuffer = new ReorderingPacketBuffer(packetFactory);
+ 
+   // Try to use a big receive buffer for RTP:
+-  increaseReceiveBufferTo(env, RTPgs->socketNum(), 50*1024);
++  // increaseReceiveBufferTo(env, RTPgs->socketNum(), 50*1024);
++  increaseReceiveBufferTo(env, RTPgs->socketNum(), 3000000);//zxj
+ }
+ 
+ void MultiFramedRTPSource::reset() {
+Index: b/liveMedia/include/H264VideoStreamFramer.hh
+===================================================================
+--- a/liveMedia/include/H264VideoStreamFramer.hh
++++ b/liveMedia/include/H264VideoStreamFramer.hh
+@@ -31,10 +31,21 @@ public:
+ 					  Boolean includeStartCodeInOutput = False,
+ 					  Boolean insertAccessUnitDelimiters = False);
+ 
++  static H264VideoStreamFramer* createNew(UsageEnvironment& env, FramedSource* inputSource,
++            double framerate,
++					  Boolean includeStartCodeInOutput = False,
++					  Boolean insertAccessUnitDelimiters = False);
++
+ protected:
+   H264VideoStreamFramer(UsageEnvironment& env, FramedSource* inputSource,
+ 			Boolean createParser,
+ 			Boolean includeStartCodeInOutput, Boolean insertAccessUnitDelimiters);
++
++  H264VideoStreamFramer(UsageEnvironment& env, FramedSource* inputSource,
++      double framerate,
++			Boolean createParser,
++			Boolean includeStartCodeInOutput, Boolean insertAccessUnitDelimiters);
++
+       // called only by "createNew()"
+   virtual ~H264VideoStreamFramer();
+ 
+Index: b/liveMedia/include/H264or5VideoStreamFramer.hh
+===================================================================
+--- a/liveMedia/include/H264or5VideoStreamFramer.hh
++++ b/liveMedia/include/H264or5VideoStreamFramer.hh
+@@ -53,6 +53,13 @@ protected:
+ 			   UsageEnvironment& env, FramedSource* inputSource,
+ 			   Boolean createParser,
+ 			   Boolean includeStartCodeInOutput, Boolean insertAccessUnitDelimiters);
++
++  H264or5VideoStreamFramer(int hNumber, // 264 or 265
++        UsageEnvironment& env, FramedSource* inputSource,
++        double framerate,
++        Boolean createParser,
++        Boolean includeStartCodeInOutput, Boolean insertAccessUnitDelimiters);
++
+       // We're an abstract base class.
+   virtual ~H264or5VideoStreamFramer();
+ 
+Index: b/testProgs/playCommon.cpp
+===================================================================
+--- a/testProgs/playCommon.cpp
++++ b/testProgs/playCommon.cpp
+@@ -113,7 +113,7 @@ Boolean movieHeightOptionSet = False;
+ unsigned movieFPS = 15; // default
+ Boolean movieFPSOptionSet = False;
+ char const* fileNamePrefix = "";
+-unsigned fileSinkBufferSize = 100000;
++unsigned fileSinkBufferSize = 3000000;// 100000;
+ unsigned socketInputBufferSize = 0;
+ Boolean packetLossCompensate = False;
+ Boolean syncStreams = False;

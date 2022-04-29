@@ -1,0 +1,62 @@
+Index: b/groupsock/GroupsockHelper.cpp
+===================================================================
+--- a/groupsock/GroupsockHelper.cpp
++++ b/groupsock/GroupsockHelper.cpp
+@@ -310,6 +310,10 @@ int setupStreamSocket(UsageEnvironment&
+     return -1;
+   }
+ 
++
++
++  
++
+   // SO_REUSEPORT doesn't really make sense for TCP sockets, so we
+   // normally don't set them.  However, if you really want to do this
+   // #define REUSE_FOR_TCP
+@@ -385,6 +389,21 @@ int setupStreamSocket(UsageEnvironment&
+   return newSocket;
+ }
+ 
++int setNoTimeWait(UsageEnvironment& env,int socket)
++{
++  struct linger so_linger;
++  so_linger.l_onoff = 1;
++  so_linger.l_linger = 0;
++  if (setsockopt(socket,SOL_SOCKET,SO_LINGER,&so_linger,sizeof(so_linger)) <0)
++  {
++  	 socketErr(env, "failed to set SO_LINGER: ");
++	 return -1;
++  }
++  return 0;
++}
++
++
++
+ int readSocket(UsageEnvironment& env,
+ 	       int socket, unsigned char* buffer, unsigned bufferSize,
+ 	       struct sockaddr_storage& fromAddress) {
+Index: b/groupsock/include/GroupsockHelper.hh
+===================================================================
+--- a/groupsock/include/GroupsockHelper.hh
++++ b/groupsock/include/GroupsockHelper.hh
+@@ -29,6 +29,8 @@ int setupDatagramSocket(UsageEnvironment
+ int setupStreamSocket(UsageEnvironment& env, Port port, int domain,
+ 		      Boolean makeNonBlocking = True, Boolean setKeepAlive = False);
+ 
++int setNoTimeWait(UsageEnvironment& env,int socket);
++
+ int readSocket(UsageEnvironment& env,
+ 	       int socket, unsigned char* buffer, unsigned bufferSize,
+ 	       struct sockaddr_storage& fromAddress /*set only if we're a datagram socket*/);
+Index: b/liveMedia/GenericMediaServer.cpp
+===================================================================
+--- a/liveMedia/GenericMediaServer.cpp
++++ b/liveMedia/GenericMediaServer.cpp
+@@ -242,6 +242,7 @@ void GenericMediaServer::incomingConnect
+   ignoreSigPipeOnSocket(clientSocket); // so that clients on the same host that are killed don't also kill us
+   makeSocketNonBlocking(clientSocket);
+   increaseSendBufferTo(envir(), clientSocket, 50*1024);
++  setNoTimeWait(envir(),clientSocket);
+   
+ #ifdef DEBUG
+   envir() << "accept()ed connection from " << AddressString(clientAddr).val() << "\n";

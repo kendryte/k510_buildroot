@@ -1,0 +1,29 @@
+
+config BR2_PACKAGE_K510_EVB_TEST
+	bool "K510 evb test"
+	depends on BR2_riscv
+	help
+	  k510 evb test
+
+	  
+if BR2_PACKAGE_K510_EVB_TEST
+config BR2_TARGET_K510_EVB_TEST_FFT_FIRMWARE
+	bool "FFT"
+	help
+	  K510 EVB TEST FFT.
+endif
+
+if BR2_PACKAGE_K510_EVB_TEST
+config BR2_TARGET_K510_EVB_TEST_MAILBOX_FIRMWARE
+	bool "MAILBOX_DEMO"
+	help
+		the demo of mailbox running on dsp 
+endif
+
+if BR2_PACKAGE_K510_EVB_TEST
+config BR2_TARGET_K510_EVB_TEST_SIMD_UMUL8_FIRMWARE
+	bool "SIMD_UMUL8_DEMO"
+	help
+		the demo of simd_umul8 running on dsp 
+endif
+

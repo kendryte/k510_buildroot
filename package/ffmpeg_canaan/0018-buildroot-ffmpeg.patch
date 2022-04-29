@@ -1,0 +1,417 @@
+Index: b/configure
+===================================================================
+--- a/configure
++++ b/configure
+@@ -2,6 +2,7 @@
+ #
+ # FFmpeg configure script
+ #
++# Copyright (c), Canaan Bright Sight Co., Ltd
+ # Copyright (c) 2000-2002 Fabrice Bellard
+ # Copyright (c) 2005-2008 Diego Biurrun
+ # Copyright (c) 2005-2008 Mans Rullgard
+Index: b/libavcodec/allcodecs.c
+===================================================================
+--- a/libavcodec/allcodecs.c
++++ b/libavcodec/allcodecs.c
+@@ -1,5 +1,6 @@
+ /*
+  * Provide registration of all codecs, parsers and bitstream filters for libavcodec.
++ * Copyright (c), Canaan Bright Sight Co., Ltd
+  * Copyright (c) 2002 Fabrice Bellard
+  *
+  * This file is part of FFmpeg.
+Index: b/libavcodec/libk510_h264.c
+===================================================================
+--- a/libavcodec/libk510_h264.c
++++ b/libavcodec/libk510_h264.c
+@@ -1,25 +1,9 @@
+-/*
+- * libk510_h264 encoder
+- *
+- * Copyright (c) 2021 Canaan
+- *
+- * This file is part of FFmpeg.
+- *
+- * FFmpeg is free software; you can redistribute it and/or
+- * modify it under the terms of the GNU Lesser General Public
+- * License as published by the Free Software Foundation; either
+- * version 2.1 of the License, or (at your option) any later version.
+- *
+- * FFmpeg is distributed in the hope that it will be useful,
+- * but WITHOUT ANY WARRANTY; without even the implied warranty of
+- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+- * Lesser General Public License for more details.
+- *
+- * You should have received a copy of the GNU Lesser General Public
+- * License along with FFmpeg; if not, write to the Free Software
+- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+- */
++/* Copyright (c) 2022, Canaan Bright Sight Co., Ltd
+ 
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software Foundation.
++*/
+ 
+ #include <float.h>
+ #include <stdio.h>
+Index: b/libavcodec/libk510_jpeg.c
+===================================================================
+--- a/libavcodec/libk510_jpeg.c
++++ b/libavcodec/libk510_jpeg.c
+@@ -1,25 +1,9 @@
+-/*
+- * libk510_jpeg encoder
+- *
+- * Copyright (c) 2021 Canaan
+- *
+- * This file is part of FFmpeg.
+- *
+- * FFmpeg is free software; you can redistribute it and/or
+- * modify it under the terms of the GNU Lesser General Public
+- * License as published by the Free Software Foundation; either
+- * version 2.1 of the License, or (at your option) any later version.
+- *
+- * FFmpeg is distributed in the hope that it will be useful,
+- * but WITHOUT ANY WARRANTY; without even the implied warranty of
+- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+- * Lesser General Public License for more details.
+- *
+- * You should have received a copy of the GNU Lesser General Public
+- * License along with FFmpeg; if not, write to the Free Software
+- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+- */
++/* Copyright (c) 2022, Canaan Bright Sight Co., Ltd
+ 
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software Foundation.
++*/
+ 
+ #include <float.h>
+ #include <stdio.h>
+@@ -53,7 +37,7 @@ typedef struct libk510_jpegContext {
+     const AVClass   *class;
+     
+     EncoderHandle   *hEnc;
+-    int             channel;
++    int             channel;
+     int             fd_ddr;
+     int             fd_share_memory;
+     long            yuv_phyAddr;
+@@ -138,20 +122,20 @@ static av_cold int k510_jpeg_encode_init
+     pCtx->yuv_phyAddr = alloc_memory(pCtx->fd_share_memory, pCtx->yuv_size);  
+     pCtx->yuv_vAddr = (unsigned char*)mmap(NULL, pCtx->yuv_size, PROT_READ|PROT_WRITE, MAP_SHARED, pCtx->fd_ddr, pCtx->yuv_phyAddr); 
+     printf("%s>yuv_vAddr %p, yuv_phyAddr 0x%lx, yuv_size %d\n", __FUNCTION__, pCtx->yuv_vAddr, pCtx->yuv_phyAddr, pCtx->yuv_size);
+-
+-    Cfg.channel = pCtx->channel;
+-	  Cfg.width = avctx->width;
++
++    Cfg.channel = pCtx->channel;
++	  Cfg.width = avctx->width;
+     Cfg.height = avctx->height;
+     Cfg.profile = JPEG;    
+     Cfg.FrameRate = pCtx->framerate;
+     Cfg.AspectRatio = pCtx->ar; 
+-    Cfg.rcMode = CONST_QP;
+-    Cfg.SliceQP = pCtx->cqp;
+-    Cfg.BitRate = pCtx->bit_rate;
+-    Cfg.MaxBitRate = pCtx->maxrate;
+-    Cfg.level = 42;
+-    Cfg.FreqIDR = 25;
+-    Cfg.gopLen = 25;
++    Cfg.rcMode = CONST_QP;
++    Cfg.SliceQP = pCtx->cqp;
++    Cfg.BitRate = pCtx->bit_rate;
++    Cfg.MaxBitRate = pCtx->maxrate;
++    Cfg.level = 42;
++    Cfg.FreqIDR = 25;
++    Cfg.gopLen = 25;
+     printf("Encoder Settings:\n");
+     printf("  width           : %d\n", Cfg.width);
+     printf("  height          : %d\n", Cfg.height);
+@@ -160,9 +144,9 @@ static av_cold int k510_jpeg_encode_init
+     printf("  rcMode          : %d\n", Cfg.rcMode);
+ 	  printf("  SliceQP         : %d\n", Cfg.SliceQP);
+ 	  printf("  bitrate         : %d\n", Cfg.BitRate);
+-	  printf("  maxbitrate      : %d\n", Cfg.MaxBitRate);
+-	  printf("  AspectRatio     : %d\n", Cfg.AspectRatio);
+-	  
++	  printf("  maxbitrate      : %d\n", Cfg.MaxBitRate);
++	  printf("  AspectRatio     : %d\n", Cfg.AspectRatio);
++	  
+     pCtx->hEnc = VideoEncoder_Create(&Cfg);
+ 
+     pCtx->pts = 0;
+@@ -177,13 +161,13 @@ static void planer_to_semi(AVCodecContex
+     libk510_jpegContext *pCtx = avctx->priv_data;
+     unsigned char *data, *pY, *pU, *pV;
+     int i;
+-
++
+     pY = pic->data[0];
+     pU = pic->data[1];
+     pV = pic->data[2];
+     data = pCtx->yuv_vAddr;
+     memcpy(data, pY, pic->linesize[0]*avctx->height);
+-    
++    
+     data += pic->linesize[0]*avctx->height;
+     for(i=0; i<pic->linesize[1]*avctx->height/2; i++)
+     {
+@@ -191,7 +175,7 @@ static void planer_to_semi(AVCodecContex
+         *data++ = *pV++;
+     }
+ }
+-
++
+ static unsigned long int get_time()
+ {
+   struct timespec time;
+@@ -200,7 +184,7 @@ static unsigned long int get_time()
+   
+   return time.tv_sec * 1000LL * 1000LL * 1000LL + time.tv_nsec;
+ }
+-
++
+ static int k510_jpeg_encode_frame(AVCodecContext *avctx, AVPacket *pkt, const AVFrame *pic, int *got_packet)
+ {
+     libk510_jpegContext *pCtx = avctx->priv_data;
+@@ -240,7 +224,7 @@ static int k510_jpeg_encode_frame(AVCode
+             planer_to_semi(avctx, pic);
+             input.data = (unsigned char*)pCtx->yuv_phyAddr;
+         }
+-
++
+         input.width = avctx->width;
+         input.height = avctx->height;
+         input.stride = pic->linesize[0];
+@@ -314,10 +298,10 @@ static const AVOption options[] =
+ { 
+   //{ option name,            description,                            offset in the context object,    type             default, min, max, flags, unit}
+   { "qp",                   "Use constant QP for encoding.",                  OFFSET(cqp),             AV_OPT_TYPE_INT,  {.i64 = 25}, -1, 100, FLAGS },
+-  { "r",                    "Set video framerate",                            OFFSET(framerate),       AV_OPT_TYPE_INT,  {.i64 = 30}, 25, 60, FLAGS },
+-  { "b",                    "Set video bitrate",                              OFFSET(bit_rate),        AV_OPT_TYPE_INT,  {.i64 = 4000000}, 0, 100000000, FLAGS },
+-  { "ch",                   "Set encode channel ",                            OFFSET(channel),         AV_OPT_TYPE_INT,  {.i64 = 0}, 0, (VENC_MAX_CHANNELS-1), FLAGS },
+-  { "maxrate",              "Maximum bitrate. (0=ignore)",                    OFFSET(maxrate),         AV_OPT_TYPE_INT,  {.i64 = 4000000}, 0, 100000000, FLAGS },
++  { "r",                    "Set video framerate",                            OFFSET(framerate),       AV_OPT_TYPE_INT,  {.i64 = 30}, 25, 60, FLAGS },
++  { "b",                    "Set video bitrate",                              OFFSET(bit_rate),        AV_OPT_TYPE_INT,  {.i64 = 4000000}, 0, 100000000, FLAGS },
++  { "ch",                   "Set encode channel ",                            OFFSET(channel),         AV_OPT_TYPE_INT,  {.i64 = 0}, 0, (VENC_MAX_CHANNELS-1), FLAGS },
++  { "maxrate",              "Maximum bitrate. (0=ignore)",                    OFFSET(maxrate),         AV_OPT_TYPE_INT,  {.i64 = 4000000}, 0, 100000000, FLAGS },
+   { "ar",                   "Set aspect ratio",                               OFFSET(ar),         AV_OPT_TYPE_INT,  {.i64 = ASPECT_RATIO_AUTO}, ASPECT_RATIO_AUTO, ASPECT_RATIO_16_9, FLAGS, "profile_flags"},
+   {     "auto",               "",  0, AV_OPT_TYPE_CONST, { .i64 = ASPECT_RATIO_AUTO },     0, 0, FLAGS, "profile_flags" },
+   {     "4:3",                "",  0, AV_OPT_TYPE_CONST, { .i64 = ASPECT_RATIO_4_3 },     0, 0, FLAGS, "profile_flags" },
+Index: b/libavdevice/alldevices.c
+===================================================================
+--- a/libavdevice/alldevices.c
++++ b/libavdevice/alldevices.c
+@@ -1,4 +1,5 @@
+ /*
++ * Copyright (c), Canaan Bright Sight Co., Ltd
+  * Register all the grabbing devices.
+  *
+  * This file is part of FFmpeg.
+Index: b/libavdevice/isp_video.h
+===================================================================
+--- a/libavdevice/isp_video.h
++++ b/libavdevice/isp_video.h
+@@ -1,16 +1,10 @@
+-/******************************************************************************
++/* Copyright (c) 2022, Canaan Bright Sight Co., Ltd
+ 
+-  Copyright (C), 2020, CANAAN Tech. Co., Ltd.
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software Foundation.
++*/
+ 
+- ******************************************************************************
+-  File Name     : isp_video.h
+-  Version       : Initial Draft
+-  Author        : zhudalei
+-  Created       : 
+-  Description   : 
+-  History       :
+-  Date        : 
+- ******************************************************************************/
+ #ifndef _ISP_VIDEO_H_
+ #define _ISP_VIDEO_H_
+ 
+Index: b/libavdevice/libk510_video.c
+===================================================================
+--- a/libavdevice/libk510_video.c
++++ b/libavdevice/libk510_video.c
+@@ -1,23 +1,10 @@
+-/*
+- * Directshow capture interface
+- * Copyright (c) 2010 Ramiro Polla
+- *
+- * This file is part of FFmpeg.
+- *
+- * FFmpeg is free software; you can redistribute it and/or
+- * modify it under the terms of the GNU Lesser General Public
+- * License as published by the Free Software Foundation; either
+- * version 2.1 of the License, or (at your option) any later version.
+- *
+- * FFmpeg is distributed in the hope that it will be useful,
+- * but WITHOUT ANY WARRANTY; without even the implied warranty of
+- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+- * Lesser General Public License for more details.
+- *
+- * You should have received a copy of the GNU Lesser General Public
+- * License along with FFmpeg; if not, write to the Free Software
+- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+- */
++/* Copyright (c) 2022, Canaan Bright Sight Co., Ltd
++
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software Foundation.
++*/
++
+ #include <stdio.h>
+ #include <sys/types.h>
+ #include <sys/stat.h>
+Index: b/libavdevice/v4l2.c
+===================================================================
+--- a/libavdevice/v4l2.c
++++ b/libavdevice/v4l2.c
+@@ -1,4 +1,5 @@
+ /*
++ * Copyright (c) 2022, Canaan Bright Sight Co., Ltd
+  * Copyright (c) 2000,2001 Fabrice Bellard
+  * Copyright (c) 2006 Luca Abeni
+  *
+Index: b/libavdevice/video_app.c
+===================================================================
+--- a/libavdevice/video_app.c
++++ b/libavdevice/video_app.c
+@@ -1,16 +1,9 @@
+-/******************************************************************************
++/* Copyright (c) 2022, Canaan Bright Sight Co., Ltd
+ 
+-  Copyright (C), 2020, CANAAN Tech. Co., Ltd.
+-
+- ******************************************************************************
+-  File Name     : test_videolib_n.cc
+-  Version       : Initial Draft
+-  Author        : zhudalei
+-  Created       : 
+-  Description   : 
+-  History       :
+-  Date        : 
+- ******************************************************************************/
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software Foundation.
++*/
+ 
+ #include <sys/types.h>
+ #include <sys/stat.h>
+Index: b/libavdevice/video_app.h
+===================================================================
+--- a/libavdevice/video_app.h
++++ b/libavdevice/video_app.h
+@@ -1,16 +1,10 @@
+-/******************************************************************************
++/* Copyright (c) 2022, Canaan Bright Sight Co., Ltd
+ 
+-  Copyright (C), 2020, CANAAN Tech. Co., Ltd.
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software Foundation.
++*/
+ 
+- ******************************************************************************
+-  File Name     : video_app.h
+-  Version       : Initial Draft
+-  Author        : zhudalei
+-  Created       : 
+-  Description   : 
+-  History       :
+-  Date        : 
+- ******************************************************************************/
+ #ifndef _VIDEO_APP_H_
+ #define _VIDEO_APP_H_
+ 
+Index: b/libavfilter/af_audio3a.c
+===================================================================
+--- a/libavfilter/af_audio3a.c
++++ b/libavfilter/af_audio3a.c
+@@ -1,20 +1,10 @@
+-/*
+- * This file is part of FFmpeg.
+- *
+- * FFmpeg is free software; you can redistribute it and/or
+- * modify it under the terms of the GNU Lesser General Public
+- * License as published by the Free Software Foundation; either
+- * version 2.1 of the License, or (at your option) any later version.
+- *
+- * FFmpeg is distributed in the hope that it will be useful,
+- * but WITHOUT ANY WARRANTY; without even the implied warranty of
+- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+- * Lesser General Public License for more details.
+- *
+- * You should have received a copy of the GNU Lesser General Public
+- * License along with FFmpeg; if not, write to the Free Software
+- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+- */
++/* Copyright (c) 2022, Canaan Bright Sight Co., Ltd
++
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software Foundation.
++*/
++
+ #include <unistd.h>
+ #include <fcntl.h>
+ #include <sys/ioctl.h>
+Index: b/libavfilter/allfilters.c
+===================================================================
+--- a/libavfilter/allfilters.c
++++ b/libavfilter/allfilters.c
+@@ -1,5 +1,6 @@
+ /*
+  * filter registration
++ * Copyright (c), Canaan Bright Sight Co., Ltd
+  * Copyright (c) 2008 Vitor Sessak
+  *
+  * This file is part of FFmpeg.
+Index: b/libavfilter/audio3a.h
+===================================================================
+--- a/libavfilter/audio3a.h
++++ b/libavfilter/audio3a.h
+@@ -1,3 +1,10 @@
++/* Copyright (c) 2022, Canaan Bright Sight Co., Ltd
++
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software Foundation.
++*/
++
+ #include <stdio.h>
+ 
+ typedef enum _EAgcMode{
+Index: b/libavformat/rtp.c
+===================================================================
+--- a/libavformat/rtp.c
++++ b/libavformat/rtp.c
+@@ -1,5 +1,6 @@
+ /*
+  * RTP input/output format
++ * Copyright (c), Canaan Bright Sight Co., Ltd
+  * Copyright (c) 2002 Fabrice Bellard
+  *
+  * This file is part of FFmpeg.
+Index: b/libavformat/rtpenc_jpeg.c
+===================================================================
+--- a/libavformat/rtpenc_jpeg.c
++++ b/libavformat/rtpenc_jpeg.c
+@@ -1,5 +1,6 @@
+ /*
+  * RTP JPEG-compressed video Packetizer, RFC 2435
++ * Copyright (c), Canaan Bright Sight Co., Ltd
+  * Copyright (c) 2012 Samuel Pitoiset
+  *
+  * This file is part of FFmpeg.

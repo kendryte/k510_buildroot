@@ -1,0 +1,2775 @@
+Index: b/configure
+===================================================================
+--- a/configure
++++ b/configure
+@@ -295,6 +295,8 @@ External library support:
+   --enable-libxcb-shm      enable X11 grabbing shm communication [autodetect]
+   --enable-libxcb-xfixes   enable X11 grabbing mouse rendering [autodetect]
+   --enable-libxcb-shape    enable X11 grabbing shape rendering [autodetect]
++  --enable-libk510_h264    enable H.264 encoding via Canaan K510 [no]
++  --enable-libk510_video   enable video capture via Cannan K510 [no]
+   --enable-libxvid         enable Xvid encoding via xvidcore,
+                            native MPEG-4/Xvid encoder exists [no]
+   --enable-libxml2         enable XML parsing using the C library libxml2, needed
+@@ -1737,6 +1739,8 @@ EXTERNAL_LIBRARY_NONFREE_LIST="
+     libfdk_aac
+     openssl
+     libtls
++    libk510_h264
++	libk510_video
+ "
+ 
+ EXTERNAL_LIBRARY_VERSION3_LIST="
+@@ -3291,6 +3295,8 @@ libx264_encoder_select="atsc_a53"
+ libx264rgb_encoder_deps="libx264 x264_csp_bgr"
+ libx264rgb_encoder_select="libx264_encoder"
+ libx265_encoder_deps="libx265"
++libk510_h264_encoder_deps="libk510_h264"
++libk510_video_demuxer_deps="libk510_video"
+ libxavs_encoder_deps="libxavs"
+ libxavs2_encoder_deps="libxavs2"
+ libxvid_encoder_deps="libxvid"
+@@ -6477,6 +6483,8 @@ enabled libx264           && { check_pkg
+                              check_cpp_condition libx262 x264.h "X264_MPEG2"
+ enabled libx265           && require_pkg_config libx265 x265 x265.h x265_api_get &&
+                              require_cpp_condition libx265 x265.h "X265_BUILD >= 70"
++enabled libk510_h264      && { add_extralibs -lvenc; }
++enabled libk510_video     && { add_extralibs -lvideo; }
+ enabled libxavs           && require libxavs "stdint.h xavs.h" xavs_encoder_encode "-lxavs $pthreads_extralibs $libm_extralibs"
+ enabled libxavs2          && require_pkg_config libxavs2 "xavs2 >= 1.3.0" "stdint.h xavs2.h" xavs2_api_get
+ enabled libxvid           && require libxvid xvid.h xvid_global -lxvidcore
+Index: b/libavcodec/Makefile
+===================================================================
+--- a/libavcodec/Makefile
++++ b/libavcodec/Makefile
+@@ -1075,6 +1075,7 @@ OBJS-$(CONFIG_LIBXAVS_ENCODER)
+ OBJS-$(CONFIG_LIBXAVS2_ENCODER)           += libxavs2.o
+ OBJS-$(CONFIG_LIBXVID_ENCODER)            += libxvid.o
+ OBJS-$(CONFIG_LIBZVBI_TELETEXT_DECODER)   += libzvbi-teletextdec.o ass.o
++OBJS-$(CONFIG_LIBK510_H264_ENCODER)       += libk510_h264.o
+ 
+ # parsers
+ OBJS-$(CONFIG_AAC_LATM_PARSER)         += latm_parser.o
+Index: b/libavcodec/allcodecs.c
+===================================================================
+--- a/libavcodec/allcodecs.c
++++ b/libavcodec/allcodecs.c
+@@ -758,6 +758,7 @@ extern AVCodec ff_libvpx_vp8_encoder;
+ extern AVCodec ff_libvpx_vp8_decoder;
+ extern AVCodec ff_libvpx_vp9_encoder;
+ extern AVCodec ff_libvpx_vp9_decoder;
++extern AVCodec ff_libk510_h264_encoder;
+ /* preferred over libwebp */
+ extern AVCodec ff_libwebp_anim_encoder;
+ extern AVCodec ff_libwebp_encoder;
+Index: b/libavcodec/enc_interface.h
+===================================================================
+--- /dev/null
++++ b/libavcodec/enc_interface.h
+@@ -0,0 +1,138 @@
++/******************************************************************************
++
++  Copyright (C), 2021, Canaan Tech. Co., Ltd.
++
++ ******************************************************************************
++  File Name     : enc_interface.h
++  Version       : Initial Draft
++  Author        : 
++  Created       : 
++  Description   : 
++  History       :
++  1.Date        : 
++    Author      :
++    Modification: Created file
++
++******************************************************************************/
++#pragma once
++
++#include <string.h>
++
++#ifdef __cplusplus
++extern "C" {
++#endif
++
++typedef void* EncoderHandle;
++
++typedef enum
++{
++    Enc_SUCCESS = 0, 
++    Enc_ERR = 1,
++}EncStatus;
++
++typedef enum
++{
++    B_SLICE,
++    P_SLICE,
++    I_SLICE,
++    IDR_SLICE
++}EncSliceType;
++
++typedef enum
++{
++    CONST_QP, 
++    CBR, 
++    VBR
++} RateCtrlMode;
++
++typedef enum
++{
++    AVC_BASELINE, 
++    AVC_MAIN, 
++    AVC_HIGH,
++    JPEG
++} AVC_Profile;
++
++typedef enum
++{
++    ASPECT_RATIO_AUTO, 
++    ASPECT_RATIO_4_3, 
++    ASPECT_RATIO_16_9, 
++    ASPECT_RATIO_NONE
++} AVC_AspectRatio;
++
++typedef enum
++{
++    SECTION_SEI_PREFIX_FLAG = 0x80000000, /*< this section data is from a SEI prefix */
++    SECTION_SYNC_FLAG = 0x40000000, /*< this section data is from an IDR */
++    SECTION_END_FRAME_FLAG = 0x20000000, /*< this section denotes the end of a frame */
++    SECTION_CONFIG_FLAG = 0x10000000, /*< section data is an sps, pps, vps, aud */
++    SECTION_FILLER_FLAG = 0x08000000, /*< section data contains filler data */
++    SECTION_APP_FILLER_FLAG = 0x04000000, /*< section data contains uninitialized filler data that should be filled by the application layer*/
++}SectionFlags;
++
++typedef struct
++{
++    unsigned short width;
++    unsigned short height;
++    unsigned char FrameRate;
++    RateCtrlMode rcMode;
++    unsigned int BitRate;
++    unsigned int MaxBitRate;
++    int SliceQP;  //auto: -1, or from 0 to 51
++    AVC_Profile profile;
++    unsigned int level;  //1 .. 51, 51 is 5.1
++    AVC_AspectRatio AspectRatio;
++    int FreqIDR; //default value  : -1
++    unsigned int gopLen;
++}EncSettings;
++
++typedef struct
++{
++    unsigned short width;
++    unsigned short height;
++    unsigned short stride;
++    unsigned char *data;
++}EncInputFrame;
++
++typedef struct
++{
++    unsigned int uOffset; /*!< Start offset of the section (in bytes from the beginning of the buffer) */
++    unsigned int uLength; /*!< Length in bytes of the section */
++    SectionFlags uFlags; /*!< Flags associated with the section; see macro SectionFlags*/
++}StreamSection;
++
++
++typedef struct
++{
++    unsigned char *bufAddr;
++    unsigned int bufSize;  
++}EncOutputStream;
++
++typedef struct
++{
++    unsigned char *bufAddr;
++    unsigned int bufSize; 
++    unsigned int uNumSection; /*!< number of sections inside the buffer */ 
++    StreamSection* pSections;  /*!< Array of sections */
++}EncOutputStreamSection;
++
++EncoderHandle* VideoEncoder_Create(EncSettings *pCfg);
++
++EncStatus VideoEncoder_Destroy(EncoderHandle *hEnc);
++
++EncStatus VideoEncoder_EncodeOneFrame(EncoderHandle *hEnc, EncInputFrame *input);
++
++EncStatus VideoEncoder_GetStream(EncoderHandle *hEnc, EncOutputStream *output);
++
++EncStatus VideoEncoder_GetStreamSection(EncoderHandle *hEnc, EncOutputStreamSection *output);
++
++EncStatus VideoEncoder_ReleaseStream(EncoderHandle *hEnc, EncOutputStream *output);
++
++EncStatus VideoEncoder_ReleaseStreamSection(EncoderHandle *hEnc, EncOutputStreamSection *output);
++
++#ifdef __cplusplus
++}
++#endif
++
++
+Index: b/libavcodec/libk510_h264.c
+===================================================================
+--- /dev/null
++++ b/libavcodec/libk510_h264.c
+@@ -0,0 +1,438 @@
++/*
++ * libk510_h264 encoder
++ *
++ * Copyright (c) 2021 Canaan
++ *
++ * This file is part of FFmpeg.
++ *
++ * FFmpeg is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2.1 of the License, or (at your option) any later version.
++ *
++ * FFmpeg is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with FFmpeg; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
++ */
++
++
++#include <float.h>
++#include <stdio.h>
++#include <sys/types.h>
++#include <sys/stat.h>
++#include <fcntl.h>
++#include <sys/ioctl.h>
++#include <sys/mman.h>
++#include <assert.h>
++#include <errno.h>
++#include <time.h>
++#include <pthread.h>
++#include <ctype.h>
++#include <malloc.h>
++#include <unistd.h>
++#include <signal.h>
++#include <string.h>
++#include <stdlib.h>
++#include <dlfcn.h>
++
++#include "libavutil/internal.h"
++#include "libavutil/common.h"
++#include "libavutil/opt.h"
++#include "libavutil/pixdesc.h"
++#include "avcodec.h"
++#include "internal.h"
++#include "enc_interface.h"
++
++//#define YUV_DUMP  1
++//#define H264_DUMP 1
++
++typedef struct libk510_h264Context {
++    const AVClass   *class;
++    
++    EncoderHandle   *hEnc;
++    int             fd_ddr;
++    int             fd_share_memory;
++    long            yuv_phyAddr;
++    unsigned char   *yuv_vAddr;
++    unsigned int    yuv_size;
++    int             gop_size;
++    int             bit_rate;
++    int             cqp;
++    int             maxrate;
++    int             framerate;
++    int             idrFreq;
++    int             profile;
++    int             level;
++    AVC_AspectRatio ar;
++    int             framesToEncode;    
++    int             out_pic;
++    int             in_pic;
++    int64_t         pts;
++    uint8_t         *prev_data;
++} libk510_h264Context;
++
++#define SHARE_MEMORY_DEV "/dev/k510-share-memory"
++#define DEV_NAME_DDR "/dev/mem"
++#define MEMORY_TEST_BLOCK_ALIGN 4096        /* align 4k for mmap */
++#define SHARE_MEMORY_ALLOC          _IOWR('m', 1, unsigned long)
++#define SHARE_MEMORY_ALIGN_ALLOC    _IOWR('m', 2, unsigned long)
++#define SHARE_MEMORY_FREE           _IOWR('m', 3, unsigned long)
++#define SHARE_MEMORY_SHOW           _IOWR('m', 4, unsigned long)
++
++struct share_memory_alloc_align_args {
++    unsigned int size;
++    unsigned int alignment;
++    unsigned int phyAddr;
++};
++
++
++static volatile int received_sigterm; 
++static void exit_handler(int sig)
++{
++  if(SIGINT == sig)
++  {
++    received_sigterm = 1;
++  }
++  return;
++}
++
++static unsigned int alloc_memory(int fd_share_memory, unsigned int size)
++{
++  struct share_memory_alloc_align_args  allocAlignMem;
++  
++  allocAlignMem.size = (size + 0xfff) & (~0xfff);
++  allocAlignMem.alignment = MEMORY_TEST_BLOCK_ALIGN;
++  allocAlignMem.phyAddr = 0;
++
++  if(ioctl(fd_share_memory, SHARE_MEMORY_ALIGN_ALLOC, &allocAlignMem) < 0)
++  {
++    printf("alloc_memory Error!\n");
++    return -1;
++  }
++  //printf("%s>phy_addr 0x%x, size %d\n", __FUNCTION__, allocAlignMem.phyAddr, allocAlignMem.size);
++  
++  return allocAlignMem.phyAddr;
++}
++
++static av_cold int k510_h264_encode_init(AVCodecContext *avctx)
++{
++    libk510_h264Context *pCtx = avctx->priv_data;  
++    EncSettings Cfg;
++
++    pCtx->fd_share_memory = open(SHARE_MEMORY_DEV,O_RDWR | O_SYNC);
++    if(pCtx->fd_share_memory < 0)
++    {
++       printf("Open %s Error!\n", SHARE_MEMORY_DEV);
++    }
++
++    pCtx->fd_ddr = open(DEV_NAME_DDR,O_RDWR|O_SYNC); 
++    if(pCtx->fd_ddr < 0)
++    {
++      printf("Open %s Error!\n", DEV_NAME_DDR);
++    }
++
++    pCtx->yuv_size = 1920*1080*3;
++    pCtx->yuv_phyAddr = alloc_memory(pCtx->fd_share_memory, pCtx->yuv_size);  
++    pCtx->yuv_vAddr = (unsigned char*)mmap(NULL, pCtx->yuv_size, PROT_READ|PROT_WRITE, MAP_SHARED, pCtx->fd_ddr, pCtx->yuv_phyAddr); 
++    printf("%s>yuv_vAddr %p, yuv_phyAddr 0x%lx, yuv_size %d\n", __FUNCTION__, pCtx->yuv_vAddr, pCtx->yuv_phyAddr, pCtx->yuv_size);
++
++    Cfg.BitRate = pCtx->bit_rate;
++    Cfg.MaxBitRate = pCtx->maxrate;
++    Cfg.SliceQP = pCtx->cqp;
++
++    if(pCtx->cqp == -1)
++    {
++        if ((pCtx->maxrate != 0) && (pCtx->maxrate < pCtx->bit_rate))
++        { 
++            av_log(avctx, AV_LOG_FATAL, "\nERROR: maxrate cannot be less than bitrate \n");
++            return -1;
++        }
++        
++        if(pCtx->maxrate == 0 || pCtx->maxrate == pCtx->bit_rate)
++        {
++            Cfg.MaxBitRate = pCtx->bit_rate;
++            Cfg.SliceQP = 25;
++            Cfg.rcMode = CBR; 
++        }
++        else
++        {
++            Cfg.rcMode = VBR;
++        }
++    }
++    else
++    {
++        Cfg.rcMode = CONST_QP;
++        Cfg.SliceQP = pCtx->cqp;
++    }
++    
++    Cfg.width = avctx->width;
++    Cfg.height = avctx->height;
++    Cfg.level = pCtx->level;
++    Cfg.profile = pCtx->profile;    
++    Cfg.FreqIDR = pCtx->idrFreq;
++    Cfg.gopLen = pCtx->gop_size;
++    Cfg.FrameRate = pCtx->framerate;
++    Cfg.AspectRatio = pCtx->ar; 
++    printf("Encoder Settings:\n");
++    printf("  width           : %d\n", Cfg.width);
++    printf("  height          : %d\n", Cfg.height);
++    printf("  level           : %d\n", Cfg.level);
++    printf("  profile         : %d\n", Cfg.profile); 
++    printf("  FreqIDR         : %d\n", Cfg.FreqIDR);
++    printf("  gopLen          : %d\n", Cfg.gopLen);
++    printf("  FrameRate       : %d\n", Cfg.FrameRate);
++    printf("  rcMode          : %d\n", Cfg.rcMode);
++	 printf("  SliceQP         : %d\n", Cfg.SliceQP);
++	 printf("  bitrate         : %d\n", Cfg.BitRate);
++	 printf("  maxbitrate      : %d\n", Cfg.MaxBitRate);
++    pCtx->hEnc = VideoEncoder_Create(&Cfg);
++
++    pCtx->pts = 0;
++
++    signal(SIGINT, exit_handler);
++    
++    return 0;
++}
++
++static void planer_to_semi(AVCodecContext *avctx, const AVFrame *pic)
++{
++    libk510_h264Context *pCtx = avctx->priv_data;
++    unsigned char *data, *pY, *pU, *pV;
++    int i;
++
++    pY = pic->data[0];
++    pU = pic->data[1];
++    pV = pic->data[2];
++    data = pCtx->yuv_vAddr;
++    memcpy(data, pY, pic->linesize[0]*avctx->height);
++    data += pic->linesize[0]*avctx->height;
++
++    for(i=0; i<pic->linesize[0]*avctx->height/2; i++)
++    {
++        *data++ = *pU++;
++        *data++ = *pV++;
++    }
++}
++
++static unsigned long int get_time()
++{
++  struct timespec time;
++        
++  clock_gettime(CLOCK_REALTIME, &time);
++  
++  return time.tv_sec * 1000LL * 1000LL * 1000LL + time.tv_nsec;
++}
++
++static int k510_h264_encode_frame(AVCodecContext *avctx, AVPacket *pkt, const AVFrame *pic, int *got_packet)
++{
++    libk510_h264Context *pCtx = avctx->priv_data;
++    EncInputFrame input;
++    EncOutputStream output;
++    int ret;  
++
++    if(received_sigterm == 1)
++    {
++      *got_packet = 0;
++      return 0;
++    }
++
++    if(pic)
++    {
++        unsigned long int time;
++
++        time = get_time();
++      
++        if(pCtx->prev_data == pic->data[0])
++        {
++            printf("%s>duplicated frame\n", __FUNCTION__, pic->data[0]);
++            *got_packet = 0;
++            return 0;
++        }
++        if(pCtx->in_pic == 0)
++        {
++            printf("pic: format %d, linesize %d, %d, %d, pts %ld\n", pic->format, pic->linesize[0], pic->linesize[1], pic->linesize[2], pic->pts);
++            printf("pic data %p, %p, %p, %p, %p, %p, %p, %p\n", 
++              pic->data[0], pic->data[1], pic->data[2], pic->data[3], pic->data[4], pic->data[5], pic->data[6], pic->data[7]);
++              
++            pCtx->pts = pic->pts;
++        }
++        pCtx->prev_data = pic->data[0];
++        pCtx->in_pic++;
++        //printf("%s>in pts %ld, time %.4f ms\n", __FUNCTION__, pic->pts, get_time()/1000000.0);
++        
++#ifdef YUV_DUMP
++        static FILE *dump_file=NULL;
++        if(dump_file == NULL)
++        {
++            if((dump_file=fopen("in_dump.yuv","w+b")) == NULL )
++            {
++                printf("Cannot open output file!\n");
++            }
++        }
++        if(pCtx->in_pic <= 10)
++        {
++            fwrite(pic->data[0], 1, pic->linesize[0]*avctx->height*3/2, dump_file);
++        }
++        if(pCtx->in_pic == 10)
++        {
++            fclose(dump_file);
++            printf("YUV_DUMP is done\n");
++        }       
++#endif
++        if(pic->format == AV_PIX_FMT_NV12)
++        {
++            //memcpy(pCtx->yuv_vAddr, pic->data[0], pic->linesize[0]*avctx->height*3/2);
++            input.data = pic->data[0];
++        }
++        else
++        {           
++            planer_to_semi(avctx, pic);
++            input.data = (unsigned char*)pCtx->yuv_phyAddr;
++        }
++
++        input.width = avctx->width;
++        input.height = avctx->height;
++        input.stride = pic->linesize[0];
++
++        VideoEncoder_EncodeOneFrame(pCtx->hEnc, &input);
++
++        VideoEncoder_GetStream(pCtx->hEnc, &output);
++
++        //printf("%s>bufAddr 0x%x, bufSize %d\n", __FUNCTION__, output.bufAddr, output.bufSize);
++
++        if(output.bufSize != 0)
++        {
++            if((get_time()-time)/1000000.0 >= (1000.0/pCtx->framerate) && pic->format == AV_PIX_FMT_NV12)
++            {
++              av_log(avctx, AV_LOG_WARNING, "big encode time %.4f ms\n", (get_time()-time)/1000000.0);
++            }
++            
++            ret = ff_alloc_packet2(avctx, pkt, output.bufSize, 0);
++            if (ret < 0)
++            {
++                av_log(avctx, AV_LOG_ERROR, "Error getting output packet.\n");
++                return ret;
++            }
++
++            memcpy(pkt->data, output.bufAddr, output.bufSize);
++
++            pCtx->pts += 1;//90000LL/pCtx->framerate;
++            pkt->pts = pCtx->pts;
++            pkt->dts = pCtx->pts;
++            pkt->size = output.bufSize;
++            
++#ifdef H264_DUMP
++            static FILE *dump_file=NULL;
++            if(dump_file == NULL)
++            {
++                if((dump_file=fopen("out_dump.264","w+b")) == NULL)
++                {
++                    printf("Cannot open output file!\n");
++                }
++            }
++            if(pCtx->out_pic <= 10)
++            {
++                fwrite(output.bufAddr, 1, output.bufSize, dump_file);
++            }
++            if(pCtx->out_pic == 10)
++            {
++                fclose(dump_file);
++                printf("H264_DUMP is done\n");
++            }    
++#endif
++
++            VideoEncoder_ReleaseStream(pCtx->hEnc, &output);
++            pCtx->out_pic++;
++
++            //printf("%s>out pts %d, size %d, time %.4f ms\n", __FUNCTION__, pkt->pts, pkt->size, get_time());
++            //av_log(avctx, AV_LOG_WARNING, "out pts %d, size %d, time %.4f ms\n", pkt->pts, pkt->size, get_time()/1000000.0);
++        }   
++        *got_packet = 1;
++    }
++    else
++    {
++        printf("Receive NULL pic\n");
++        *got_packet = 0;
++    }
++  
++    return 0;
++}
++
++static av_cold int k510_h264_encode_close(AVCodecContext *avctx)
++{
++    libk510_h264Context *pCtx = avctx->priv_data;
++
++    printf("%s>\n", __FUNCTION__);
++
++    VideoEncoder_Destroy(pCtx->hEnc);
++
++    if(pCtx->yuv_phyAddr != 0)
++    {
++      munmap((void*)pCtx->yuv_vAddr, pCtx->yuv_size);
++      if(ioctl(pCtx->fd_share_memory, SHARE_MEMORY_FREE, &pCtx->yuv_phyAddr) < 0)
++        printf("%s>Error!\n", __FUNCTION__);
++    }
++    return 0;
++}
++
++
++#define OFFSET(x) offsetof(libk510_h264Context, x)
++#define FLAGS     (AV_OPT_FLAG_VIDEO_PARAM | AV_OPT_FLAG_ENCODING_PARAM)
++
++static const AVOption options[] = 
++{ 
++  // Is there an advantage to the BOOL type vs INT?
++  //{ option name,            description,                            offset in the context object,    type             default, min, max, flags, unit}
++  // ***** GOP options ******
++  { "g",                    "Set gop size",                                   OFFSET(gop_size),        AV_OPT_TYPE_INT,  {.i64 = 25}, 0, 1000, FLAGS },
++  { "b",                    "Set video bitrate",                              OFFSET(bit_rate),        AV_OPT_TYPE_INT,  {.i64 = 4000000}, 0, 100000000, FLAGS },
++  { "r",                    "Set video framerate",                            OFFSET(framerate),       AV_OPT_TYPE_INT,  {.i64 = 30}, 25, 60, FLAGS },
++  { "idr_freq",             "IDR frequency. -1=No IDRs",                      OFFSET(idrFreq),         AV_OPT_TYPE_INT,  {.i64 = -1 }, -1, 256, FLAGS },
++  // ***** Rate Control options ******
++  { "qp",                   "Use constant QP for encoding.",                  OFFSET(cqp),             AV_OPT_TYPE_INT,  {.i64 = -1}, -1, 100, FLAGS },
++  { "maxrate",              "Maximum bitrate. (0=ignore)",                    OFFSET(maxrate),         AV_OPT_TYPE_INT,  {.i64 = 0}, 0, 100000000, FLAGS },
++  // ***** Input/Output options ******
++  { "profile",              "Set profile restrictions",                       OFFSET(profile),         AV_OPT_TYPE_INT,  {.i64 = AVC_HIGH}, AVC_BASELINE, AVC_HIGH, FLAGS, "profile_flags"},
++  {     "baseline",           "",  0, AV_OPT_TYPE_CONST, { .i64 = AVC_BASELINE },     0, 0, FLAGS, "profile_flags" },
++  {     "main",               "",  0, AV_OPT_TYPE_CONST, { .i64 = AVC_MAIN },     0, 0, FLAGS, "profile_flags" },
++  {     "high",               "",  0, AV_OPT_TYPE_CONST, { .i64 = AVC_HIGH },   0, 0, FLAGS, "profile_flags" },
++  { "level",                "Specify level",                                  OFFSET(level),           AV_OPT_TYPE_INT,  {.i64 = 42}, 10, 42, FLAGS, "level_flags"},
++  { "ar",                   "Set aspect ratio",                               OFFSET(ar),         AV_OPT_TYPE_INT,  {.i64 = ASPECT_RATIO_AUTO}, ASPECT_RATIO_AUTO, ASPECT_RATIO_16_9, FLAGS, "profile_flags"},
++  {     "auto",               "",  0, AV_OPT_TYPE_CONST, { .i64 = ASPECT_RATIO_AUTO },     0, 0, FLAGS, "profile_flags" },
++  {     "4:3",                "",  0, AV_OPT_TYPE_CONST, { .i64 = ASPECT_RATIO_4_3 },     0, 0, FLAGS, "profile_flags" },
++  {     "16:9",               "",  0, AV_OPT_TYPE_CONST, { .i64 = ASPECT_RATIO_16_9 },   0, 0, FLAGS, "profile_flags" },
++  { "framesToEncode",       "set the libk510_h264 framesToEncode",            OFFSET(framesToEncode),   AV_OPT_TYPE_INT,  { .i64 = -1 }, -1, INT_MAX, FLAGS },
++  {NULL}
++};
++
++static const AVClass class = {
++    .class_name = "libk510_h264",
++    .item_name  = av_default_item_name,
++    .option     = options,
++    .version    = LIBAVUTIL_VERSION_INT,
++};
++
++static const AVCodecDefault k510_h264_defaults[] = {
++    { "b", "0" },
++    { NULL },
++};
++
++
++AVCodec ff_libk510_h264_encoder = {
++    .name             = "libk510_h264",
++    .long_name        = NULL_IF_CONFIG_SMALL("libk510_h264 H.264"),
++    .type             = AVMEDIA_TYPE_VIDEO,
++    .id               = AV_CODEC_ID_H264,
++    .init             = k510_h264_encode_init,
++    .encode2          = k510_h264_encode_frame,
++    .close            = k510_h264_encode_close,
++    .priv_data_size   = sizeof(libk510_h264Context),
++    .priv_class       = &class,
++    .defaults         = k510_h264_defaults,
++    .capabilities     = AV_CODEC_CAP_DELAY | AV_CODEC_CAP_AUTO_THREADS,
++};
++
+Index: b/libavdevice/Makefile
+===================================================================
+--- a/libavdevice/Makefile
++++ b/libavdevice/Makefile
+@@ -49,6 +49,7 @@ OBJS-$(CONFIG_V4L2_OUTDEV)
+ OBJS-$(CONFIG_VFWCAP_INDEV)              += vfwcap.o
+ OBJS-$(CONFIG_XCBGRAB_INDEV)             += xcbgrab.o
+ OBJS-$(CONFIG_XV_OUTDEV)                 += xv.o
++OBJS-$(CONFIG_LIBK510_VIDEO_INDEV)          += libk510_video.o video_app.o
+ 
+ # external libraries
+ OBJS-$(CONFIG_LIBCDIO_INDEV)             += libcdio.o
+Index: b/libavdevice/alldevices.c
+===================================================================
+--- a/libavdevice/alldevices.c
++++ b/libavdevice/alldevices.c
+@@ -55,6 +55,7 @@ extern AVOutputFormat ff_v4l2_muxer;
+ extern AVInputFormat  ff_vfwcap_demuxer;
+ extern AVInputFormat  ff_xcbgrab_demuxer;
+ extern AVOutputFormat ff_xv_muxer;
++extern AVInputFormat  ff_libk510_video_demuxer;
+ 
+ /* external libraries */
+ extern AVInputFormat  ff_libcdio_demuxer;
+Index: b/libavdevice/isp_video.h
+===================================================================
+--- /dev/null
++++ b/libavdevice/isp_video.h
+@@ -0,0 +1,655 @@
++/******************************************************************************
++
++  Copyright (C), 2020, CANAAN Tech. Co., Ltd.
++
++ ******************************************************************************
++  File Name     : isp_video.h
++  Version       : Initial Draft
++  Author        : zhudalei
++  Created       : 
++  Description   : 
++  History       :
++  Date        : 
++ ******************************************************************************/
++#ifndef _ISP_VIDEO_H_
++#define _ISP_VIDEO_H_
++
++#ifdef __cplusplus  
++extern "C"{
++#endif
++
++#define calc_stride(width)   (((width) + 15)/16*16)
++
++typedef struct FRAME_COORDINATE{
++	unsigned int startx;
++	unsigned int endx;
++	unsigned int starty;
++	unsigned int endy;
++}frame_coordinate_info;
++
++typedef struct isp_reg{
++    unsigned int id;
++    unsigned int value;
++}ISP_REG_S;
++
++typedef enum _ISP_TABLE_NAME{
++    RGB_GAMMA,
++    YUV_GAMMA,
++    WDR_L3,
++    WDR_M3,
++    WDR_S3,
++    WDR_L2,
++    WDR_S2,
++    TABLE_MAX,
++}ISP_TABLE;
++
++typedef enum _DS2_RGB_TYPE
++{
++    DS2_S_RGB = 0,
++    DS2_ARGB = 1,
++}DS2_RGB_TYPE;
++typedef enum
++{
++    DS_OUT0 = 0,
++    DS_OUT1,
++    DS_OUT2,
++} DS_OUT;
++
++typedef enum
++{
++    DS0_IRQ_ID = 1,
++    DS1_IRQ_ID,
++    DS2_IRQ_ID,
++
++} ISP_IRQ;
++
++struct ds_data {
++    uint32_t addr;
++    ISP_IRQ isp_irq_id;
++};
++
++typedef enum _ISP_PIPE_MODE_E
++{
++	ISP_PIPE_MODE_4K = 0,
++	ISP_PIPE_MODE_F2K,
++	ISP_PIPE_MODE_R2K,
++	ISP_PIPE_MODE_TOF,
++	ISP_PIPE_MODE_BUTT
++}ISP_PIPE_MODE_E;
++
++typedef enum _SENSOR_TYPE
++{
++    IMX385_SENSOR = 0,
++    JFX23S_SENSOR = 1,
++    TOF_SENSOR    = 2,
++	IMX219_SENSOR = 3,
++	OV5647_SENSOR = 4,
++}SENSOR_TYPE;
++
++typedef struct _DS2_INFO
++{
++    unsigned int ds2_en;
++    unsigned int ds2_width;
++    unsigned int ds2_height;
++    DS2_RGB_TYPE ds2_rgb_type;
++	unsigned int r_addr;
++	unsigned int g_addr;
++	unsigned int b_addr;
++
++}DS2_INFO;
++
++typedef struct _DS1_INFO
++{
++    unsigned int ds1_en;
++    unsigned int ds1_width;
++    unsigned int ds1_height;
++    unsigned int y_addr;
++//    unsigned int uv_addr;
++    unsigned int stride;
++}DS1_INFO;
++
++//OSD
++typedef enum _OSD_Layer_Type_E
++{
++    OSD_RGB_24BIT         = 0,
++    OSD_MONOCHROME_8BIT   = 1,
++    OSD_RGB_16BIT         = 2,
++    OSD_RGB_32BIT         = 3,
++    OSD_RGB_4444          = 4,
++    OSD_RGB_1555            = 5,
++}OSD_Layer_Type_E;
++
++typedef enum _OSD_Alpha_Type_E
++{
++    OSD_FIXED_VALUE         = 0,  //Alpha data is a fixed value
++    OSD_L2_ALPHA_ADDR       = 1,  //Alpha data is at alpha data block in L2_ALPHA_ADDR.
++    OSD_INTERVAL_R          = 2,  //Alpha data interval is aligned with R channel of OSD
++    OSD_INTERVAL_G          = 3,  //Alpha data interval is aligned with G channel of OSD
++    OSD_INTERVAL_B          = 4,  //Alpha data interval is aligned with B channel of OSD
++    OSD_INTERVAL_A          = 5   //Alpha data interval is aligned with Alpha Channel of OSD for OSD type is 3, 4, and 5
++ }OSD_Alpha_Type_E;
++
++typedef enum _OSD_Dma_Ctl_E
++{
++    OSD_ORIGINAL_ORDER     = 0,
++    OSD_TWO_BIT_ENDIAN    = 2,
++    OSD_LITTLE_ENDIAN      = 3,
++ }OSD_Dma_Ctl_E;
++
++typedef enum _OSD_Dma_RGB_Rev
++{
++    OSD_RGB_REV_R     = 0,
++    OSD_RGB_REV_B     = 1,
++    OSD_RGB_REV_NUM   = 2,
++ }OSD_Dma_RGB_Rev;
++
++typedef struct _OSD_INFO
++{
++    OSD_Layer_Type_E   osd1_type;
++    OSD_Dma_Ctl_E      osd1_dma_ctl;
++    OSD_Dma_RGB_Rev    osd1_rgb_rev;
++}OSD_INFO;
++
++typedef struct _VO_OSD_INFO
++{
++    unsigned int osd_en;
++    unsigned int osd_width;
++    unsigned int osd_height;
++    OSD_INFO     osd_ctl;
++}VO_OSD_INFO;
++
++typedef enum _LCD_TYPE
++{
++    AML550_LCD = 0,
++    ITI7807_LCD = 1,
++    BT1120_DISPLAY = 2,
++	HX8399 = 3,
++	NO_SUPPORT_LCD,
++}LCD_TYPE;
++
++struct memory_cache_sync_request {
++    size_t size;
++    uint64_t vaddr;
++    uint64_t paddr;
++};
++
++enum NR3D_FBC_FORMAT
++{
++    NR3D_YUV422_ENABLE,
++    NR3D_YUV420_ENABLE,
++};
++
++enum VO_OUT_IMGTYPE
++{
++    VO_OUT_YUV_HDMI,
++    VO_OUT_RGB_DSI,
++};
++
++enum isp_mem_resources {
++	ISP_IOMEM_CSI0_HOST,
++	ISP_IOMEM_CSI1_HOST,
++	ISP_IOMEM_MIPI_DPHY,
++	ISP_IOMEM_MIPI_CORNER,
++	ISP_IOMEM_VI_WRAP,
++	ISP_IOMEM_VI_PIPE_CSI00,
++	ISP_IOMEM_VI_PIPE_CSI01,
++	ISP_IOMEM_VI_PIPE_CSI02,
++	ISP_IOMEM_VI_PIPE_CSI10,
++	ISP_IOMEM_VI_PIPE_CSI11,
++	ISP_IOMEM_VI_PIPE_CSI12,
++	ISP_IOMEM_VI_PIPE_DVP0,	
++	ISP_IOMEM_VI_PIPE_DVP1,		
++	ISP_IOMEM_F2K_WRAP,
++	ISP_IOMEM_F2K_CORE,
++	ISP_IOMEM_F2K_CORE_TABLE,
++	ISP_IOMEM_F2K_FBC,
++	ISP_IOMEM_F2K_FBD,
++	ISP_IOMEM_F2K_DS,
++    ISP_IOMEM_F2K_MAIN_REMAP,
++	ISP_IOMEM_F2K_OUT0_REMAP,
++    ISP_IOMEM_F2K_OUT1_REMAP,
++	ISP_IOMEM_R2K_WRAP,
++	ISP_IOMEM_R2K_CORE,
++	ISP_IOMEM_R2K_CORE_TABLE,
++	ISP_IOMEM_R2K_DS,
++	ISP_IOMEM_R2K_MAIN_REMAP,
++    ISP_IOMEM_R2K_OUT0_REMAP,
++    ISP_IOMEM_R2K_OUT1_REMAP,
++	ISP_IOMEM_TOF_WRAP,
++	ISP_IOMEM_TOF_CORE,
++	ISP_IOMEM_TOF_TABLE,
++	ISP_IOMEM_FBC_WRAP,
++    ISP_IOMEM_FBC_CORE,
++	ISP_IOMEM_VO_CORE,
++	ISP_IOMEM_VO_REMAP,
++	ISP_IOMEM_VO_HSCALE,
++	ISP_IOMEM_VO_VSCALE,
++	ISP_IOMEM_VO_GAMMA,	
++	ISP_IOMEM_BT1120,
++	ISP_IOMEM_LAST
++};
++
++enum BT1120_IN_SEL
++{
++    SEL_VO = 0,
++    SEL_ISP_F_4K = 1,
++    SEL_ISP_F_2K = 2,
++    SEL_ISP_R_2K = 3,
++    SEL_ISP_TOF =4,
++};
++
++typedef enum _ISP_PIPELINE_E
++{
++	ISP_F_4K,
++	ISP_F_2K,
++	ISP_R_2K,
++	ISP_TOF,
++}ISP_PIPELINE_E;
++//
++typedef enum _SENSOR_INTERFACE_E
++{
++	MIPI0,
++	MIPI1,
++	DVP0,
++	MAX_SENSOR_INTERFACE_NUM,
++}SENSOR_INTERFACE_E;
++//
++enum _CRB_SENSOR_I2C
++{
++    EVB_MIPI_I2C,
++    CRB_MIPI_CSI0_I2C,
++    CRB_MIPI_CSI1_I2C,
++    EVB_DVP_I2C,
++    CRB_DVP_I2C,
++};
++//
++struct isp_pipeline_info
++{
++    enum _SENSOR_TYPE sensor_type;
++    enum _ISP_PIPELINE_E isp_pipeline;
++    unsigned int pipeline_en;
++};
++//
++enum ISP_PIPELINE_CFG_NUM
++{
++    F2K,
++    R2K,
++};
++
++#define CSI_00_PIPE       0
++#define CSI_01_PIPE       1
++#define CSI_02_PIPE       2
++#define CSI_10_PIPE       3
++#define CSI_11_PIPE       4
++#define CSI_12_PIPE       5
++#define DVP_0_PIPE        6
++#define DVP_1_PIPE        7
++//
++#define  PIXEL_WIDTH_8BIT      0
++#define  PIXEL_WIDTH_10BIT     1
++#define  PIXEL_WIDTH_12BIT     2
++#define  PIXEL_WIDTH_14BIT     3
++#define  PIXEL_WIDTH_16BIT     4
++#define  PIXEL_WIDTH_18BIT     5
++#define  PIXEL_WIDTH_20BIT     6
++#define  PIXEL_WIDTH_24BIT     7
++//
++#define ISP_BUF_FBCD_BLEN          0x7
++#define ISP_BUF_FBCD_HEAD_BLEN     0x3
++#define ISP_BUF_FBCD_STRIDE        0x2000
++#define ISP_BUF_FBCD_HEAD_STRIDE   0x100
++
++/*********************************************************************
++ *mipi 
++*********************************************************************/
++enum csi_lane_mode
++{
++    MIPI_2LANE12_RAW12,
++    MIPI_2LANE34_RAW12,
++    MIPI_4LANE_RAW12,
++    MIPI_2LANE12_RAW10,
++    MIPI_2LANE34_RAW10,
++    MIPI_4LANE_RAW10,
++    MIPI_2x2LANE12_34_RAW12,
++    MIPI_2x2LANE12_34_RAW10,
++    MIPI_2x2LANE12_34,
++    MIPI_1x4LANE,
++};
++//
++int video_set_mipicsi(enum csi_lane_mode lane_mode,unsigned int csi0_pixel_width,unsigned int csi1_pixel_width);
++/*********************************************************************
++ *vi 
++*********************************************************************/
++//
++struct vi_sensor_info
++{
++    unsigned int    sensor_interface_en;
++	unsigned int    wdr_sensor_vendor;
++	unsigned int    wdr_mode;
++	//unsigned int    mipi_mode;
++	unsigned int    isp_pipeline;
++};
++
++struct vi_pipe_info
++{
++    	unsigned int    win_mode_en;
++    	unsigned int    input_ch_sel;
++    	unsigned int    ch_mode_sel;
++    	unsigned int    pixel_type;
++    	//unsigned int    yuv_in_format;
++    	//unsigned int    yuv_out_format;
++    	//unsigned int    yuv422_order;
++    	unsigned int    pixel_width;
++    	unsigned int    data_out_timming_ctrl;
++    	unsigned int    sync_pulse_mode;
++    	unsigned int    sen_mipi_clk_pol;
++    	unsigned int    sen_mipi_vsync_pol;
++    	unsigned int    sen_mipi_hsync_pol;
++    	unsigned int    sen_mipi_field_pol;
++    	unsigned int    isp_clk_pol;
++    	unsigned int    isp_vsync_pol;
++    	unsigned int    isp_hsync_pol;
++    	unsigned int    isp_field_pol;
++    	unsigned int    tpg_w_en;
++    	unsigned int    tpg_r_en;
++    	unsigned int    total_width;
++        unsigned int    total_height;
++    	unsigned int    in_width;
++        unsigned int    in_height;
++    	unsigned int    w_st_width;
++        unsigned int    w_st_height;
++     	unsigned int    r_st_width;
++        unsigned int    r_st_height;
++    	unsigned int    vi_pipe_w_addr_y0;
++    	unsigned int    vi_pipe_w_addr_y1;
++    	unsigned int    vi_pipe_w_addr_uv0;
++    	unsigned int    vi_pipe_w_addr_uv1;
++    	unsigned int    vi_pipe_r_addr_y0;
++    	unsigned int    vi_pipe_r_addr_y1;
++    	unsigned int    vi_pipe_addr_stride;
++    	unsigned int    tof_mode_enable;
++    	unsigned int    vi_pipe_tpg_tof_frm_num;
++    	unsigned int    vi_pipe_tpg_tof_frm_stride;
++};
++
++struct video_vi_info
++{
++	unsigned int    dphy_mode;
++	unsigned int    sony_mode;
++    struct vi_sensor_info  sensor_info[MAX_SENSOR_INTERFACE_NUM];
++    struct vi_pipe_info    pipe_info[8]; //only use 0,1,2,3,6 pipe 
++};
++//
++int video_set_vi(struct video_vi_info *vi_info);
++/*********************************************************************
++ *isp 
++*********************************************************************/
++struct isp_common_info
++{
++    unsigned int	isp_out_sel;
++    unsigned int    totalsize_width;
++    unsigned int    totalsize_height;
++    unsigned int    insize_width;
++    unsigned int    insize_height;
++    unsigned int    outsize_width;
++    unsigned int    outsize_height;
++};
++//
++struct isp_main_info
++{
++    unsigned int    main_en;
++    unsigned int    width;
++    unsigned int    height;    
++    unsigned int    y_addr0;
++    unsigned int    y_addr1;
++    //unsigned int    stride;
++};
++//
++struct isp_ds_info
++{
++    unsigned int    ds_en;
++    unsigned int    ds_width;
++    unsigned int    ds_height;
++    unsigned int    y_addr0;
++    unsigned int    y_addr1;
++    unsigned int    stride;
++    unsigned int    uv_swap;
++};
++//
++struct isp_ds2_info
++{
++    unsigned int    ds2_en;
++    unsigned int    ds2_width;
++    unsigned int    ds2_height;
++    DS2_RGB_TYPE    ds2_rgb_type;
++    unsigned int    r_addr0;
++    unsigned int    r_addr1;
++    unsigned int    g_addr0;
++    unsigned int    g_addr1;
++    unsigned int    b_addr0;
++    unsigned int    b_addr1;
++    unsigned int    stride;
++};
++//
++struct isp_rgbir_info
++{
++    unsigned int    rgbir_en;
++};
++//
++//
++struct isp_ldc_info
++{
++    unsigned int    ldc_en;
++    unsigned int    y_addr;
++    unsigned int    uv_addr;
++    unsigned int    stride;
++    unsigned int    ldc_req_freq;   
++    unsigned int    ldc_stt_ln;
++    unsigned int    ldc_h_center_pos;
++    unsigned int    ldc_v_center_pos;
++    unsigned int    ldc_rectify_cr; 
++    unsigned int    ldc_rectify_cz; 
++};
++//
++struct isp_wdr_info
++{
++    unsigned int    wdr_mode;
++};
++//
++struct isp_nr3d_info
++{
++    unsigned int    nr3d_en;
++	unsigned int    nr3d_fbcd_en;
++    unsigned int    width;
++    unsigned int    height;
++    unsigned int    y_addr;
++    //unsigned int    y_stride;
++    //unsigned int    uv_addr;
++    //unsigned int    uv_stride;
++    unsigned int    y_fbcd_addr0;
++    unsigned int    y_fbcd_addr1;
++    //unsigned int    fbcd_stride;	
++};
++//
++struct isp_int_info
++{
++    unsigned int    raw_en;
++    unsigned int    rgb_en;
++    unsigned int    yuv_en;
++    unsigned int    ae_en;
++    unsigned int    af_en;
++	unsigned int    awb_en;
++    unsigned int    nr3d_en;
++	unsigned int    ldc_en;
++	unsigned int    wdr_en;     
++    unsigned int    main_en;
++    unsigned int    ds0_en;
++	unsigned int    ds1_en;
++	unsigned int    ds2_en; 
++};
++//f2k
++int video_set_ispf2kcommon(enum _SENSOR_TYPE sensor_type,struct isp_common_info *commoninfo);
++int video_set_ispf2kmain0(enum _SENSOR_TYPE sensor_type,struct isp_main_info *main_info);
++int video_set_ispf2kds0(enum _SENSOR_TYPE sensor_type,struct isp_ds_info *ds0_info);
++int video_set_ispf2kds1(enum _SENSOR_TYPE sensor_type,struct isp_ds_info *ds1_info);
++int video_set_ispf2kds2(enum _SENSOR_TYPE sensor_type,struct isp_ds2_info *ds2_info);
++int video_set_ispf2krgbir(enum _SENSOR_TYPE sensor_type,struct isp_rgbir_info *rgbir_info);
++int video_set_ispf2kldc(enum _SENSOR_TYPE sensor_type,struct isp_ldc_info *ldc_info);
++int video_set_ispf2kwdr(enum _SENSOR_TYPE sensor_type,struct isp_wdr_info *wdr_info);
++int video_set_ispf2knr3d(enum _SENSOR_TYPE sensor_type,struct isp_nr3d_info *nr3d_info);
++int video_set_ispf2kint(struct isp_int_info *intinfo);
++//r2k
++int video_set_ispr2kcommon(enum _SENSOR_TYPE sensor_type,struct isp_common_info *commoninfo);
++int video_set_ispr2kmain0(enum _SENSOR_TYPE sensor_type,struct isp_main_info *main_info);
++int video_set_ispr2kds0(enum _SENSOR_TYPE sensor_type,struct isp_ds_info *ds0_info);
++int video_set_ispr2kds1(enum _SENSOR_TYPE sensor_type,struct isp_ds_info *ds1_info);
++int video_set_ispr2kds2(enum _SENSOR_TYPE sensor_type,struct isp_ds2_info *ds2_info);
++int video_set_ispr2krgbir(enum _SENSOR_TYPE sensor_type,struct isp_rgbir_info *rgbir_info);
++int video_set_ispr2kldc(enum _SENSOR_TYPE sensor_type,struct isp_ldc_info *ldc_info);
++int video_set_ispr2kint(struct isp_int_info *intinfo);
++/*********************************************************************
++ *vo 
++*********************************************************************/
++struct vo_dispaly_info{
++    unsigned int    dispEnable;
++    unsigned int    xZoneCtl_start;
++    unsigned int    xZoneCtl_stop;
++    unsigned int    yZoneCtl_start;
++    unsigned int    yZoneCtl_stop;
++    unsigned int    SyncMode;
++    //unsigned int    hsize;
++    //unsigned int    vsize;
++    unsigned int    vo_out_imgtype;
++    unsigned int    vo_out_active_imgh;
++    unsigned int    vo_out_active_imgv;
++};
++
++struct vo_layer0_info{
++	unsigned int 	layerEn;
++	unsigned int 	yuvmode;
++    unsigned int    endianuv;
++    unsigned int    uvswap;
++	//
++    unsigned int 	offset_hsize;
++    unsigned int 	offset_vsize;
++    unsigned int 	in_hsize;
++    unsigned int 	in_vsize;
++    unsigned int 	out_hsize;
++    unsigned int 	out_vsize;		
++	//
++    unsigned int 	layer_x_start;
++    unsigned int 	layer_x_stop;
++    unsigned int 	layer_y_start;
++    unsigned int 	layer_y_stop;
++	//
++    unsigned int 	layer_yAddr0;
++    unsigned int 	layer_yAddr1;
++    //unsigned int 	layer_uvAddr0;
++    //unsigned int 	layer_uvAddr1;
++    //unsigned int 	layer_stride;
++	//fbd
++	unsigned int    fbd_en;
++	unsigned int 	fbd_y_addr0;
++	unsigned int 	fbd_y_addr1;
++	unsigned int 	fbd_y_stride;
++
++	unsigned int 	fbd_y_head_addr0;
++	unsigned int 	fbd_y_head_addr1;
++	unsigned int 	fbd_y_head_stride;
++
++	unsigned int 	fbd_uv_addr0;
++	unsigned int 	fbd_uv_addr1;
++    unsigned int 	fbd_uv_stride;
++
++	unsigned int 	fbd_uv_head_addr0;
++	unsigned int 	fbd_uv_head_addr1;
++    unsigned int 	fbd_uv_head_stride;
++};
++//
++struct vo_layer_info
++{
++	unsigned int 	layerEn;
++	unsigned int 	yuvmode;  //yuv420/yuv422
++    unsigned int    endianuv;
++    unsigned int    uvswap;
++    //
++    unsigned int 	offset_hsize;
++    unsigned int 	offset_vsize;
++    unsigned int 	in_hsize;
++    unsigned int 	in_vsize;
++    //		
++    unsigned int 	layer_x_start;
++    //unsigned int 	layer_x_stop;
++    unsigned int 	layer_y_start;
++    //unsigned int 	layer_y_stop;
++    //
++    unsigned int 	layer_yAddr0;
++    unsigned int 	layer_yAddr1;
++    //unsigned int 	layer_uvAddr0;
++    //unsigned int 	layer_uvAddr1;
++    //unsigned int 	layer_stride;
++};
++//
++struct vo_layer_osd_info
++{
++    unsigned int 	osdEn;
++    unsigned int 	osdtype;
++    unsigned int 	alphatpye;
++	unsigned int 	rgbrev;
++    //
++    unsigned int 	width;
++    unsigned int 	height;
++    //
++    unsigned int 	osd_x_start;
++    //unsigned int 	osd_x_stop;
++    unsigned int 	osd_y_start;
++    //unsigned int 	osd_y_stop;
++    //
++    unsigned int    alp_addr0;
++    unsigned int    alp_addr1;
++    //unsigned int    alpstride;
++    unsigned int    vlu_addr0;
++    unsigned int    vlu_addr1;
++    //unsigned int    osdstride;
++};
++//
++struct vo_disp_irq_info{
++    unsigned int   vo_disp_irq0_en;
++    unsigned int   vo_disp_irq1_en;
++    unsigned int   vo_disp_irq2_en;
++};
++//
++int video_set_display(struct vo_dispaly_info *dispaly_info);
++int video_set_volayer0(struct vo_layer0_info *layer0_info);
++int video_set_volayer1(struct vo_layer_info *layer1_info);
++int video_set_volayer2(struct vo_layer_info *layer2_info);
++int video_set_volayer3(struct vo_layer_info *layer3_info);
++int video_set_volayer4osd0(struct vo_layer_osd_info *osd0_info);
++int video_set_volayer5osd1(struct vo_layer_osd_info *osd1_info);
++int video_set_volayer6osd2(struct vo_layer_osd_info *osd2_info);
++int video_set_voint(struct vo_disp_irq_info *irq_info);
++int video_draw_frame(unsigned int draw_en,unsigned int DrawAreaNum,frame_coordinate_info frame_coordinate);
++/*********************************************************************
++ *bt1120
++*********************************************************************/
++struct hdmi_bt1120_info{
++    unsigned int bt1120_en;
++    unsigned int bt_in_sel;
++    unsigned int img_vsize_total;
++    unsigned int img_hsize_total;
++    unsigned int img_vsize;
++    unsigned int img_hsize;
++  };
++//
++int video_set_bt1120(struct hdmi_bt1120_info *bt1120_info);
++/*********************************************************************
++ *pipeline
++*********************************************************************/
++int run_video(enum _SENSOR_TYPE sensor_type,enum _LCD_TYPE lcd_type,enum _ISP_PIPELINE_E isp_pipeline,unsigned int debug_en);
++void isp_exit(void);
++void video_set_ae_dgain_cfg(unsigned int expl);
++void video_set_ae_again_cfg(unsigned int agc);
++#ifdef __cplusplus
++} 
++#endif
++#endif /*_ISP_VIDEO_H_*/
+\ No newline at end of file
+Index: b/libavdevice/libk510_video.c
+===================================================================
+--- /dev/null
++++ b/libavdevice/libk510_video.c
+@@ -0,0 +1,539 @@
++/*
++ * Directshow capture interface
++ * Copyright (c) 2010 Ramiro Polla
++ *
++ * This file is part of FFmpeg.
++ *
++ * FFmpeg is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2.1 of the License, or (at your option) any later version.
++ *
++ * FFmpeg is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with FFmpeg; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
++ */
++#include <stdio.h>
++#include <sys/types.h>
++#include <sys/stat.h>
++#include <fcntl.h>
++#include <sys/ioctl.h>
++#include <sys/mman.h>
++#include <assert.h>
++#include <errno.h>
++#include <time.h>
++#include <pthread.h>
++#include <ctype.h>
++#include <malloc.h>
++#include <unistd.h>
++#include <signal.h>
++#include <string.h>
++#include <stdlib.h>
++#include <poll.h>
++
++#include "libavutil/parseutils.h"
++#include "libavutil/pixdesc.h"
++#include "libavutil/opt.h"
++#include "libavformat/internal.h"
++#include "libavformat/riff.h"
++#include "avdevice.h"
++#include "libavcodec/raw.h"
++#include "libavcodec/packet_internal.h"
++
++#include "video_app.h"
++#include "isp_video.h"
++#include "libavcodec/enc_interface.h"
++#include "libavutil/imgutils.c"
++#include "libavutil/time.h"
++
++//#define ISP_OUTPUT_DUMP 1
++#define ISP_ADDR_BUFFER_CNT  22
++
++#define SHARE_MEMORY_DEV "/dev/k510-share-memory"
++#define DEV_NAME_DDR "/dev/mem"
++#define DEV_NAME_ISP "/dev/test-isp"
++#define MEMORY_TEST_BLOCK_ALIGN 4096        /* align 4k for mmap */
++#define SHARE_MEMORY_ALLOC          _IOWR('m', 1, unsigned long)
++#define SHARE_MEMORY_ALIGN_ALLOC    _IOWR('m', 2, unsigned long)
++#define SHARE_MEMORY_FREE           _IOWR('m', 3, unsigned long)
++#define SHARE_MEMORY_SHOW           _IOWR('m', 4, unsigned long)
++
++#define DDR_CTRL_REG_BASE 0x98000000
++#define NOC_QOS_REG_BASE  0x99900000
++#define MAILBOX_REG_BASE  0x970E0000
++
++
++typedef struct libk510_videoContext {
++    const AVClass   *class;
++    
++    void*           dl_handle;
++    int             width;
++    int             height;
++    int             framerate;
++    int             stride;
++    int             frame_size;
++    int             fd_isp;
++    int             fd_ddr;
++    int             fd_share_memory;
++    int             isp_rp;
++    int             isp_wp;
++    long            isp_addr[ISP_ADDR_BUFFER_CNT];
++    int             isp_pic_cnt;
++    unsigned int    reg_QoS_ctrl0;
++    unsigned int    reg_QoS_ctrl1;
++    unsigned int    reg_QoS_ctrl2;
++    unsigned int    reg_h264_bw;
++    unsigned int    reg_isp_pri;
++    unsigned int    reg_isp_mode;
++    unsigned int    reg_ddr_cli;
++    void            *isp_buf_vaddr;
++    unsigned int    isp_buf_paddr;
++    unsigned int    isp_buf_size;
++    int start;
++    int isp_end;
++    int exp;
++    int agc;
++    SENSOR_TYPE     sensor_type;
++    pthread_t isp_thread;
++    int src_index;
++    unsigned int input_frames;
++    unsigned int out_pic;
++    unsigned long int start_time;
++    int64_t pts;
++#ifdef ISP_OUTPUT_DUMP    
++    long yuv_phyAddr;
++    void *yuv_vAddr;
++    unsigned int yuv_size;
++    unsigned char *pSrc;
++#endif    
++} libk510_videoContext;
++
++struct share_memory_alloc_align_args {
++    unsigned int size;
++    unsigned int alignment;
++    unsigned int phyAddr;
++};
++
++static unsigned int alloc_memory(int fd_share_memory, unsigned int size)
++{
++  struct share_memory_alloc_align_args  allocAlignMem;
++  
++  allocAlignMem.size = (size + 0xfff) & (~0xfff);
++  allocAlignMem.alignment = MEMORY_TEST_BLOCK_ALIGN;
++  allocAlignMem.phyAddr = 0;
++
++  if(ioctl(fd_share_memory, SHARE_MEMORY_ALIGN_ALLOC, &allocAlignMem) < 0)
++	{
++    printf("alloc_memory Error!\n");
++    return -1;
++  }
++  //printf("%s>phy_addr 0x%x, size %d\n", __FUNCTION__, allocAlignMem.phyAddr, allocAlignMem.size);
++  
++  return allocAlignMem.phyAddr;
++}
++
++static unsigned long int get_time()
++{
++  struct timespec time;
++        
++  clock_gettime(CLOCK_REALTIME, &time);
++  
++  return time.tv_sec * 1000LL * 1000LL * 1000LL + time.tv_nsec;
++}
++
++static void *isp_ouput(void *arg)
++{
++  printf("isp_ouput\n");
++  int ret = -1;
++  struct pollfd isp_fds;
++  struct ds_data isp;
++  libk510_videoContext *pCtx= (libk510_videoContext *)arg;
++  unsigned long int time = 0;
++  unsigned long int start_time = 0;
++  unsigned long int check_time = 0;
++  
++  isp_fds.fd  = pCtx->fd_isp;
++  isp_fds.events = POLLIN;
++
++  pCtx->isp_pic_cnt = 1;
++
++  while(pCtx->start)
++  {
++    poll(&isp_fds, 1, -1);
++    if(isp_fds.events==POLLIN)
++    {
++      ret = read(pCtx->fd_isp, &isp, sizeof(isp));
++      if(ret < 0)
++      {
++          printf("read fd error \n");
++      }  
++      
++      if(time > 0)
++      {
++        //printf("isp out time interval %.4f ms\n", (get_time()-time)/1000000.0);
++      }
++      time = get_time();
++      
++      if(start_time == 0)
++      {
++        start_time = time;
++      }
++      
++      if(check_time == 0)
++      {
++        check_time = time;
++      }     
++      
++      if(pCtx->isp_addr[pCtx->isp_wp] != 0)
++      {
++          printf("isp buffer overflow\n");
++      }
++      else
++      {
++        int drop=0, repeat=0;
++        
++        if(time - check_time >= 1000000000)
++        {
++          unsigned long int cap_time, elasp_time, delta=0, duration;
++          
++          check_time = 0;
++
++          duration = 1000000.0/pCtx->framerate;
++          elasp_time = (time - start_time)/1000.0;
++          cap_time = pCtx->isp_pic_cnt*duration;
++          if(cap_time < elasp_time)
++          {
++            delta = elasp_time - cap_time;
++            if(delta > duration/2)
++            {
++              repeat = 1;
++              //printf("repeat: cnt %d, elasp_time %.4f ms, cap_time %.4f ms\n", pCtx->isp_pic_cnt, elasp_time/1000.0, cap_time/1000.0);
++            }
++          }
++          else
++          {
++            delta = cap_time - elasp_time;
++            if(delta > duration/2)
++            {
++              drop = 1;
++              //printf("drop: cnt %d, elasp_time %.4f ms, cap_time %.4f ms\n", pCtx->isp_pic_cnt, elasp_time/1000.0, cap_time/1000.0);
++            }
++          }
++        }
++        
++        if(drop == 0)
++        {
++          pCtx->isp_addr[pCtx->isp_wp] = isp.addr;
++          pCtx->isp_wp++;
++          pCtx->isp_wp %= ISP_ADDR_BUFFER_CNT;
++          pCtx->isp_pic_cnt++;
++        }
++        
++        if(repeat == 1)
++        {
++          pCtx->isp_addr[pCtx->isp_wp] = isp.addr;
++          pCtx->isp_wp++;
++          pCtx->isp_wp %= ISP_ADDR_BUFFER_CNT;
++          pCtx->isp_pic_cnt++;
++        }
++        //printf("isp output buffer 0x%x, isp_irq_id %d\n", isp.addr, isp.isp_irq_id);
++      }
++    }
++  }  
++  pCtx->isp_end = 1;
++  return;
++}
++
++static int k510_add_device(AVFormatContext *avctx)
++{
++    struct libk510_videoContext *pCtx = avctx->priv_data;
++    AVCodecParameters *par;
++    AVStream *st;
++    int ret = AVERROR(EIO);
++    int packet_size;
++    AVRational time_base;
++
++    st = avformat_new_stream(avctx, NULL);
++    if (!st) {
++        ret = AVERROR(ENOMEM);
++        return ret;
++    }
++
++    st->time_base.num = pCtx->framerate;
++    st->time_base.den = 1;
++
++    par = st->codecpar;
++    par->codec_type = AVMEDIA_TYPE_VIDEO;
++    par->width      = pCtx->width;
++    par->height     = pCtx->height;
++    par->codec_id = AV_CODEC_ID_RAWVIDEO;
++    par->format = AV_PIX_FMT_NV12;
++
++    // avpriv_set_pts_info(st, 64,1, 1000000);
++    avpriv_set_pts_info(st, 64, st->time_base.den, st->time_base.num);
++
++    packet_size = av_image_get_buffer_size(par->format, pCtx->width, pCtx->height, 1);
++    
++    if(packet_size < 0)
++        return packet_size;
++    avctx->packet_size = packet_size;
++    par->bit_rate = av_rescale_q(packet_size, (AVRational){8,1}, st->time_base);
++    // printf("%s>packet_size = %d, bit_rate %d, den %d, num %d\n", __FUNCTION__, packet_size, par->bit_rate, st->time_base.den, st->time_base.num);
++    
++    return 0;
++}
++
++static int k510_video_read_header(AVFormatContext *avctx)
++{
++    struct libk510_videoContext *pCtx = avctx->priv_data;
++    unsigned char *reg;
++    // int stride;
++    char *error = NULL;
++
++    pCtx->pts = 0;
++    pCtx->isp_rp = 0;
++    pCtx->isp_wp = 0;
++    memset(pCtx->isp_addr, 0, sizeof(pCtx->isp_addr));
++
++    pCtx->fd_share_memory = open(SHARE_MEMORY_DEV,O_RDWR | O_SYNC);
++    if(pCtx->fd_share_memory < 0)
++    {
++       printf("Open %s Error!\n", SHARE_MEMORY_DEV);
++    }
++
++    pCtx->fd_ddr = open(DEV_NAME_DDR,O_RDWR|O_SYNC); 
++    if(pCtx->fd_ddr < 0)
++    {
++      printf("Open %s Error!\n", DEV_NAME_DDR);
++    } 
++    
++#ifdef ISP_OUTPUT_DUMP
++        pCtx->yuv_size = (pCtx->width*pCtx->height*3/2)*10;
++        pCtx->yuv_phyAddr = alloc_memory(pCtx->fd_share_memory, pCtx->yuv_size);  
++        pCtx->yuv_vAddr = mmap(NULL, pCtx->yuv_size, PROT_READ|PROT_WRITE, MAP_SHARED, pCtx->fd_ddr, pCtx->yuv_phyAddr); 
++        printf("%s>yuv_vAddr 0x%x, yuv_phyAddr 0x%x, yuv_size %d\n", __FUNCTION__, pCtx->yuv_vAddr, pCtx->yuv_phyAddr, pCtx->yuv_size);
++        pCtx->pSrc = (unsigned char *)pCtx->yuv_vAddr;
++#endif
++
++    k510_add_device(avctx);
++
++    //QoS setting for memory bandwidth
++  	reg=(unsigned char * )mmap(NULL, MEMORY_TEST_BLOCK_ALIGN, PROT_READ | PROT_WRITE, MAP_SHARED, pCtx->fd_ddr, MAILBOX_REG_BASE);
++  	pCtx->reg_QoS_ctrl0 = *(volatile unsigned int *)(reg+0xf4);
++  	*(volatile unsigned int *)(reg+0xf4) = 0x00110000;
++  	printf("0x970E00f4: from 0x%08x to 0x%08x\n", pCtx->reg_QoS_ctrl0, *(volatile unsigned int *)(reg+0xf4));
++  	pCtx->reg_QoS_ctrl1 = *(volatile unsigned int *)(reg+0xf8);
++  	*(volatile unsigned int *)(reg+0xf8) = 0x00770000;
++  	printf("0x970E00f8: from 0x%08x to 0x%08x\n", pCtx->reg_QoS_ctrl1, *(volatile unsigned int *)(reg+0xf8));
++  	pCtx->reg_QoS_ctrl2 = *(volatile unsigned int *)(reg+0xfc);
++  	*(volatile unsigned int *)(reg+0xfc) = 0x0fffff00;
++  	printf("0x970E00fc: from 0x%08x to 0x%08x\n", pCtx->reg_QoS_ctrl2, *(volatile unsigned int *)(reg+0xfc));
++  	munmap(reg, MEMORY_TEST_BLOCK_ALIGN);
++  	reg=(unsigned char * )mmap(NULL, MEMORY_TEST_BLOCK_ALIGN, PROT_READ | PROT_WRITE, MAP_SHARED, pCtx->fd_ddr, NOC_QOS_REG_BASE);
++  	pCtx->reg_h264_bw = *(volatile unsigned int *)(reg+0x290);
++  	*(volatile unsigned int *)(reg+0x290) = 0x110;
++  	printf("0x99900290: from 0x%08x to 0x%08x\n", pCtx->reg_h264_bw, *(volatile unsigned int *)(reg+0x290));
++  	pCtx->reg_isp_mode = *(volatile unsigned int *)(reg+0x38c);
++  	*(volatile unsigned int *)(reg+0x38c) = 0;
++  	printf("0x9990038c: from 0x%08x to 0x%08x\n", pCtx->reg_isp_mode, *(volatile unsigned int *)(reg+0x38c));
++  	pCtx->reg_isp_pri = *(volatile unsigned int *)(reg+0x388);
++  	*(volatile unsigned int *)(reg+0x388) = 0x80000707;
++  	printf("0x99900388: from 0x%08x to 0x%08x\n", pCtx->reg_isp_pri, *(volatile unsigned int *)(reg+0x388));
++  	munmap(reg, MEMORY_TEST_BLOCK_ALIGN);
++  	reg=(unsigned char * )mmap(NULL, MEMORY_TEST_BLOCK_ALIGN, PROT_READ | PROT_WRITE, MAP_SHARED, pCtx->fd_ddr, DDR_CTRL_REG_BASE);
++  	pCtx->reg_ddr_cli = *(volatile unsigned int *)(reg+0x504);
++  	*(volatile unsigned int *)(reg+0x504) = 0x00010303;
++  	printf("0x98000504: from 0x%08x to 0x%08x\n", pCtx->reg_ddr_cli, *(volatile unsigned int *)(reg+0x504));
++  	munmap(reg, MEMORY_TEST_BLOCK_ALIGN);
++    
++    pCtx->exp *= 8;
++    
++    pCtx->stride = ((pCtx->width + 0x1F) & (~0x1F));
++    pCtx->frame_size =  pCtx->stride*pCtx->height*3/2;
++    
++    DS1_INFO ds1_info;
++    ds1_info.ds1_en = 1;
++    ds1_info.ds1_width = pCtx->width;
++    ds1_info.ds1_height = pCtx->height;
++    ds1_info.stride = pCtx->stride;
++    // printf("%s>w %d, h %d, stride = %d\n", __FUNCTION__, pCtx->width, pCtx->height, ds1_info.stride);
++
++    LCD_TYPE lcd_type = HX8399;//HX8399;//ITI7807_LCD; //AML550_LCD; //BT1120_DISPALY
++
++    pCtx->isp_buf_size =(1920 *1080 *3 /2) * ISP_ADDR_BUFFER_CNT;
++    ds1_info.y_addr = alloc_memory(pCtx->fd_share_memory, pCtx->isp_buf_size);
++
++    pCtx->isp_buf_vaddr = mmap(NULL, pCtx->isp_buf_size, PROT_READ|PROT_WRITE, MAP_SHARED, pCtx->fd_ddr, ds1_info.y_addr);
++    pCtx->isp_buf_paddr = ds1_info.y_addr;
++    // printf("%s>isp_buf_paddr 0x%x, isp_buf_vaddr 0x%x, isp_buf_size %d\n", __FUNCTION__, ds1_info.y_addr, pCtx->isp_buf_vaddr, pCtx->isp_buf_size);
++
++    pCtx->fd_isp = isp_video(&ds1_info, pCtx->sensor_type, lcd_type);
++
++    if(pCtx->exp > 0)
++    {
++      video_set_ae_dgain_cfg(pCtx->exp);
++    }
++    if(pCtx->agc >= 0)
++    {
++      video_set_ae_again_cfg(pCtx->agc);
++    }
++    
++    sleep(1);  //It seems ISP output is not stable at the beginning
++
++    // printf("%s>fd_isp: 0x%x\n", __FUNCTION__, pCtx->fd_isp);
++
++    pthread_create(&(pCtx->isp_thread), NULL, isp_ouput, pCtx);
++    pCtx->start = 1;
++
++    return 0;
++}
++
++
++static int k510_video_read_packet(AVFormatContext *s, AVPacket *pkt)
++{
++    struct libk510_videoContext *pCtx = s->priv_data;
++#ifdef ISP_OUTPUT_DUMP
++    if(pCtx->isp_addr[pCtx->isp_rp] != 0 && pCtx->isp_rp < 10)
++    {
++        unsigned char *pIsp;
++        unsigned int offset;
++
++        offset = (unsigned int)pCtx->isp_addr[pCtx->isp_rp] - pCtx->isp_buf_paddr;
++        pIsp = (unsigned char *)pCtx->isp_buf_vaddr + offset;
++
++        printf("offset 0x%x, isp_addr 0x%x, Copy 0x%x to 0x%x\n", offset, pCtx->isp_addr[pCtx->isp_rp], pIsp, pCtx->pSrc);
++        memcpy(pCtx->pSrc, pIsp, pCtx->width*pCtx->height*3/2);
++
++        pCtx->pSrc += pCtx->width*pCtx->height*3/2;
++        
++        pCtx->isp_addr[pCtx->isp_rp] = 0;
++        pCtx->isp_rp++;
++        pCtx->isp_rp %= ISP_ADDR_BUFFER_CNT;
++    }
++
++    if(pCtx->isp_rp == 10)
++    {
++        FILE *dump_file = NULL;
++        pCtx->pSrc = (unsigned char *)pCtx->yuv_vAddr;
++
++        if((dump_file=fopen("isp_dump_ffmpeg.yuv","w+b")) == NULL )
++        {
++            printf("Cannot open output file!\n");
++        } 
++
++        fwrite(pCtx->pSrc, 1, pCtx->yuv_size, dump_file);
++        fclose(dump_file);
++    }
++    return 0;
++#endif    
++    if(pCtx->isp_addr[pCtx->isp_rp])
++    {
++        unsigned long int time;
++
++        time = get_time();
++
++        if(pCtx->out_pic == 0)
++        {
++          pCtx->start_time = time;
++        }
++
++        pkt->size = pCtx->stride * pCtx->height *3/2;
++        pkt->data = pCtx->isp_addr[pCtx->isp_rp];
++        //printf("%s>isp_addr[%d] = 0x%x\n", __FUNCTION__, pCtx->isp_rp, pCtx->isp_addr[pCtx->isp_rp]);
++
++        pkt->buf = av_buffer_alloc(pkt->size);
++        pkt->buf->data = pkt->data;
++        pkt->stream_index = 0;
++        
++        pCtx->pts += 1;//90000LL/pCtx->framerate;
++        pkt->pts = pCtx->pts;
++        pkt->dts = pCtx->pts;
++
++        pCtx->isp_addr[pCtx->isp_rp] = 0;
++        pCtx->isp_rp++;
++        pCtx->isp_rp %= ISP_ADDR_BUFFER_CNT;
++
++        pCtx->out_pic++;  
++        //printf("%s>pts %ld, size %d, time %.4f ms\n", __FUNCTION__, pkt->pts, pkt->size, get_time()/1000000.0);
++    }
++ 
++    return 0;
++}
++
++static int k510_video_read_close(AVFormatContext *s)
++{
++    struct libk510_videoContext *pCtx = s->priv_data;
++
++    struct isp_int_info intinfo;
++    memset(&intinfo, 0, sizeof(intinfo));
++    intinfo.ds1_en = 0;
++    video_set_ispf2kint(&intinfo);
++
++    isp_video_exit();
++
++    unsigned char *reg;
++    reg=(unsigned char * )mmap(NULL, MEMORY_TEST_BLOCK_ALIGN, PROT_READ | PROT_WRITE, MAP_SHARED, pCtx->fd_ddr, MAILBOX_REG_BASE);
++  	*(volatile unsigned int *)(reg+0xf4) = pCtx->reg_QoS_ctrl0;
++  	*(volatile unsigned int *)(reg+0xf8) = pCtx->reg_QoS_ctrl1;
++  	*(volatile unsigned int *)(reg+0xfc) = pCtx->reg_QoS_ctrl2;
++  	munmap(reg, MEMORY_TEST_BLOCK_ALIGN);
++  	reg=(unsigned char * )mmap(NULL, MEMORY_TEST_BLOCK_ALIGN, PROT_READ | PROT_WRITE, MAP_SHARED, pCtx->fd_ddr, NOC_QOS_REG_BASE);
++  	*(volatile unsigned int *)(reg+0x290) = pCtx->reg_h264_bw;
++  	*(volatile unsigned int *)(reg+0x388) = pCtx->reg_isp_pri;
++  	*(volatile unsigned int *)(reg+0x38c) = pCtx->reg_isp_mode;
++  	munmap(reg, MEMORY_TEST_BLOCK_ALIGN);
++  	reg=(unsigned char * )mmap(NULL, MEMORY_TEST_BLOCK_ALIGN, PROT_READ | PROT_WRITE, MAP_SHARED, pCtx->fd_ddr, DDR_CTRL_REG_BASE);
++  	*(volatile unsigned int *)(reg+0x504) = pCtx->reg_ddr_cli;
++    munmap(reg, MEMORY_TEST_BLOCK_ALIGN);
++    printf("QoS restore\n");
++
++    munmap((void*)pCtx->isp_buf_vaddr, pCtx->isp_buf_size);
++    if(ioctl(pCtx->fd_share_memory, SHARE_MEMORY_FREE, &pCtx->isp_buf_paddr) < 0)
++      printf("%s>Error!\n", __FUNCTION__);
++    
++    close(pCtx->fd_share_memory);
++    close(pCtx->fd_ddr);
++
++    return 0;
++}
++
++#define OFFSET(x) offsetof(struct libk510_videoContext, x)
++#define DEC AV_OPT_FLAG_DECODING_PARAM
++static const AVOption options[] = {
++    { "wh", "set frame size such as 1920x1080.", OFFSET(width), AV_OPT_TYPE_IMAGE_SIZE, {.str = NULL}, 0, 0, DEC },
++    { "framerate", "set video frame rate", OFFSET(framerate), AV_OPT_TYPE_INT, {.i64 = 30}, 0, 60, DEC },
++    { "sensor",  "Set sensor type",   OFFSET(sensor_type),    AV_OPT_TYPE_INT,  {.i64 = IMX385_SENSOR}, IMX385_SENSOR, OV5647_SENSOR, DEC, "sensor_type"},
++    {     "IMX385",           "",  0, AV_OPT_TYPE_CONST,   { .i64 = IMX385_SENSOR },     0, 0, DEC, "sensor_type" },
++    {     "JFX23S",               "",  0, AV_OPT_TYPE_CONST, { .i64 = JFX23S_SENSOR },     0, 0, DEC, "sensor_type" },
++    {     "TOF",               "",  0, AV_OPT_TYPE_CONST, { .i64 = TOF_SENSOR },   0, 0, DEC, "sensor_type" },
++    {     "IMX219",               "",  0, AV_OPT_TYPE_CONST, { .i64 = IMX219_SENSOR },     0, 0, DEC, "sensor_type" },
++    {     "OV5647",               "",  0, AV_OPT_TYPE_CONST, { .i64 = OV5647_SENSOR },   0, 0, DEC, "sensor_type" },
++    { "exp", "set exposure parameter", OFFSET(exp), AV_OPT_TYPE_INT, {.i64 = 64}, 1, 128, DEC},
++    { "agc", "set analog gain", OFFSET(agc), AV_OPT_TYPE_INT, {.i64 = 0}, 0, 232, DEC},
++    { NULL },
++};
++
++static const AVClass k510_video_class = {
++    .class_name = "k510_video",
++    .item_name  = av_default_item_name,
++    .option     = options,
++    .version    = LIBAVUTIL_VERSION_INT,
++    .category   = AV_CLASS_CATEGORY_DEVICE_VIDEO_INPUT,
++};
++
++AVInputFormat ff_libk510_video_demuxer = {
++    .name           = "libk510_video",
++    .long_name      = NULL_IF_CONFIG_SMALL("k510_video capture"),
++    .priv_data_size = sizeof(struct libk510_videoContext),
++    .read_header    = k510_video_read_header,
++    .read_packet    = k510_video_read_packet,
++    .read_close     = k510_video_read_close,
++    .flags          = AVFMT_NOFILE,
++    .raw_codec_id   = AV_CODEC_ID_RAWVIDEO,
++    .priv_class     = &k510_video_class,
++};
++
+Index: b/libavdevice/video_app.c
+===================================================================
+--- /dev/null
++++ b/libavdevice/video_app.c
+@@ -0,0 +1,853 @@
++/******************************************************************************
++
++  Copyright (C), 2020, CANAAN Tech. Co., Ltd.
++
++ ******************************************************************************
++  File Name     : test_videolib_n.cc
++  Version       : Initial Draft
++  Author        : zhudalei
++  Created       : 
++  Description   : 
++  History       :
++  Date        : 
++ ******************************************************************************/
++
++#include <sys/types.h>
++#include <sys/stat.h>
++#include <fcntl.h>
++#include <sys/ioctl.h>
++#include <unistd.h>
++#include <stdio.h>
++#include <sys/mman.h>  
++#include <stdlib.h>  
++#include <string.h> 
++#include <assert.h>
++#include <errno.h>
++#include <stdint.h>
++
++#include <poll.h>
++#include <arpa/inet.h>
++#include <netinet/in.h>
++#include <sys/socket.h>
++
++#include "isp_video.h"
++#include "video_app.h"
++/*******************************memory***************************************/
++#define SHARE_MEMORY_ALLOC          _IOWR('m', 1, unsigned long)
++#define SHARE_MEMORY_ALIGN_ALLOC    _IOWR('m', 2, unsigned long)
++#define SHARE_MEMORY_FREE           _IOWR('m', 3, unsigned long)
++#define SHARE_MEMORY_SHOW           _IOWR('m', 4, unsigned long)
++
++#define ISP_CMD_SET_DS1_SIZE        _IOWR('q', 21, unsigned long)
++#define ISP_CMD_DS1_ADDR            _IOWR('q', 15, unsigned long)
++#define ISP_CMD_DS1_BUFF_COUNT      _IOWR('q', 16, unsigned long)
++#define ISP_CMD_DS0_SRC_ADDR        _IOWR('q', 17, unsigned long)
++#define ISP_CMD_DS1_DES_ADDR        _IOWR('q', 18, unsigned long)
++
++#define MEMORY_TEST_BLOCK_NUM   10          /* 测试多少次申请释放 */
++#define MEMORY_TEST_BLOCK_SIZE  4096        /* 测试申请的内存空间大小 */
++#define MEMORY_TEST_BLOCK_ALIGN 4096        /* 如果需要mmap映射,对齐需要4K的整数倍 */
++
++#define SHARE_MEMORY_DEV    "/dev/k510-share-memory"
++#define MAP_MEMORY_DEV      "/dev/mem"
++
++struct memory_cache_sync_request OSD1layer5DisplayGnne = {0,0,0};
++//struct memory_cache_sync_request ispOutputForGnne = {0,0,0};
++struct memory_cache_sync_request ispOutputForDisplay = {0,0,0};
++struct memory_cache_sync_request OSD0layer4DisplayText = {0,0,0};
++
++
++//int *vo_osd_virtual_addr[MEMORY_TEST_BLOCK_NUM] = {0};
++
++int *virtual_addr[MEMORY_TEST_BLOCK_NUM] = {0};
++//int *ds_virtual_addr[MEMORY_TEST_BLOCK_NUM];
++int *vo_osd_virtual_addr[MEMORY_TEST_BLOCK_NUM] = {0};
++int share_memory = -1;
++
++
++struct share_memory_alloc_align_args {
++    uint32_t size;
++    uint32_t alignment;
++    uint32_t phyAddr;
++};
++
++struct share_memory_alloc_align_args    allocAlignMem[MEMORY_TEST_BLOCK_NUM] = {0};
++//
++struct video_isp_info
++{
++    ISP_PIPELINE_E isp_pipeline;
++    //
++    unsigned int total_width;
++    unsigned int total_height;
++    //
++    unsigned int input_width;
++    unsigned int input_height;
++    //
++    unsigned int output_width;
++    unsigned int output_height;
++    //
++    unsigned int nr3d_en;
++    unsigned int nr3d_addr;
++    //
++    unsigned int ldc_en;
++    unsigned int ldc_addr;
++    //
++    unsigned int main_en;
++    unsigned int main_addr;
++    //
++    unsigned int ds0_en; 
++    unsigned int ds0put_width;
++    unsigned int ds0put_height;
++    unsigned int ds0_addr;  
++    //
++    unsigned int ds1_en; 
++    unsigned int ds1put_width;
++    unsigned int ds1put_height;
++    unsigned int ds1_addr; 
++    unsigned int ds1_stride;
++    //
++    unsigned int ds2_en; 
++    unsigned int ds2put_width;
++    unsigned int ds2put_height;
++    unsigned int ds2_r_addr;
++    unsigned int ds2_g_addr;
++    unsigned int ds2_b_addr;
++    DS2_RGB_TYPE ds2_rgb_type;
++    unsigned int ds2_rgb_stride;
++    //
++    unsigned int vi_r_tpg_en;
++    unsigned int vi_w_tpg_en;
++    unsigned int vi_tpg_addr;    
++};
++//
++struct video_vo_info
++{
++    //layer1
++    unsigned int layer1_en;
++    unsigned int layer1_width;
++    unsigned int layer1_height;
++    unsigned int layer1_yAddr0;
++    unsigned int layer1_yAddr1; 
++    //layer2
++    unsigned int layer2_en;
++    unsigned int layer2_width;
++    unsigned int layer2_height;
++    unsigned int layer2_yAddr0;
++    unsigned int layer2_yAddr1;
++    //osd0 
++    unsigned int osd0_en;
++    unsigned int osd0_width;
++    unsigned int osd0_height;
++    unsigned int osd0_rgb_type;    
++    unsigned int osd0_yAddr0;
++    unsigned int osd0_yAddr1; 
++    //osd1
++    unsigned int osd1_en; 
++    unsigned int osd1_width;
++    unsigned int osd1_height;
++    unsigned int osd1_rgb_type;    
++    unsigned int osd1_yAddr0;
++    unsigned int osd1_yAddr1;
++    unsigned int osd1_type;
++    unsigned int osd1_rgb_rev; 
++    //osd2 
++    unsigned int osd2_en;
++    unsigned int osd2_width;
++    unsigned int osd2_height;
++    unsigned int osd2_rgb_type;    
++    unsigned int osd2_yAddr0;
++    unsigned int osd2_yAddr1;
++    unsigned int osd2_type;
++    unsigned int osd2_rgb_rev;      
++};
++//
++static int set_vi_imx385_params(struct video_isp_info *isp_info)
++{
++    //ISP_CHECK_POINTER(isp_info);
++    printf("set_vi_params\n");
++    struct video_vi_info vi_info;
++	vi_info.dphy_mode = 0;//TWO_LANES_MODE;
++	vi_info.sony_mode = 0;//SONY_POL_MODE_DIS;
++
++	struct vi_sensor_info *mipi0info = &vi_info.sensor_info[0];
++	mipi0info->sensor_interface_en = 1;//ENABLE;
++	mipi0info->wdr_sensor_vendor = 0;//SONY_WDR_SENSOR;
++	mipi0info->wdr_mode = 0;//ISP_PIPE_WDR_NONE;
++	mipi0info->isp_pipeline = isp_info->isp_pipeline;//1;//ISP_F_2K;
++	vi_info.sensor_info[1].sensor_interface_en = 0;//DISABLE;
++	vi_info.sensor_info[2].sensor_interface_en = 0;//DISABLE;
++
++	struct vi_pipe_info *pipe00_info = &vi_info.pipe_info[0];
++	pipe00_info->win_mode_en = 1;//TRUE;	
++	pipe00_info->input_ch_sel = 1;//MIPI_INPUT;
++	pipe00_info->ch_mode_sel = 1;//VI_MIPI_BT1120;
++    pipe00_info->pixel_type = 0;//SENSOR_INPUT_RAWRGB;
++    pipe00_info->pixel_width = 2;//PIXEL_WIDTH_12BIT;
++	pipe00_info->data_out_timming_ctrl = 3;
++	pipe00_info->sync_pulse_mode = 0;//0;
++	pipe00_info->sen_mipi_clk_pol = 1;
++	pipe00_info->sen_mipi_vsync_pol = 0;
++	pipe00_info->sen_mipi_hsync_pol = 0;
++	pipe00_info->sen_mipi_field_pol = 1;
++	pipe00_info->isp_clk_pol = 1;
++	pipe00_info->isp_vsync_pol = 1;
++	pipe00_info->isp_hsync_pol = 1;
++	pipe00_info->isp_field_pol = 1;
++	//
++    pipe00_info->tpg_w_en = isp_info->vi_w_tpg_en;//0;
++    pipe00_info->tpg_r_en = isp_info->vi_r_tpg_en;//0;
++    pipe00_info->total_width = isp_info->total_width;//isp_size->total_size.Width - 1;//2200;
++	pipe00_info->total_height = isp_info->total_height;//isp_size->total_size.Height - 1;//1125;
++    pipe00_info->in_width = isp_info->input_width;//isp_size->in_size.Width - 1;//1920;
++	pipe00_info->in_height = isp_info->input_height;//isp_size->in_size.Height - 1;//1080;
++    pipe00_info->w_st_width = 0x0;
++	pipe00_info->w_st_height = 0x3fff;
++    pipe00_info->r_st_width = 0x117;
++	pipe00_info->r_st_height = 0x2c;
++    pipe00_info->vi_pipe_w_addr_y0 = isp_info->vi_tpg_addr;//isp_addr->vi_tpg_baseaddr;
++    pipe00_info->vi_pipe_w_addr_y1 = isp_info->vi_tpg_addr;//isp_addr->vi_tpg_baseaddr;
++    pipe00_info->vi_pipe_w_addr_uv0 = isp_info->vi_tpg_addr;//isp_addr->vi_tpg_baseaddr;
++    pipe00_info->vi_pipe_w_addr_uv1 = isp_info->vi_tpg_addr;//isp_addr->vi_tpg_baseaddr;
++    pipe00_info->vi_pipe_r_addr_y0 = isp_info->vi_tpg_addr;//isp_addr->vi_tpg_baseaddr;
++    pipe00_info->vi_pipe_r_addr_y1 = isp_info->vi_tpg_addr;//isp_addr->vi_tpg_baseaddr;
++    pipe00_info->vi_pipe_addr_stride = (pipe00_info->in_width*3/2+15)/16*16;
++	pipe00_info->tof_mode_enable = 0;//DISABLE;
++	pipe00_info->vi_pipe_tpg_tof_frm_num = 0x3;
++	pipe00_info->vi_pipe_tpg_tof_frm_stride = 0x10380;
++    video_set_vi(&vi_info);
++
++    return 0;
++}
++//
++static int set_vi_jfx23s_params(struct video_isp_info *isp_info)
++{
++    //ISP_CHECK_POINTER(isp_info);
++	struct video_vi_info vi_info;
++	vi_info.dphy_mode = 0;//TWO_LANES_MODE;
++	vi_info.sony_mode = 0;//SONY_POL_MODE_DIS;
++	struct vi_sensor_info *dvp0info = &vi_info.sensor_info[2]; 
++	dvp0info->sensor_interface_en = 1;//ENABLE;
++	dvp0info->wdr_sensor_vendor = 0;//SONY_WDR_SENSOR;
++	dvp0info->wdr_mode = 0;//ISP_PIPE_WDR_NONE;
++	dvp0info->isp_pipeline = isp_info->isp_pipeline;//1;//ISP_F_2K;
++	vi_info.sensor_info[0].sensor_interface_en = 0;//DISABLE;
++	vi_info.sensor_info[1].sensor_interface_en = 0;//DISABLE;
++    //
++    struct vi_pipe_info *dvp0_info = &vi_info.pipe_info[6];
++	dvp0_info->win_mode_en = 0;//FALSE;		
++	dvp0_info->input_ch_sel = 0;//DVP_INPUT;
++	dvp0_info->ch_mode_sel = 1;//VI_MIPI_BT1120;
++    dvp0_info->pixel_type = 0;//SENSOR_INPUT_RAWRGB;
++    dvp0_info->pixel_width = 1;//PIXEL_WIDTH_10BIT;
++	dvp0_info->data_out_timming_ctrl = 0;//CTRL_CYCLE_DELAY_1;
++	dvp0_info->sync_pulse_mode = 1;//0;
++	dvp0_info->sen_mipi_clk_pol = 1;//TRUE;
++	dvp0_info->sen_mipi_vsync_pol = 1;//TRUE;
++	dvp0_info->sen_mipi_hsync_pol = 1;//TRUE;
++	dvp0_info->sen_mipi_field_pol = 1;//TRUE;
++	dvp0_info->isp_clk_pol = 1;//TRUE;
++	dvp0_info->isp_vsync_pol = 1;//TRUE;
++	dvp0_info->isp_hsync_pol = 1;//TRUE;
++	dvp0_info->isp_field_pol = 1;//TRUE;
++    dvp0_info->tpg_w_en = isp_info->vi_w_tpg_en;//DISABLE;
++    dvp0_info->tpg_r_en = isp_info->vi_r_tpg_en;//DISABLE;
++    dvp0_info->total_width = isp_info->total_width;//2200;
++	dvp0_info->total_height = isp_info->total_height;//1125;
++    dvp0_info->in_width = isp_info->input_width;//1920;
++	dvp0_info->in_height = isp_info->input_height;//1080;
++    dvp0_info->w_st_width = 0x24f;//0x0;
++	dvp0_info->w_st_height = 0x3fff;
++    dvp0_info->r_st_width = 0x0;//0x117;
++	dvp0_info->r_st_height = 0x0;//0x2c;
++    dvp0_info->vi_pipe_w_addr_y0 = isp_info->vi_tpg_addr;
++    dvp0_info->vi_pipe_w_addr_y1 = isp_info->vi_tpg_addr;
++    dvp0_info->vi_pipe_w_addr_uv0 = isp_info->vi_tpg_addr;
++    dvp0_info->vi_pipe_w_addr_uv1 = isp_info->vi_tpg_addr;
++    dvp0_info->vi_pipe_r_addr_y0 = isp_info->vi_tpg_addr;
++    dvp0_info->vi_pipe_r_addr_y1 = isp_info->vi_tpg_addr;
++    dvp0_info->vi_pipe_addr_stride = (isp_info->input_width*10/8+15)/16*16;
++	dvp0_info->tof_mode_enable = 0;//DISABLE;
++	dvp0_info->vi_pipe_tpg_tof_frm_num = 0x0;
++	dvp0_info->vi_pipe_tpg_tof_frm_stride = 0x0;
++    video_set_vi(&vi_info);
++    return 0;
++}
++
++//
++static int set_vi_imx219_params(struct video_isp_info *isp_info)
++{
++    //ISP_CHECK_POINTER(isp_info);
++    printf("set_vi_params\n");
++    struct video_vi_info vi_info;
++	vi_info.dphy_mode = 0;//TWO_LANES_MODE;
++	vi_info.sony_mode = 0;//SONY_POL_MODE_DIS;
++
++	struct vi_sensor_info *mipi0info = &vi_info.sensor_info[0];
++	mipi0info->sensor_interface_en = 1;//ENABLE;
++	mipi0info->wdr_sensor_vendor = 0;//SONY_WDR_SENSOR;
++	mipi0info->wdr_mode = 0;//ISP_PIPE_WDR_NONE;
++	mipi0info->isp_pipeline = isp_info->isp_pipeline;//1;//ISP_F_2K;
++	vi_info.sensor_info[1].sensor_interface_en = 0;//DISABLE;
++	vi_info.sensor_info[2].sensor_interface_en = 0;//DISABLE;
++
++	struct vi_pipe_info *pipe00_info = &vi_info.pipe_info[0];
++	pipe00_info->win_mode_en = 1;//TRUE;	
++	pipe00_info->input_ch_sel = 1;//MIPI_INPUT;
++	pipe00_info->ch_mode_sel = 1;//VI_MIPI_BT1120;
++    pipe00_info->pixel_type = 0;//SENSOR_INPUT_RAWRGB;
++    pipe00_info->pixel_width = 1;//PIXEL_WIDTH_12BIT;
++	pipe00_info->data_out_timming_ctrl = 3;
++	pipe00_info->sync_pulse_mode = 0;//0;
++	pipe00_info->sen_mipi_clk_pol = 1;
++	pipe00_info->sen_mipi_vsync_pol = 0;
++	pipe00_info->sen_mipi_hsync_pol = 0;
++	pipe00_info->sen_mipi_field_pol = 1;
++	pipe00_info->isp_clk_pol = 1;
++	pipe00_info->isp_vsync_pol = 1;
++	pipe00_info->isp_hsync_pol = 1;
++	pipe00_info->isp_field_pol = 1;
++	//
++    pipe00_info->tpg_w_en = isp_info->vi_w_tpg_en;//0;
++    pipe00_info->tpg_r_en = isp_info->vi_r_tpg_en;//0;
++    pipe00_info->total_width = isp_info->total_width;//isp_size->total_size.Width - 1;//2200;
++	pipe00_info->total_height = isp_info->total_height;//isp_size->total_size.Height - 1;//1125;
++    pipe00_info->in_width = isp_info->input_width;//isp_size->in_size.Width - 1;//1920;
++	pipe00_info->in_height = isp_info->input_height;//isp_size->in_size.Height - 1;//1080;
++    pipe00_info->w_st_width = 0x0;
++	pipe00_info->w_st_height = 0x3fff;
++    pipe00_info->r_st_width = 0x117;
++	pipe00_info->r_st_height = 0x2c;
++    pipe00_info->vi_pipe_w_addr_y0 = isp_info->vi_tpg_addr;//isp_addr->vi_tpg_baseaddr;
++    pipe00_info->vi_pipe_w_addr_y1 = isp_info->vi_tpg_addr;//isp_addr->vi_tpg_baseaddr;
++    pipe00_info->vi_pipe_w_addr_uv0 = isp_info->vi_tpg_addr;//isp_addr->vi_tpg_baseaddr;
++    pipe00_info->vi_pipe_w_addr_uv1 = isp_info->vi_tpg_addr;//isp_addr->vi_tpg_baseaddr;
++    pipe00_info->vi_pipe_r_addr_y0 = isp_info->vi_tpg_addr;//isp_addr->vi_tpg_baseaddr;
++    pipe00_info->vi_pipe_r_addr_y1 = isp_info->vi_tpg_addr;//isp_addr->vi_tpg_baseaddr;
++    pipe00_info->vi_pipe_addr_stride = (pipe00_info->in_width*5/4+15)/16*16;
++	pipe00_info->tof_mode_enable = 0;//DISABLE;
++	pipe00_info->vi_pipe_tpg_tof_frm_num = 0x3;
++	pipe00_info->vi_pipe_tpg_tof_frm_stride = 0x10380;
++    video_set_vi(&vi_info);
++
++    return 0;
++}
++
++static int set_isp_f2k_params(enum _SENSOR_TYPE sensor_type,struct video_isp_info *isp_info)
++{
++    //ISP_CHECK_POINTER(isp_info);
++    printf("set_isp_params\n");
++    struct isp_common_info commoninfo;
++    commoninfo.isp_out_sel = 0;//0:main_out 1;DS0_OUT;
++    commoninfo.totalsize_width = isp_info->total_width;//2200;
++    commoninfo.totalsize_height = isp_info->total_height;//1125;
++    commoninfo.insize_width = isp_info->input_width;//1920;
++    commoninfo.insize_height = isp_info->input_height;//1080;
++    commoninfo.outsize_width = isp_info->output_width;//1920;
++    commoninfo.outsize_height = isp_info->output_height;//1080;
++    video_set_ispf2kcommon(sensor_type,&commoninfo);
++    //
++    struct isp_ds_info ds0_info;
++    ds0_info.ds_en = isp_info->ds0_en;//1;
++    ds0_info.ds_width = isp_info->ds0put_width;//1080;
++    ds0_info.ds_height = isp_info->ds0put_height;//720;
++    ds0_info.y_addr0 = isp_info->ds0_addr;//;
++    ds0_info.y_addr1 = isp_info->ds0_addr;//;
++    ds0_info.uv_swap = 1;    
++    video_set_ispf2kds0(sensor_type,&ds0_info);
++    //
++    struct isp_ds_info ds1_info;
++    ds1_info.ds_en = isp_info->ds1_en;//1;
++    ds1_info.ds_width = isp_info->ds1put_width;//1080;
++    ds1_info.ds_height = isp_info->ds1put_height;// 720;
++    ds1_info.y_addr0 = isp_info->ds1_addr;//;
++    ds1_info.y_addr1 = isp_info->ds1_addr;//;  
++    ds1_info.stride = isp_info->ds1_stride;//; 
++    ds1_info.uv_swap = 1;
++    video_set_ispf2kds1(sensor_type,&ds1_info);
++    //
++    struct isp_ds2_info ds2_info;
++    ds2_info.ds2_en = isp_info->ds2_en;//1;
++    ds2_info.ds2_width = isp_info->ds2put_width;//320;
++    ds2_info.ds2_height = isp_info->ds2put_height;//256;
++    ds2_info.ds2_rgb_type = isp_info->ds2_rgb_type;//DS2_S_RGB;//DS2_ARGB;//;DS2_S_RGB
++    ds2_info.stride = isp_info->ds2_rgb_stride;
++    ds2_info.r_addr0 = isp_info->ds2_r_addr;//;
++    ds2_info.r_addr1 = isp_info->ds2_r_addr;//;
++    ds2_info.g_addr0 = isp_info->ds2_g_addr;//;
++    ds2_info.g_addr1 = isp_info->ds2_g_addr;//; 
++    ds2_info.b_addr0 = isp_info->ds2_b_addr;//;
++    ds2_info.b_addr1 = isp_info->ds2_b_addr;//;  
++    video_set_ispf2kds2(sensor_type,&ds2_info);
++
++    return 0;
++}
++//
++static int set_isp_r2k_params(enum _SENSOR_TYPE sensor_type,struct video_isp_info *isp_info)
++{
++    //ISP_CHECK_POINTER(isp_info);
++    struct isp_common_info commoninfo;
++    commoninfo.isp_out_sel = 0;//0:main_out 1;DS0_OUT;
++    commoninfo.totalsize_width = isp_info->total_width;//2200;
++    commoninfo.totalsize_height = isp_info->total_height;//1125;
++    commoninfo.insize_width = isp_info->input_width;//1920;
++    commoninfo.insize_height = isp_info->input_height;//1080;
++    commoninfo.outsize_width = isp_info->output_width;//1920;
++    commoninfo.outsize_height = isp_info->output_height;//1080;
++    video_set_ispr2kcommon(sensor_type,&commoninfo);
++    struct isp_ds_info ds0_info;
++    ds0_info.ds_en = isp_info->ds0_en;//1;
++    ds0_info.ds_width = isp_info->ds0put_width;//1080;
++    ds0_info.ds_height = isp_info->ds0put_height;//720;
++    ds0_info.y_addr0 = isp_info->ds0_addr;//;
++    ds0_info.y_addr1 = isp_info->ds0_addr;//; 
++    ds0_info.uv_swap = 1;    
++    video_set_ispr2kds0(sensor_type,&ds0_info);
++    struct isp_ds_info ds1_info;
++    ds1_info.ds_en = isp_info->ds1_en;//1;
++    ds1_info.ds_width = isp_info->ds1put_width;//1080;
++    ds1_info.ds_height = isp_info->ds1put_height;// 720;
++    ds1_info.y_addr0 = isp_info->ds1_addr;//;
++    ds1_info.y_addr1 = isp_info->ds1_addr;//;
++    ds1_info.stride = isp_info->ds1_stride;
++    ds1_info.uv_swap = 1; 
++    video_set_ispr2kds1(sensor_type,&ds1_info);
++    struct isp_ds2_info ds2_info;
++    ds2_info.ds2_en = isp_info->ds2_en;//1;
++    ds2_info.ds2_width = isp_info->ds2put_width;//320;
++    ds2_info.ds2_height = isp_info->ds2put_height;//256;
++    ds2_info.ds2_rgb_type = isp_info->ds2_rgb_type;//DS2_S_RGB;//DS2_ARGB;//;DS2_S_RGB
++    ds2_info.stride = isp_info->ds2_rgb_stride;
++    ds2_info.r_addr0 = isp_info->ds2_r_addr;//;
++    ds2_info.r_addr1 = isp_info->ds2_r_addr;//;
++    ds2_info.g_addr0 = isp_info->ds2_g_addr;//;
++    ds2_info.g_addr1 = isp_info->ds2_g_addr;//; 
++    ds2_info.b_addr0 = isp_info->ds2_b_addr;//;
++    ds2_info.b_addr1 = isp_info->ds2_b_addr;//;     
++    video_set_ispr2kds2(sensor_type,&ds2_info);
++
++    return 0;
++}
++//
++static int set_vo_hdmi_params(enum VO_OUT_IMGTYPE imgtype,struct video_vo_info *voInfo)
++{
++    //ISP_CHECK_POINTER(voInfo);
++    int v_offset = 0x2a;//14;
++    int h_offset = 0xc6;//16;//46;
++    struct vo_dispaly_info dispaly_info;
++    dispaly_info.dispEnable = 1;
++    dispaly_info.vo_out_imgtype = imgtype;//0;
++    dispaly_info.xZoneCtl_start = 0xC6;
++    dispaly_info.xZoneCtl_stop = 0x846;
++    dispaly_info.yZoneCtl_start = 0x2A;
++    dispaly_info.yZoneCtl_stop = 0x462;
++    dispaly_info.SyncMode = 2;//VO_SYSTEM_MODE_1920x1080x30P;
++    dispaly_info.vo_out_active_imgh = 1920;
++    dispaly_info.vo_out_active_imgv = 1080;
++    video_set_display(&dispaly_info);
++    //
++    struct vo_layer_info layer1_info;
++    layer1_info.layerEn = voInfo->layer1_en;//1;
++    layer1_info.yuvmode = 1;  //1: yuv420/ 0:yuv422
++    layer1_info.endianuv = 2;//VO_VIDEO_LAYER_UV_ENDIAN_MODE2
++    layer1_info.uvswap = 0;
++    //
++    layer1_info.offset_hsize = 0;
++    layer1_info.offset_vsize = 0;
++    layer1_info.in_hsize = voInfo->layer1_width;
++    layer1_info.in_vsize = voInfo->layer1_height;
++    //		
++    layer1_info.layer_x_start = h_offset;
++    layer1_info.layer_y_start = v_offset;
++    //
++    layer1_info.layer_yAddr0 = voInfo->layer1_yAddr0;
++    layer1_info.layer_yAddr1 = voInfo->layer1_yAddr1;
++    video_set_volayer1(&layer1_info);
++    //
++    struct vo_layer_info layer2_info;
++    layer2_info.layerEn = voInfo->layer2_en;//1;
++    layer2_info.yuvmode = 1;  //1: yuv420/ 0:yuv422
++    layer2_info.endianuv = 2;//VO_VIDEO_LAYER_UV_ENDIAN_MODE2
++    layer2_info.uvswap = 0;
++    //
++    layer2_info.offset_hsize = 0;
++    layer2_info.offset_vsize = 0;
++    layer2_info.in_hsize = voInfo->layer2_width;
++    layer2_info.in_vsize = voInfo->layer2_height;
++    //		
++    layer2_info.layer_x_start = h_offset + 1200;
++    layer2_info.layer_y_start = v_offset;
++    //
++    layer2_info.layer_yAddr0 = voInfo->layer2_yAddr0;
++    layer2_info.layer_yAddr1 = voInfo->layer2_yAddr1;
++    video_set_volayer2(&layer2_info);
++    //
++    struct vo_layer_osd_info osd0_info;
++    osd0_info.osdEn = voInfo->osd0_en;//1;
++    osd0_info.osdtype = 3;//OSD_RGB_32BIT;
++    if( 0 == voInfo->osd0_rgb_type ) //DS2_S_RGB
++    {
++        osd0_info.osdtype = 1;//OSD_MONOCHROME_8BIT; 
++    }
++    osd0_info.alphatpye = 0;//OSD_FIXED_VALUE;
++    osd0_info.rgbrev = 0;//0:OSD_RGB_REV_A,1:OSD_RGB_REV_B
++    //
++    osd0_info.width = voInfo->osd0_width;
++    osd0_info.height = voInfo->osd0_height;
++    //
++    osd0_info.osd_x_start = h_offset;
++    osd0_info.osd_y_start = v_offset + 800;
++    //
++    osd0_info.alp_addr0 = voInfo->osd0_yAddr0;
++    osd0_info.alp_addr1 = voInfo->osd0_yAddr1;
++    osd0_info.vlu_addr0 = voInfo->osd0_yAddr0;
++    osd0_info.vlu_addr1 = voInfo->osd0_yAddr1;
++    video_set_volayer4osd0(&osd0_info);
++    //
++    struct vo_layer_osd_info osd1_info;
++    osd1_info.osdEn = voInfo->osd1_en;//1;
++    osd1_info.osdtype = voInfo->osd1_type;//3;//OSD_RGB_32BIT;
++    osd1_info.alphatpye = 0;//OSD_FIXED_VALUE;
++    osd1_info.rgbrev = voInfo->osd1_rgb_rev;//0;//0:OSD_RGB_REV_A,1:OSD_RGB_REV_B
++    //
++    osd1_info.width = voInfo->osd1_width;
++    osd1_info.height = voInfo->osd1_height;
++    //
++    osd1_info.osd_x_start = h_offset+1280;
++    osd1_info.osd_y_start = v_offset+500;
++    //
++    osd1_info.alp_addr0 = voInfo->osd1_yAddr0;
++    osd1_info.alp_addr1 = voInfo->osd1_yAddr1;
++    osd1_info.vlu_addr0 = voInfo->osd1_yAddr0;
++    osd1_info.vlu_addr1 = voInfo->osd1_yAddr1;
++    video_set_volayer5osd1(&osd1_info);
++    //
++    struct vo_layer_osd_info osd2_info;
++    osd2_info.osdEn = voInfo->osd2_en;//1;
++    osd2_info.osdtype = voInfo->osd2_type;//3;//OSD_RGB_32BIT;
++    osd2_info.alphatpye = 0;//OSD_FIXED_VALUE;
++    osd2_info.rgbrev = voInfo->osd2_rgb_rev;//0;//0:OSD_RGB_REV_A,1:OSD_RGB_REV_B
++    //
++    osd2_info.width = voInfo->osd2_width;
++    osd2_info.height = voInfo->osd2_height;
++    //
++    osd2_info.osd_x_start = h_offset+1080;
++    osd2_info.osd_y_start = v_offset+600;;
++    //
++    osd2_info.alp_addr0 = voInfo->osd2_yAddr0;
++    osd2_info.alp_addr1 = voInfo->osd2_yAddr1;
++    osd2_info.vlu_addr0 = voInfo->osd2_yAddr0;
++    osd2_info.vlu_addr1 = voInfo->osd2_yAddr1;
++    video_set_volayer6osd2(&osd2_info);
++    return 0;
++}
++//
++static int set_vo_dsi_params(enum VO_OUT_IMGTYPE imgtype,struct video_vo_info *voInfo)
++{  
++    //ISP_CHECK_POINTER(voInfo);
++    int v_offset = 14;
++    int h_offset = 16;//46; 
++    struct vo_dispaly_info dispaly_info;
++    dispaly_info.dispEnable = 1;
++    dispaly_info.vo_out_imgtype = imgtype;//0;
++
++    dispaly_info.xZoneCtl_start = 0x2e;
++    dispaly_info.xZoneCtl_stop = 0x465;
++    dispaly_info.yZoneCtl_start = 0xe;
++    dispaly_info.yZoneCtl_stop = 0x78d;
++    dispaly_info.SyncMode = 8;//VO_SYSTEM_MODE_1080x1920x30P;
++    dispaly_info.vo_out_active_imgh = 1080;
++    dispaly_info.vo_out_active_imgv = 1920;
++    video_set_display(&dispaly_info);
++    //
++    struct vo_layer_info layer1_info;
++	layer1_info.layerEn = voInfo->layer1_en;//1;
++	layer1_info.yuvmode = 1;  //1: yuv420/ 0:yuv422
++    layer1_info.endianuv = 2;//VO_VIDEO_LAYER_UV_ENDIAN_MODE2
++    layer1_info.uvswap = 0;
++    //
++    layer1_info.offset_hsize = 0;
++    layer1_info.offset_vsize = 0;
++    layer1_info.in_hsize = voInfo->layer1_width;
++    layer1_info.in_vsize = voInfo->layer1_height;
++    //		
++    layer1_info.layer_x_start = v_offset;
++    layer1_info.layer_y_start = h_offset;
++    //
++    layer1_info.layer_yAddr0 = voInfo->layer1_yAddr0;
++    layer1_info.layer_yAddr1 = voInfo->layer1_yAddr1;
++    video_set_volayer1(&layer1_info);
++    //
++    struct vo_layer_info layer2_info;
++	layer2_info.layerEn = voInfo->layer2_en;//1;
++	layer2_info.yuvmode = 1;  //1: yuv420/ 0:yuv422
++    layer2_info.endianuv = 2;//VO_VIDEO_LAYER_UV_ENDIAN_MODE2
++    layer2_info.uvswap = 0;
++    //
++    layer2_info.offset_hsize = 0;
++    layer2_info.offset_vsize = 0;
++    layer2_info.in_hsize = voInfo->layer2_width;
++    layer2_info.in_vsize = voInfo->layer2_height;
++    //		
++    layer2_info.layer_x_start = v_offset + 400;
++    layer2_info.layer_y_start = h_offset + 730;//1200;
++    //
++    layer2_info.layer_yAddr0 = voInfo->layer2_yAddr0;
++    layer2_info.layer_yAddr1 = voInfo->layer2_yAddr1;
++    video_set_volayer2(&layer2_info);
++    //
++    struct vo_layer_osd_info osd0_info;
++    osd0_info.osdEn = voInfo->osd0_en;//1;
++    osd0_info.osdtype = 3;//OSD_RGB_32BIT;
++    if( 0 == voInfo->osd0_rgb_type ) //DS2_S_RGB
++    {
++        osd0_info.osdtype = 1;//OSD_MONOCHROME_8BIT; 
++    }
++    osd0_info.alphatpye = 0;//OSD_FIXED_VALUE;
++    osd0_info.rgbrev = 0;//0:OSD_RGB_REV_A,1:OSD_RGB_REV_B
++    //
++    osd0_info.width = voInfo->osd0_width;
++    osd0_info.height = voInfo->osd0_height;
++    //
++    osd0_info.osd_x_start = v_offset;
++    osd0_info.osd_y_start = h_offset + 730;
++    //
++    osd0_info.alp_addr0 = voInfo->osd0_yAddr0;
++    osd0_info.alp_addr1 = voInfo->osd0_yAddr1;
++    osd0_info.vlu_addr0 = voInfo->osd0_yAddr0;
++    osd0_info.vlu_addr1 = voInfo->osd0_yAddr1;
++    video_set_volayer4osd0(&osd0_info);
++    //
++    struct vo_layer_osd_info osd1_info;
++    osd1_info.osdEn = voInfo->osd1_en;//1;
++    osd1_info.osdtype = voInfo->osd1_type;//3;//OSD_RGB_32BIT;
++    osd1_info.alphatpye = 0;//OSD_FIXED_VALUE;
++    osd1_info.rgbrev = voInfo->osd1_rgb_rev;//0;//0:OSD_RGB_REV_A,1:OSD_RGB_REV_B
++    //
++    osd1_info.width = voInfo->osd1_width;
++    osd1_info.height = voInfo->osd1_height;
++    //
++    osd1_info.osd_x_start = v_offset;
++    osd1_info.osd_y_start = h_offset+1460;
++    //
++    osd1_info.alp_addr0 = voInfo->osd1_yAddr0;
++    osd1_info.alp_addr1 = voInfo->osd1_yAddr1;
++    osd1_info.vlu_addr0 = voInfo->osd1_yAddr0;
++    osd1_info.vlu_addr1 = voInfo->osd1_yAddr1;
++    video_set_volayer5osd1(&osd1_info);
++    //
++    struct vo_layer_osd_info osd2_info;
++    osd2_info.osdEn = voInfo->osd2_en;//1;
++    osd2_info.osdtype = voInfo->osd2_type;//3;//OSD_RGB_32BIT;
++    osd2_info.alphatpye = 0;//OSD_FIXED_VALUE;
++    osd2_info.rgbrev = voInfo->osd2_rgb_rev;//0;//0:OSD_RGB_REV_A,1:OSD_RGB_REV_B
++    //
++    osd2_info.width = voInfo->osd2_width;
++    osd2_info.height = voInfo->osd2_height;
++    //
++    osd2_info.osd_x_start = v_offset+400;
++    osd2_info.osd_y_start = h_offset+1200;
++    //
++    osd2_info.alp_addr0 = voInfo->osd2_yAddr0;
++    osd2_info.alp_addr1 = voInfo->osd2_yAddr1;
++    osd2_info.vlu_addr0 = voInfo->osd2_yAddr0;
++    osd2_info.vlu_addr1 = voInfo->osd2_yAddr1;
++    video_set_volayer6osd2(&osd2_info);       
++    //
++    return 0;
++}
++//
++int isp_video(DS1_INFO *ds1_info, SENSOR_TYPE sensor_type,LCD_TYPE lcd_type)
++{    
++    int fd_isp;
++
++    struct video_isp_info isp_info;
++    struct video_vo_info voInfo;
++
++    printf("isp_video\n");
++	
++	  int fd_mem_map = -1;
++    
++
++    share_memory = open(SHARE_MEMORY_DEV,O_RDWR);
++    if(share_memory < 0) {
++        printf("open %s error!\r\n",SHARE_MEMORY_DEV);
++        return 1 ;
++    }
++
++    //
++    fd_mem_map = open(MAP_MEMORY_DEV, O_RDWR | O_SYNC);
++    if (fd_mem_map < 0) {
++        printf("CMEM: failed to open /dev/mem!");
++        return 1;
++    }
++    //ds0
++    isp_info.ds0_en = 1;//1
++    isp_info.ds0put_width = 1080;
++    isp_info.ds0put_height = 720;   
++    if(1 == isp_info.ds0_en)
++    {
++        allocAlignMem[3].size      = MEMORY_TEST_BLOCK_SIZE * 1024 ;//MEMORY_TEST_BLOCK_SIZE; 1920x1080*3/2+1920*1080
++        allocAlignMem[3].alignment = MEMORY_TEST_BLOCK_ALIGN;
++        allocAlignMem[3].phyAddr   = 0;
++
++        if(ioctl(share_memory, SHARE_MEMORY_ALIGN_ALLOC, &allocAlignMem[3]) < 0) {
++            printf("ds0 share memory  SHARE_MEMORY_ALIGN_ALLOC error!\r\n");
++            return 1;
++        }
++        else {
++            printf("ds0 block alloc:0x%08x,size:%d,align %d\r\n",allocAlignMem[3].phyAddr,allocAlignMem[3].size,allocAlignMem[3].alignment);
++        }
++
++        isp_info.ds0_addr = allocAlignMem[3].phyAddr;//isp_addr.main_out_addr + isp_addr.main_stride * isp_size.out_size.Height *3/2;//1920*1080*3/2;
++        printf("ds0_out_addr =0x%x\n",isp_info.ds0_addr);
++
++        virtual_addr[0] = (int *)mmap(NULL, allocAlignMem[3].size, PROT_READ | PROT_WRITE, MAP_SHARED, fd_mem_map, allocAlignMem[3].phyAddr);
++        if(virtual_addr[0] == MAP_FAILED) {
++           printf("share memory  virtual_addr error!\r\n");
++           return 1;
++        }
++        ispOutputForDisplay.size = ((isp_info.ds0put_width+15)/16*16) * isp_info.ds0put_height * 3/2;
++        ispOutputForDisplay.paddr = allocAlignMem[3].phyAddr;
++        ispOutputForDisplay.vaddr = (uint64_t)virtual_addr[0];
++
++        allocAlignMem[10].size      = MEMORY_TEST_BLOCK_SIZE * 1024 * 10;//MEMORY_TEST_BLOCK_SIZE; 1920x1080*3/2+1920*1080
++        allocAlignMem[10].alignment = MEMORY_TEST_BLOCK_ALIGN;
++        allocAlignMem[10].phyAddr   = 0;
++
++        if(ioctl(share_memory, SHARE_MEMORY_ALIGN_ALLOC, &allocAlignMem[10]) < 0) {
++            printf("twod share memory  SHARE_MEMORY_ALIGN_ALLOC error!\r\n");
++            return -1;
++        }
++        else {
++            printf("twod block alloc:0x%08x,size:%d,align %d\r\n",allocAlignMem[10].phyAddr,allocAlignMem[10].size,allocAlignMem[10].alignment);
++        }
++    }
++	
++    //ds1 
++    isp_info.ds1_en = ds1_info->ds1_en ;//0; 
++    isp_info.ds1put_width = ds1_info->ds1_width;//640;//1080;
++    isp_info.ds1put_height = ds1_info->ds1_height;//480;//720;
++    isp_info.ds1_addr = ds1_info->y_addr;
++    isp_info.ds1_stride = (ds1_info->ds1_width +15) / 16 * 16;//ds1_info->stride;
++
++
++    printf("isp_info.ds1_addr is %x isp_info.ds1_stride is %x \n", isp_info.ds1_addr, isp_info.ds1_stride);
++
++    isp_info.isp_pipeline = ISP_F_2K;
++    if(IMX385_SENSOR == sensor_type) 
++    {
++        isp_info.total_width = 2200;
++        isp_info.total_height = 1125;
++        isp_info.input_width = 1920;
++        isp_info.input_height = 1080;
++    }
++    else if(JFX23S_SENSOR == sensor_type) 
++    {
++        isp_info.total_width = 2560;
++        isp_info.total_height = 1125;
++        isp_info.input_width = 1928;
++        isp_info.input_height = 1088;        
++    }   
++    else if(IMX219_SENSOR == sensor_type) 
++    {
++        isp_info.total_width = 3476;//3448;
++        isp_info.total_height = 1166;
++        isp_info.input_width = 1920;
++        isp_info.input_height = 1080;        
++    }  
++    isp_info.output_width = 1920;
++    isp_info.output_height = 1080;
++    //mipi csi
++    if(IMX385_SENSOR == sensor_type)
++    {
++		unsigned int csi0_pixel_width = PIXEL_WIDTH_12BIT; 
++        unsigned int csi1_pixel_width = PIXEL_WIDTH_12BIT;
++        video_set_mipicsi(MIPI_2LANE12_RAW12,csi0_pixel_width,csi1_pixel_width);
++    }
++    else if(IMX219_SENSOR == sensor_type)
++    {
++       unsigned int csi0_pixel_width = PIXEL_WIDTH_10BIT; 
++       unsigned int csi1_pixel_width = PIXEL_WIDTH_10BIT;
++       video_set_mipicsi(MIPI_2LANE12_RAW10,csi0_pixel_width,csi1_pixel_width);
++    }
++    
++    if(IMX385_SENSOR == sensor_type)
++    {
++        set_vi_imx385_params(&isp_info);
++    }
++    else if(JFX23S_SENSOR == sensor_type)
++    {
++        set_vi_jfx23s_params(&isp_info);
++    }
++    else if(IMX219_SENSOR == sensor_type)
++    {
++        set_vi_imx219_params(&isp_info);
++    }
++    //
++    if(ISP_F_2K == isp_info.isp_pipeline)
++    {
++        set_isp_f2k_params(sensor_type,&isp_info);
++    }
++    else if(ISP_R_2K == isp_info.isp_pipeline)
++    {
++        set_isp_r2k_params(sensor_type,&isp_info);
++    }
++    
++    fd_isp = run_video(sensor_type,lcd_type,isp_info.isp_pipeline,0);
++
++    // ds1 
++    if (ioctl(fd_isp, ISP_CMD_DS1_ADDR, ds1_info->y_addr) < 0) 
++    {
++        printf("Call cmd ISP_CMD_DS1_ADDR fail\n");
++    }   
++    printf("Call cmd ISP_CMD_DS1_ADDR succss \n");
++
++    if (ioctl(fd_isp, ISP_CMD_DS1_BUFF_COUNT, 20) < 0)
++    {
++        printf("Call cmd ISP_CMD_DS1_BUFF_COUNT fail\n");
++    }   
++    printf("Call cmd ISP_CMD_DS1_BUFF_COUNT succss \n");
++
++    if (ioctl(fd_isp, ISP_CMD_SET_DS1_SIZE, isp_info.ds1_stride * ds1_info->ds1_height) < 0)
++    {
++        printf("Call cmd ISP_CMD_SET_DS1_SIZE fail\n");
++    }   
++    printf("Call cmd ISP_CMD_SET_DS1_SIZE succss \n");
++
++    struct isp_int_info intinfo;
++    
++    memset(&intinfo, 0, sizeof(intinfo));
++    intinfo.ds1_en = 1;
++    video_set_ispf2kint(&intinfo);
++
++    return fd_isp;
++}
++
++void isp_video_exit(void)
++{
++    int i = 0;
++
++    for(i = 0; i < MEMORY_TEST_BLOCK_NUM; i++) {
++        if(vo_osd_virtual_addr[i])
++            munmap(vo_osd_virtual_addr[i],allocAlignMem[i].size);
++    }
++
++    for(i = 0; i < MEMORY_TEST_BLOCK_NUM; i++) {
++        if(virtual_addr[i])
++            munmap(virtual_addr[i],allocAlignMem[i].size);
++    }
++/*
++    for(i = 0; i < MEMORY_TEST_BLOCK_NUM; i++) {
++        if(ds_virtual_addr[i])
++            munmap(ds_virtual_addr[i],allocAlignMem[i].size);
++    }
++*/
++    for(i = 0; i < MEMORY_TEST_BLOCK_NUM; i++) {
++        if(allocAlignMem[i].phyAddr != 0)
++        {
++            if(ioctl(share_memory, SHARE_MEMORY_FREE, &allocAlignMem[i].phyAddr) < 0) {
++                printf("share memory  SHARE_MEMORY_FREE error!\r\n");
++            }
++        }
++    }
++}
+\ No newline at end of file
+Index: b/libavdevice/video_app.h
+===================================================================
+--- /dev/null
++++ b/libavdevice/video_app.h
+@@ -0,0 +1,29 @@
++/******************************************************************************
++
++  Copyright (C), 2020, CANAAN Tech. Co., Ltd.
++
++ ******************************************************************************
++  File Name     : video_app.h
++  Version       : Initial Draft
++  Author        : zhudalei
++  Created       : 
++  Description   : 
++  History       :
++  Date        : 
++ ******************************************************************************/
++#ifndef _VIDEO_APP_H_
++#define _VIDEO_APP_H_
++
++#ifdef __cplusplus  
++extern "C"{
++#endif
++
++#include "isp_video.h"
++
++int isp_video(DS1_INFO *ds1_info, SENSOR_TYPE sensor_type,LCD_TYPE lcd_type);
++void isp_video_exit(void);
++
++#ifdef __cplusplus
++} 
++#endif
++#endif /*_VIDEO_APP_H_*/
+\ No newline at end of file

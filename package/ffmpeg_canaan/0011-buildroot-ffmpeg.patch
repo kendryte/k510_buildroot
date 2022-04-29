@@ -1,0 +1,600 @@
+Index: b/configure
+===================================================================
+--- a/configure
++++ b/configure
+@@ -1742,8 +1742,8 @@ EXTERNAL_LIBRARY_NONFREE_LIST="
+     openssl
+     libtls
+     libk510_h264
+-	libk510_jpeg
+-	libk510_video
++    libk510_jpeg
++    libk510_video
+     audio3a
+ "
+ 
+Index: b/libavfilter/af_audio3a.c
+===================================================================
+--- a/libavfilter/af_audio3a.c
++++ b/libavfilter/af_audio3a.c
+@@ -16,6 +16,20 @@
+  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+  */
+ #include <unistd.h>
++#include <fcntl.h>
++#include <sys/ioctl.h>
++#include <sys/mman.h>
++#include <assert.h>
++#include <errno.h>
++#include <time.h>
++#include <pthread.h>
++#include <ctype.h>
++#include <malloc.h>
++#include <unistd.h>
++#include <signal.h>
++#include <string.h>
++#include <stdlib.h>
++#include <poll.h>
+ 
+ #include "libavutil/opt.h"
+ #include "libavutil/time.h"
+@@ -26,6 +40,7 @@
+ #include "audio.h"
+ #include "internal.h"
+ #include "generate_wave_table.h"
++#include "dsp_tasks.h"
+ 
+ #define DUMP_FILE           0
+ #define AUDIO_3A_MIN_SAMPLES  160
+@@ -36,6 +51,48 @@ FILE *fp_in;
+ FILE *fp_out;
+ #endif
+ 
++//Mailbox channel is used to communicate with corresponding DSP task
++//mailbox channel number is decided by CPU and DSP software
++
++#define MBOX_CHAN_0_TX          _IOW('x', 0, unsigned long)
++#define MBOX_CHAN_1_TX          _IOW('x', 1, unsigned long)
++#define MBOX_CHAN_2_TX          _IOW('x', 2, unsigned long)
++#define MBOX_CHAN_3_TX          _IOW('x', 3, unsigned long)
++#define MBOX_CHAN_4_TX          _IOW('x', 4, unsigned long)
++#define MBOX_CHAN_5_TX          _IOW('x', 5, unsigned long)
++#define MBOX_CHAN_6_TX          _IOW('x', 6, unsigned long)
++#define MBOX_CHAN_7_TX          _IOW('x', 7, unsigned long)
++#define MBOX_CHAN_0_RX          _IOR('x', 0, unsigned long)
++#define MBOX_CHAN_1_RX          _IOR('x', 1, unsigned long)
++#define MBOX_CHAN_2_RX          _IOR('x', 2, unsigned long)
++#define MBOX_CHAN_3_RX          _IOR('x', 3, unsigned long)
++#define MBOX_CHAN_4_RX          _IOR('x', 4, unsigned long)
++#define MBOX_CHAN_5_RX          _IOR('x', 5, unsigned long)
++#define MBOX_CHAN_6_RX          _IOR('x', 6, unsigned long)
++#define MBOX_CHAN_7_RX          _IOR('x', 7, unsigned long)
++
++#define MBOX_DEV                "/dev/mailbox-client"
++#define SHARE_MEMORY_DEV "/dev/k510-share-memory"
++#define DEV_NAME_DDR "/dev/mem"
++#define MEMORY_TEST_BLOCK_ALIGN 4096        /* align 4k for mmap */
++#define SHARE_MEMORY_ALLOC          _IOWR('m', 1, unsigned long)
++#define SHARE_MEMORY_ALIGN_ALLOC    _IOWR('m', 2, unsigned long)
++#define SHARE_MEMORY_FREE           _IOWR('m', 3, unsigned long)
++#define SHARE_MEMORY_SHOW           _IOWR('m', 4, unsigned long)
++#define SHARE_MEMORY_INVAL_RANGE    _IOWR('m', 5, unsigned long)
++#define SHARE_MEMORY_WB_RANGE       _IOWR('m', 6, unsigned long)
++
++struct share_memory_alloc_align_args {
++    unsigned int size;
++    unsigned int alignment;
++    unsigned int phyAddr;
++};
++
++struct memory_cache_sync_request {
++    unsigned long size;
++    unsigned long vaddr;
++    unsigned long paddr;
++};
+ typedef struct Audio3aContext {
+     const AVClass *class;
+ 	int sample_rate;
+@@ -46,6 +103,40 @@ typedef struct Audio3aContext {
+     int wp;
+     int input_samples;
+     uint8_t input[AUDIO_3A_INPUT_BUF_SIZE];
++	int dsp_task;
++
++    int fd_ddr;
++    int fd_share_memory;
++    int fd_mailbox;
++    pthread_t thread_1;
++    unsigned int task1msg_phyAddr;
++    void *task1msg_vAddr;
++    unsigned int task1msg_size;
++    void *task1print_vAddr;
++    unsigned int task1print_size;
++    unsigned int task1print_phyAddr;
++    unsigned int task1src_phyAddr;
++    void *task1src_vAddr;
++    unsigned int task1src_size;
++    unsigned int task1user_msg_phyAddr;
++    void *task1user_msg_vAddr;
++    unsigned int task1user_msg_size;
++    unsigned int input_phyAddr;
++    void *input_vAddr;
++    unsigned int input_size;
++    unsigned int output_phyAddr;
++    void *output_vAddr;
++    unsigned int output_size;
++    int task1_start_send_msg;
++    int is_task1_enabled;
++    int is_print_finished;
++    int exit_waiting_cnt;
++    int received_sigterm;
++    DSP_MESSAGE msg;
++    TASK1_MESSAGE *task1_msg;
++    int audio3a_init_done;
++    int audio3a_process_done;
++    int audio3a_deinit_done;
+ } Audio3aContext;
+ 
+ #define OFFSET(x) offsetof(Audio3aContext, x)
+@@ -64,9 +155,150 @@ static const AVOption audio3a_options[]
+     {   "High",                    "", 0, AV_OPT_TYPE_CONST, {.i64 = kHigh}, 0, 0, AF, "ns_level"},
+     {   "VeryHigh",                "", 0, AV_OPT_TYPE_CONST, {.i64 = kVeryHigh}, 0, 0, AF, "ns_level"},
+     {"aec_test", "audio echo function, just for test", OFFSET(aec_test_en), AV_OPT_TYPE_INT, {.i64 = 0}, 0, 1, AF},
++    {"dsp_task", "enable dsp task, just for test", OFFSET(dsp_task), AV_OPT_TYPE_INT, {.i64 = 1}, 0, 1, AF},
+     { NULL },
+ };
+ 
++static unsigned int alloc_memory(int fd_share_memory, unsigned int size)
++{
++    struct share_memory_alloc_align_args  allocAlignMem;
++      
++    allocAlignMem.size = (size + 0xfff) & (~0xfff);
++    allocAlignMem.alignment = MEMORY_TEST_BLOCK_ALIGN;
++    allocAlignMem.phyAddr = 0;
++
++    if(ioctl(fd_share_memory, SHARE_MEMORY_ALIGN_ALLOC, &allocAlignMem) < 0)
++    {
++          printf("cpu alloc_memory Error!\n");
++          return -1;
++    }
++    //printf("%s>phy_addr 0x%x, size %d\n", __FUNCTION__, allocAlignMem.phyAddr, allocAlignMem.size);
++    
++    return allocAlignMem.phyAddr;
++}
++
++static int InvalidateCache(unsigned int phyAddr, void* vAddr, unsigned int size, Audio3aContext *pCtx)
++{
++  struct memory_cache_sync_request request;
++ 
++  //printf("%s>phyAddr 0x%x, vaddr %p, size %d\n", __FUNCTION__, phyAddr, vAddr, size);
++
++  request.paddr = phyAddr;
++  request.vaddr = vAddr;
++  request.size  = size;
++
++  if(ioctl(pCtx->fd_share_memory, SHARE_MEMORY_INVAL_RANGE, &request) < 0)
++  {
++    printf("fd invalidate range op failure!\r\n");
++    return -1;
++  }
++
++  return 0;
++}
++
++static int FlushCache(unsigned int phyAddr, void* vAddr, unsigned int size, Audio3aContext *pCtx)
++{
++    struct memory_cache_sync_request request;
++    
++    //printf("%s>phyAddr 0x%x, vaddr %p, size %d\n", __FUNCTION__, phyAddr, vAddr, size);
++
++    request.paddr = phyAddr;
++    request.vaddr = vAddr;
++    request.size  = size;
++
++    if(ioctl(pCtx->fd_share_memory, SHARE_MEMORY_WB_RANGE, &request) < 0)
++    {
++      printf("fd wb range op failure!\r\n");
++      return -1;
++    }
++
++    return 0;
++}
++
++static void *cpu2dsp_task1(void *arg)
++{
++    Audio3aContext *pCtx= (Audio3aContext *)arg;
++    int ret = 0;
++    struct pollfd fds;
++    DSP_MESSAGE msg;
++    printf("%s>pCtx = 0x%x\n", __FUNCTION__, pCtx);
++
++    while(1)
++    {
++        fds.fd = pCtx->fd_mailbox;
++        fds.events = POLLIN;
++        ret = poll(&fds, 1, -1);
++        if (ret)
++        {
++            // printf("intr: dsp-->cpu\n");
++            if (ioctl(pCtx->fd_mailbox, MBOX_CHAN_1_RX, &msg) < 0)
++                printf("rx 0 error\n");
++            
++            if(msg.msgId == DSP_TASK_ENABLE)
++            {
++                printf("task 1 is enabled\n", msg.msgId);
++                pCtx->is_task1_enabled = 1;
++                // printf("pCtx->is_task1_enabled = %d\n", pCtx->is_task1_enabled);
++            }
++            else if(msg.msgId == DSP_TASK_DISABLE)
++            {
++                printf("task 1 is disabled\n", msg.msgId);
++                pCtx->is_task1_enabled = 0;
++            }
++            else if(msg.msgId == DSP_TASK_PRINT_INFO)
++            {
++                printf("print tasks info finished\n", msg.msgId);
++                pCtx->is_print_finished = 1;
++            }
++            else if(msg.msgId == DSP_TASK_USER_MSG)
++            {
++                unsigned int offset;
++                // printf("audio3a task user msg\n");
++                // printf("msg.msg_phyAddr: 0x%x\n", msg.msg_phyAddr);
++                // printf("pCtx->task1msg_phyAddr: 0x%x\n", pCtx->task1msg_phyAddr);
++
++                InvalidateCache(pCtx->task1msg_phyAddr, pCtx->task1msg_vAddr, pCtx->task1msg_size, pCtx);
++                offset = msg.msg_phyAddr - pCtx->task1msg_phyAddr;
++                pCtx->task1_msg = (TASK1_MESSAGE*)(pCtx->task1msg_vAddr + offset);
++                // printf("pCtx->task1_msg: 0x%x\n", pCtx->task1_msg);
++
++                if(pCtx->task1_msg->id == DSP_TASK_1_AUDIO3A_INIT_DONE)
++                { 
++                    // printf("audio3a init done\n");
++                    pCtx->audio3a_init_done = 1;
++                }
++                else if(pCtx->task1_msg->id == DSP_TASK_1_AUDIO3A_PROCESS_DONE)
++                {
++                    // printf("audio3a_process_done\n");
++                    pCtx->audio3a_process_done = 1;
++                }
++                else if(pCtx->task1_msg->id == DSP_TASK_1_AUDIO3A_DEINIT_DONE)
++                { 
++                    // printf("audio 3a deinit done\n");
++                    pCtx->audio3a_deinit_done = 1;
++                }
++                else
++                {
++                    // printf("pCtx->task1_msg->id = %d\n", pCtx->task1_msg->id);
++                    // printf("pCtx->task1_msg->sample_rate = %d\n", pCtx->task1_msg->sample_rate);
++                    // printf("pCtx->task1_msg->agcMode = %d\n", pCtx->task1_msg->agcMode);
++                    // printf("pCtx->task1_msg->nsLevel = %d\n", pCtx->task1_msg->nsLevel);
++                    // printf("pCtx->task1_msg->aec_test_en = %d\n", pCtx->task1_msg->aec_test_en);
++                }
++            }
++            else
++            {
++                printf("unknown dsp message 0x%x\n", msg.msgId);
++            }
++        }
++        else
++        {
++            printf("read error\n");
++        }
++    }
++    return 0;
++}
++
+ static av_cold int init(AVFilterContext *ctx)
+ {
+     Audio3aContext *s = ctx->priv;
+@@ -77,7 +309,118 @@ static av_cold int init(AVFilterContext
+     s->rp = 0;
+     s->wp = 0;
+ 
+-    audio_3a_init(s->sample_rate, s->agc_mode, s->ns_level, s->aec_test_en);
++    if(s->dsp_task)
++    {
++        s->received_sigterm = 0;
++        s->audio3a_init_done = 0;
++        s->audio3a_process_done = 0;
++        s->audio3a_deinit_done = 0;
++
++        s->fd_mailbox = open(MBOX_DEV, O_RDWR | O_NONBLOCK);
++        if (s->fd_mailbox < 0)
++        {
++            printf("Can't open file %s\r\n", MBOX_DEV);
++            return -1;
++        }
++
++        s->fd_share_memory = open(SHARE_MEMORY_DEV,O_RDWR | O_SYNC);
++        if(s->fd_share_memory < 0)
++        {
++        printf("Open %s Error!\n", SHARE_MEMORY_DEV);
++        }
++
++        s->fd_ddr = open(DEV_NAME_DDR,O_RDWR|O_SYNC); 
++        if(s->fd_ddr < 0)
++        {
++        printf("Open %s Error!\n", DEV_NAME_DDR);
++        }
++
++        // audio_3a_init(s->sample_rate, s->agc_mode, s->ns_level, s->aec_test_en);
++
++        s->task1msg_size = MEMORY_TEST_BLOCK_ALIGN;
++        s->task1msg_phyAddr = alloc_memory(s->fd_share_memory, s->task1msg_size);  
++        s->task1msg_vAddr = mmap(NULL, s->task1msg_size, PROT_READ|PROT_WRITE, MAP_SHARED, s->fd_ddr, s->task1msg_phyAddr); 
++        printf("task 1 message buffer: vaddr 0x%x, phyAddr 0x%x, size %d\n", s->task1msg_vAddr, s->task1msg_phyAddr, s->task1msg_size);
++
++        s->task1print_size = MEMORY_TEST_BLOCK_ALIGN;
++        s->task1print_phyAddr = alloc_memory(s->fd_share_memory, s->task1print_size);  
++        s->task1print_vAddr = mmap(NULL, s->task1print_size, PROT_READ|PROT_WRITE, MAP_SHARED, s->fd_ddr, s->task1print_phyAddr); 
++        printf("task 1 print buffer: vaddr 0x%x, phyAddr 0x%x, size %d\n", s->task1msg_vAddr, s->task1print_phyAddr, s->task1print_size);
++
++        s->task1src_size = MEMORY_TEST_BLOCK_ALIGN;
++        s->task1src_phyAddr = alloc_memory(s->fd_share_memory, s->task1src_size);  
++        s->task1src_vAddr = mmap(NULL, s->task1src_size, PROT_READ|PROT_WRITE, MAP_SHARED, s->fd_ddr, s->task1src_phyAddr); 
++        printf("task 1 src buffer: vaddr 0x%x, phyAddr 0x%x, size %d\n", s->task1src_vAddr, s->task1src_phyAddr, s->task1src_size);
++
++        s->task1user_msg_size = MEMORY_TEST_BLOCK_ALIGN;
++        s->task1user_msg_phyAddr = alloc_memory(s->fd_share_memory, s->task1user_msg_size);  
++        s->task1user_msg_vAddr = mmap(NULL, s->task1user_msg_size, PROT_READ|PROT_WRITE, MAP_SHARED, s->fd_ddr, s->task1user_msg_phyAddr); 
++        printf("task 1 user_msg buffer: vaddr 0x%x, phyAddr 0x%x, size %d\n", s->task1user_msg_vAddr, s->task1user_msg_phyAddr, s->task1user_msg_size);
++
++        s->input_size = MEMORY_TEST_BLOCK_ALIGN;
++        s->input_phyAddr = alloc_memory(s->fd_share_memory, s->input_size);  
++        s->input_vAddr = mmap(NULL, s->input_size, PROT_READ|PROT_WRITE, MAP_SHARED, s->fd_ddr, s->input_phyAddr); 
++        printf("task 1 input buffer: vaddr 0x%x, phyAddr 0x%x, size %d\n", s->input_vAddr, s->input_phyAddr, s->input_size);
++
++        s->output_size = MEMORY_TEST_BLOCK_ALIGN;
++        s->output_phyAddr = alloc_memory(s->fd_share_memory, s->output_size);  
++        s->output_vAddr = mmap(NULL, s->output_size, PROT_READ|PROT_WRITE, MAP_SHARED, s->fd_ddr, s->output_phyAddr); 
++        printf("task 1 output buffer: vaddr 0x%x, phyAddr 0x%x, size %d\n", s->output_vAddr, s->output_phyAddr, s->output_size);
++
++        // int policy;
++        // struct sched_param self_param;
++        // pthread_getshedparam(pthread_self(), &policy, self_param);
++        // printf("%s> priority: %d", self_param.sched_priority);
++
++        // pthread_attr_t attr;
++        // struct sched_param task_param;
++        // task_param.sched_priority = self_param.sched_priority + 1;
++        // pthread_attr_setshedpolicy(attr, SCHED_FIFO);
++        // pthread_attr_setshedparam(attr, task_param);
++        
++        printf("1: %s>s = 0x%x\n", __FUNCTION__, s);
++        pthread_create(&(s->thread_1), NULL, cpu2dsp_task1, s);
++        // pthread_create(&(s->thread_1), &attr, cpu2dsp_task1, s);
++            
++        s->msg.msgId = DSP_TASK_ENABLE;
++        s->msg.msg_phyAddr = s->task1print_phyAddr;
++        s->msg.len = s->task1print_size;
++        FlushCache(s->task1print_phyAddr, s->task1print_vAddr, s->task1print_size, s);
++        if (ioctl(s->fd_mailbox, MBOX_CHAN_1_TX, &s->msg) < 0)
++            printf("enable task 1: tx 0 error\n");
++
++        printf("%s>s = 0x%x\n", __FUNCTION__, s);
++        while(!(s->is_task1_enabled))
++        {
++            usleep(20*1000);
++        }
++
++        s->msg.msgId = DSP_TASK_USER_MSG;
++        s->msg.msg_phyAddr = s->task1msg_phyAddr;
++        s->msg.len = s->task1user_msg_size;
++
++        printf("%s->task1msg_phyAddr: 0x%x\n", __FUNCTION__, s->task1msg_phyAddr);
++        s->task1_msg = (TASK1_MESSAGE*)(s->task1msg_vAddr);
++        s->task1_msg->id = DSP_TASK_1_AUDIO3A_INIT;
++        s->task1_msg->sample_rate = s->sample_rate;
++        s->task1_msg->agcMode = s->agc_mode;
++        s->task1_msg->nsLevel = s->ns_level;
++        s->task1_msg->aec_test_en = s->aec_test_en;
++        FlushCache(s->task1user_msg_phyAddr, s->task1user_msg_vAddr, s->task1user_msg_size, s);
++        FlushCache(s->task1msg_phyAddr, s->task1msg_vAddr, s->task1msg_size, s);
++        if (ioctl(s->fd_mailbox, MBOX_CHAN_1_TX, &s->msg) < 0)
++            printf("enable task 1: tx 0 error\n");
++
++        while(!(s->audio3a_init_done))
++        {
++            usleep(20*1000);
++        }
++        printf("%s>audio3a init done\n", __FUNCTION__);
++    }
++    else
++    {
++        audio_3a_init(s->sample_rate, s->agc_mode, s->ns_level, s->aec_test_en);
++    }
+ 
+ #if DUMP_FILE
+     fp_in = fopen("inbuf.pcm","wb+");
+@@ -114,7 +457,14 @@ static int filter_frame(AVFilterLink *in
+     s->input_samples += inbuf->nb_samples;
+     if(s->wp + inbuf->linesize[0] <= AUDIO_3A_INPUT_BUF_SIZE)
+     {
+-        memcpy(&s->input[s->wp], inbuf->data[0], inbuf->linesize[0]);
++        if(s->dsp_task)
++        {
++            memcpy(((s->input_vAddr)+(s->wp)), inbuf->data[0], inbuf->linesize[0]);
++        }
++        else
++        {
++            memcpy(&s->input[s->wp], inbuf->data[0], inbuf->linesize[0]);
++        }
+         s->wp += inbuf->linesize[0];
+         s->wp %= AUDIO_3A_INPUT_BUF_SIZE;
+     }
+@@ -133,11 +483,51 @@ static int filter_frame(AVFilterLink *in
+         av_frame_free(&inbuf);
+         return AVERROR(ENOMEM);
+     }
++    // printf("outbuf->nb_samples: %d\n", outbuf->nb_samples);//160
++    // printf("outbuf->linesize[0]: %d\n", outbuf->linesize[0]);//640
+ 
+     if(s->rp + outbuf->linesize[0] <= AUDIO_3A_INPUT_BUF_SIZE)
+     { 
+-        //memcpy(outbuf->data[0], &s->input[s->rp], outbuf->linesize[0]);
+-        audio_3a_process(&s->input[s->rp], outbuf->data[0]);
++        if(s->dsp_task)
++        {
++            // printf("s->is_task1_enabled: %d\n", s->is_task1_enabled);
++            // printf("s->audio3a_init_done: %d\n", s->audio3a_init_done);
++            if(s->is_task1_enabled && s->audio3a_init_done)
++            {
++                // printf("prepare audio_3a_process\n");
++                s->msg.msgId = DSP_TASK_USER_MSG;
++                s->msg.msg_phyAddr = s->task1msg_phyAddr;
++                s->msg.len = s->task1user_msg_size;
++
++                s->task1_msg = (TASK1_MESSAGE*)(s->task1msg_vAddr);
++                s->task1_msg->id = DSP_TASK_1_AUDIO3A_PROCESS;
++                s->task1_msg->inbuf = (int*)(s->input_phyAddr + s->rp);
++                s->task1_msg->outbuf = (int*)(s->output_phyAddr);
++                s->task1_msg->input_size = AUDIO_3A_MIN_SAMPLES * 4;
++                s->task1_msg->output_size = outbuf->linesize[0];
++                FlushCache(s->input_phyAddr, s->input_vAddr, s->input_size, s);
++                FlushCache(s->task1user_msg_phyAddr, s->task1user_msg_vAddr, s->task1user_msg_size, s);
++                FlushCache(s->task1msg_phyAddr, s->task1msg_vAddr, s->task1msg_size, s);
++                
++                if (ioctl(s->fd_mailbox, MBOX_CHAN_1_TX, &s->msg) < 0)
++                    printf("enable task 1: tx 0 error\n");
++                // printf("cpu-->dsp process cmd sended.\n");
++                while(!(s->audio3a_process_done))
++                {
++                    usleep(500);//usleep(20*1000);
++                }
++
++                InvalidateCache(s->output_phyAddr, s->output_vAddr, s->output_size, s);
++                // memcpy(outbuf->data[0], s->output_vAddr, outbuf->linesize[0]);
++                outbuf->data[0] = s->output_vAddr;
++                s->audio3a_process_done = 0;
++            }
++        }
++        else
++        {
++            //memcpy(outbuf->data[0], &s->input[s->rp], outbuf->linesize[0]);
++            audio_3a_process(&s->input[s->rp], outbuf->data[0]);
++        }
+     }
+     else
+     {
+@@ -159,8 +549,77 @@ static int filter_frame(AVFilterLink *in
+ static av_cold void uninit(AVFilterContext *ctx)
+ {
+     Audio3aContext *s = ctx->priv;
+-    
+-    audio_3a_deinit();
++
++    if(s->dsp_task)
++    {
++        if(s->is_task1_enabled && s->audio3a_init_done)
++        {
++            s->msg.msgId = DSP_TASK_USER_MSG;
++            s->msg.msg_phyAddr = s->task1msg_phyAddr;
++            s->msg.len = s->task1user_msg_size;
++
++            s->task1_msg = (TASK1_MESSAGE*)(s->task1msg_vAddr);
++            s->task1_msg->id = DSP_TASK_1_AUDIO3A_DEINIT;
++
++            FlushCache(s->task1user_msg_phyAddr, s->task1user_msg_vAddr, s->task1user_msg_size, s);
++            FlushCache(s->task1msg_phyAddr, s->task1msg_vAddr, s->task1msg_size, s);
++            if (ioctl(s->fd_mailbox, MBOX_CHAN_1_TX, &s->msg) < 0)
++                printf("enable task 1: tx 0 error\n");
++        }
++
++        s->msg.msgId = DSP_TASK_DISABLE;
++        if (ioctl(s->fd_mailbox, MBOX_CHAN_1_TX, &s->msg) < 0)
++            printf("disable task 0: tx 0 error\n");
++
++        s->received_sigterm = 0;
++        s->audio3a_init_done = 0;
++        s->audio3a_process_done = 0;
++        s->audio3a_deinit_done = 0;
++        
++        if(s->task1msg_phyAddr != 0)
++        {
++            munmap((void*)s->task1msg_vAddr, s->task1msg_size);
++            if(ioctl(s->fd_share_memory, SHARE_MEMORY_FREE, &s->task1msg_phyAddr) < 0)
++            {
++            printf("%s>Error!\n", __FUNCTION__);
++            }
++        }
++
++        if(s->task1print_phyAddr != 0)
++        {
++            munmap((void*)s->task1print_vAddr, s->task1print_size);
++            if(ioctl(s->fd_share_memory, SHARE_MEMORY_FREE, &s->task1print_phyAddr) < 0)
++            {
++            printf("%s>Error!\n", __FUNCTION__);
++            }
++        }
++
++        if(s->task1src_phyAddr != 0)
++        {
++            munmap((void*)s->task1src_vAddr, s->task1src_size);
++            if(ioctl(s->fd_share_memory, SHARE_MEMORY_FREE, &s->task1src_phyAddr) < 0)
++            {
++            printf("%s>Error!\n", __FUNCTION__);
++            }
++        }
++
++        if(s->task1user_msg_phyAddr != 0)
++        {
++            munmap((void*)s->task1user_msg_vAddr, s->task1user_msg_size);
++            if(ioctl(s->fd_share_memory, SHARE_MEMORY_FREE, &s->task1user_msg_phyAddr) < 0)
++            {
++            printf("%s>Error!\n", __FUNCTION__);
++            }
++        }
++        
++        close(s->fd_mailbox);
++        close(s->fd_share_memory);
++        close(s->fd_ddr);
++    }
++    else
++    {
++        audio_3a_deinit();
++    }
+ 
+ #if DUMP_FILE
+     fclose(fp_in);
+Index: b/libavfilter/audio3a.h
+===================================================================
+--- a/libavfilter/audio3a.h
++++ b/libavfilter/audio3a.h
+@@ -15,7 +15,35 @@ typedef enum nsLevel
+     kVeryHigh
+ }ENsLevel;
+ 
++typedef enum
++{
++    DSP_TASK_1_AUDIO3A_INIT,
++    DSP_TASK_1_AUDIO3A_INIT_DONE,
++    DSP_TASK_1_AUDIO3A_PROCESS,
++    DSP_TASK_1_AUDIO3A_PROCESS_DONE,
++    DSP_TASK_1_AUDIO3A_DEINIT,
++    DSP_TASK_1_AUDIO3A_DEINIT_DONE,
++    MAX_NUM_DSP_TASK_1_MSG
++} Task1MsgID;
++
++//the message should be defined in header file which is included by cpu
++typedef struct tTASK1_MSG
++{
++    Task1MsgID  id;
++    // uint32_t src_phyAddr;
++    // uint32_t dst_phyAddr;
++    // uint32_t data_size;
++    int sample_rate;
++    EAgcMode agcMode;
++    ENsLevel nsLevel;
++    int aec_test_en;
++    // int init_done;
++    int *inbuf;
++    int *outbuf;
++    int input_size;
++    int output_size;
++}TASK1_MESSAGE;
++
+ void audio_3a_init(int sample_rate, EAgcMode agcMode, ENsLevel nsLevel, int aec_test_en);
+ void audio_3a_process(int *inbuf, int *outbuf);
+ void audio_3a_deinit();
+-

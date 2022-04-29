@@ -1,0 +1,392 @@
+Index: b/testProgs/DataBufCtrlEX.cpp
+===================================================================
+--- a/testProgs/DataBufCtrlEX.cpp
++++ b/testProgs/DataBufCtrlEX.cpp
+@@ -1,3 +1,10 @@
++/* Copyright (c) 2022, Canaan Bright Sight Co., Ltd
++
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software Foundation.
++*/
++
+ #include "DataBufCtrlEX.h"
+ #include <string.h>
+ #include <stdio.h>
+Index: b/testProgs/DataBufCtrlEX.h
+===================================================================
+--- a/testProgs/DataBufCtrlEX.h
++++ b/testProgs/DataBufCtrlEX.h
+@@ -1,3 +1,10 @@
++/* Copyright (c) 2022, Canaan Bright Sight Co., Ltd
++
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software Foundation.
++*/
++
+ #pragma once
+ #include <stdlib.h>  
+ #include <pthread.h>  
+Index: b/testProgs/H264AACSourceData.cpp
+===================================================================
+--- a/testProgs/H264AACSourceData.cpp
++++ b/testProgs/H264AACSourceData.cpp
+@@ -1,3 +1,11 @@
++/* Copyright (c) 2022, Canaan Bright Sight Co., Ltd
++
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software Foundation.
++*/
++
++
+ #include "H264AACSourceData.h"
+ 
+ CH264AACSourceData::CH264AACSourceData(void)
+Index: b/testProgs/H264AACSourceData.h
+===================================================================
+--- a/testProgs/H264AACSourceData.h
++++ b/testProgs/H264AACSourceData.h
+@@ -1,3 +1,11 @@
++/* Copyright (c) 2022, Canaan Bright Sight Co., Ltd
++
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software Foundation.
++*/
++
++
+ #ifndef _H264AACSOURCEDATA_H
+ #define _H264AACSOURCEDATA_H
+ 
+Index: b/testProgs/H264FramedLiveSource.cpp
+===================================================================
+--- a/testProgs/H264FramedLiveSource.cpp
++++ b/testProgs/H264FramedLiveSource.cpp
+@@ -1,3 +1,11 @@
++/* Copyright (c) 2022, Canaan Bright Sight Co., Ltd
++
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software Foundation.
++*/
++
++
+ #include "H264FramedLiveSource.h"
+ #include <GroupsockHelper.hh>
+ #include<liveMedia.hh>
+Index: b/testProgs/H264FramedLiveSource.h
+===================================================================
+--- a/testProgs/H264FramedLiveSource.h
++++ b/testProgs/H264FramedLiveSource.h
+@@ -1,3 +1,10 @@
++/* Copyright (c) 2022, Canaan Bright Sight Co., Ltd
++
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software Foundation.
++*/
++
+ #pragma once
+ 
+ #include "PullDataObj.h"
+Index: b/testProgs/H264LiveVideoServerMediaSubssion.cpp
+===================================================================
+--- a/testProgs/H264LiveVideoServerMediaSubssion.cpp
++++ b/testProgs/H264LiveVideoServerMediaSubssion.cpp
+@@ -1,3 +1,11 @@
++/* Copyright (c) 2022, Canaan Bright Sight Co., Ltd
++
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software Foundation.
++*/
++
++
+ #include "H264LiveVideoServerMediaSubssion.h"
+ #include "H264FramedLiveSource.h"
+ 
+Index: b/testProgs/H264LiveVideoServerMediaSubssion.h
+===================================================================
+--- a/testProgs/H264LiveVideoServerMediaSubssion.h
++++ b/testProgs/H264LiveVideoServerMediaSubssion.h
+@@ -1,3 +1,11 @@
++/* Copyright (c) 2022, Canaan Bright Sight Co., Ltd
++
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software Foundation.
++*/
++
++
+ #pragma once
+ #include <OnDemandServerMediaSubsession.hh>
+ #include "PullDataObj.h"
+Index: b/testProgs/IRtspServer.h
+===================================================================
+--- a/testProgs/IRtspServer.h
++++ b/testProgs/IRtspServer.h
+@@ -1,3 +1,11 @@
++
++/* Copyright (c) 2022, Canaan Bright Sight Co., Ltd
++
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software Foundation.
++*/
++
+ #pragma once
+ class IRtspServerEX
+ {
+Index: b/testProgs/PullDataObj.h
+===================================================================
+--- a/testProgs/PullDataObj.h
++++ b/testProgs/PullDataObj.h
+@@ -1,3 +1,11 @@
++/* Copyright (c) 2022, Canaan Bright Sight Co., Ltd
++
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software Foundation.
++*/
++
++
+ #pragma once
+ #include<iostream>
+ using namespace std;
+Index: b/testProgs/RtspServerEX.cpp
+===================================================================
+--- a/testProgs/RtspServerEX.cpp
++++ b/testProgs/RtspServerEX.cpp
+@@ -1,3 +1,11 @@
++/* Copyright (c) 2022, Canaan Bright Sight Co., Ltd
++
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software Foundation.
++*/
++
++
+ #include "RtspServerEX.h"
+ #include "VideoStreamer.hh"
+ #include "H264AACSourceData.h"
+Index: b/testProgs/RtspServerEX.h
+===================================================================
+--- a/testProgs/RtspServerEX.h
++++ b/testProgs/RtspServerEX.h
+@@ -1,3 +1,11 @@
++/* Copyright (c) 2022, Canaan Bright Sight Co., Ltd
++
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software Foundation.
++*/
++
++
+ #pragma once
+ class CRtspSourceDataObj;
+ class UsageEnvironment;
+Index: b/testProgs/VideoStreamer.cpp
+===================================================================
+--- a/testProgs/VideoStreamer.cpp
++++ b/testProgs/VideoStreamer.cpp
+@@ -1,28 +1,10 @@
+-/**********
+-This library is free software; you can redistribute it and/or modify it under
+-the terms of the GNU Lesser General Public License as published by the
+-Free Software Foundation; either version 3 of the License, or (at your
+-option) any later version. (See <http://www.gnu.org/copyleft/lesser.html>.)
++/* Copyright (c) 2022, Canaan Bright Sight Co., Ltd
+ 
+-This library is distributed in the hope that it will be useful, but WITHOUT
+-ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public License for
+-more details.
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software Foundation.
++*/
+ 
+-You should have received a copy of the GNU Lesser General Public License
+-along with this library; if not, write to the Free Software Foundation, Inc.,
+-51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+-**********/
+-// Copyright (c) 1996-2021, Live Networks, Inc.  All rights reserved
+-// A test program that reads a H.264 Elementary Stream video file
+-// and streams it using RTP
+-// main program
+-//
+-// NOTE: For this application to work, the H.264 Elementary Stream video file *must* contain SPS and PPS NAL units,
+-// ideally at or near the start of the file.  These SPS and PPS NAL units are used to specify 'configuration' information
+-// that is set in the output stream's SDP description (by the RTSP server that is built in to this application).
+-// Note also that - unlike some other "*Streamer" demo applications - the resulting stream can be received only using a
+-// RTSP client (such as "openRTSP")
+ 
+ #include <liveMedia.hh>
+ 
+Index: b/testProgs/VideoStreamer.hh
+===================================================================
+--- a/testProgs/VideoStreamer.hh
++++ b/testProgs/VideoStreamer.hh
+@@ -1,3 +1,10 @@
++/* Copyright (c) 2022, Canaan Bright Sight Co., Ltd
++
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software Foundation.
++*/
++
+ #include <iostream>
+ #include <string>
+ #include <stdlib.h>
+Index: b/testProgs/VideoStreamerFile.cpp
+===================================================================
+--- a/testProgs/VideoStreamerFile.cpp
++++ b/testProgs/VideoStreamerFile.cpp
+@@ -1,28 +1,10 @@
+-/**********
+-This library is free software; you can redistribute it and/or modify it under
+-the terms of the GNU Lesser General Public License as published by the
+-Free Software Foundation; either version 3 of the License, or (at your
+-option) any later version. (See <http://www.gnu.org/copyleft/lesser.html>.)
++/* Copyright (c) 2022, Canaan Bright Sight Co., Ltd
+ 
+-This library is distributed in the hope that it will be useful, but WITHOUT
+-ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public License for
+-more details.
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software Foundation.
++*/
+ 
+-You should have received a copy of the GNU Lesser General Public License
+-along with this library; if not, write to the Free Software Foundation, Inc.,
+-51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+-**********/
+-// Copyright (c) 1996-2021, Live Networks, Inc.  All rights reserved
+-// A test program that reads a H.264 Elementary Stream video file
+-// and streams it using RTP
+-// main program
+-//
+-// NOTE: For this application to work, the H.264 Elementary Stream video file *must* contain SPS and PPS NAL units,
+-// ideally at or near the start of the file.  These SPS and PPS NAL units are used to specify 'configuration' information
+-// that is set in the output stream's SDP description (by the RTSP server that is built in to this application).
+-// Note also that - unlike some other "*Streamer" demo applications - the resulting stream can be received only using a
+-// RTSP client (such as "openRTSP")
+ 
+ #include <liveMedia.hh>
+ 
+Index: b/testProgs/announceURL.cpp
+===================================================================
+--- a/testProgs/announceURL.cpp
++++ b/testProgs/announceURL.cpp
+@@ -1,22 +1,10 @@
+-/**********
+-This library is free software; you can redistribute it and/or modify it under
+-the terms of the GNU Lesser General Public License as published by the
+-Free Software Foundation; either version 3 of the License, or (at your
+-option) any later version. (See <http://www.gnu.org/copyleft/lesser.html>.)
++/* Copyright (c) 2022, Canaan Bright Sight Co., Ltd
+ 
+-This library is distributed in the hope that it will be useful, but WITHOUT
+-ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public License for
+-more details.
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software Foundation.
++*/
+ 
+-You should have received a copy of the GNU Lesser General Public License
+-along with this library; if not, write to the Free Software Foundation, Inc.,
+-51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA
+-**********/
+-// Copyright (c) 1996-2022, Live Networks, Inc.  All rights reserved
+-// A common function that outputs the URL(s) that can be used to access a stream
+-// served by a RTSP server.
+-// Implementation
+ 
+ #include "announceURL.hh"
+ #include <GroupsockHelper.hh> // for "weHaveAnIPv*Address()"
+Index: b/testProgs/announceURL.hh
+===================================================================
+--- a/testProgs/announceURL.hh
++++ b/testProgs/announceURL.hh
+@@ -1,22 +1,10 @@
+-/**********
+-This library is free software; you can redistribute it and/or modify it under
+-the terms of the GNU Lesser General Public License as published by the
+-Free Software Foundation; either version 3 of the License, or (at your
+-option) any later version. (See <http://www.gnu.org/copyleft/lesser.html>.)
++/* Copyright (c) 2022, Canaan Bright Sight Co., Ltd
+ 
+-This library is distributed in the hope that it will be useful, but WITHOUT
+-ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public License for
+-more details.
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software Foundation.
++*/
+ 
+-You should have received a copy of the GNU Lesser General Public License
+-along with this library; if not, write to the Free Software Foundation, Inc.,
+-51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA
+-**********/
+-// Copyright (c) 1996-2022, Live Networks, Inc.  All rights reserved
+-// A common function that outputs the URL(s) that can be used to access a stream
+-// served by a RTSP server.
+-// C++ header
+ 
+ #ifndef _ANNOUNCE_URL_HH
+ #define _ANNOUNCE_URL_HH
+Index: b/testProgs/openRTSP.cpp
+===================================================================
+--- a/testProgs/openRTSP.cpp
++++ b/testProgs/openRTSP.cpp
+@@ -13,6 +13,7 @@ You should have received a copy of the G
+ along with this library; if not, write to the Free Software Foundation, Inc.,
+ 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA
+ **********/
++//Copyright (c), Canaan Bright Sight Co., Ltd
+ // Copyright (c) 1996-2022, Live Networks, Inc.  All rights reserved
+ // A RTSP client application that opens a RTSP URL argument,
+ // and extracts and records the data from each incoming RTP stream.
+Index: b/testProgs/playCommon.cpp
+===================================================================
+--- a/testProgs/playCommon.cpp
++++ b/testProgs/playCommon.cpp
+@@ -13,6 +13,7 @@ You should have received a copy of the G
+ along with this library; if not, write to the Free Software Foundation, Inc.,
+ 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA
+ **********/
++//Copyright (c), Canaan Bright Sight Co., Ltd
+ // Copyright (c) 1996-2022, Live Networks, Inc.  All rights reserved
+ // A common framework, used for the "openRTSP" and "playSIP" applications
+ // Implementation
+Index: b/testProgs/playCommon.hh
+===================================================================
+--- a/testProgs/playCommon.hh
++++ b/testProgs/playCommon.hh
+@@ -13,6 +13,7 @@ You should have received a copy of the G
+ along with this library; if not, write to the Free Software Foundation, Inc.,
+ 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA
+ **********/
++//Copyright (c), Canaan Bright Sight Co., Ltd
+ // Copyright (c) 1996-2022, Live Networks, Inc.  All rights reserved
+ // A common framework, used for the "openRTSP" and "playSIP" applications
+ // Interfaces
+Index: b/testProgs/playSIP.cpp
+===================================================================
+--- a/testProgs/playSIP.cpp
++++ b/testProgs/playSIP.cpp
+@@ -13,6 +13,7 @@ You should have received a copy of the G
+ along with this library; if not, write to the Free Software Foundation, Inc.,
+ 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA
+ **********/
++//Copyright (c), Canaan Bright Sight Co., Ltd
+ // Copyright (c) 1996-2022, Live Networks, Inc.  All rights reserved
+ // A SIP client test program that opens a SIP URL argument,
+ // and extracts the data from each incoming RTP stream.

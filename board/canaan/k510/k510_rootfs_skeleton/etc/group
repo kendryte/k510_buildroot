@@ -1,0 +1,11 @@
+root::0:root
+bin:x:1:root,bin,daemon
+daemon:x:2:root,bin,daemon
+sys:x:3:root,bin,adm
+adm:x:4:root,adm,daemon
+tty:x:5:
+mem:x:8:
+kmem:x:9:
+wheel:x:10:root
+nobody:x:99:
+users:x:100:

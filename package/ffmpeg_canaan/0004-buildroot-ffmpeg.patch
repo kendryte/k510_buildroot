@@ -1,0 +1,167 @@
+Index: b/libavcodec/libk510_h264.c
+===================================================================
+--- a/libavcodec/libk510_h264.c
++++ b/libavcodec/libk510_h264.c
+@@ -73,7 +73,6 @@ typedef struct libk510_h264Context {
+     int             out_pic;
+     int             in_pic;
+     int64_t         pts;
+-    uint8_t         *prev_data;
+ } libk510_h264Context;
+ 
+ #define SHARE_MEMORY_DEV "/dev/k510-share-memory"
+@@ -114,7 +113,7 @@ static unsigned int alloc_memory(int fd_
+     printf("alloc_memory Error!\n");
+     return -1;
+   }
+-  //printf("%s>phy_addr 0x%x, size %d\n", __FUNCTION__, allocAlignMem.phyAddr, allocAlignMem.size);
++  printf("%s>phy_addr 0x%x, size %d\n", __FUNCTION__, allocAlignMem.phyAddr, allocAlignMem.size);
+   
+   return allocAlignMem.phyAddr;
+ }
+@@ -187,9 +186,9 @@ static av_cold int k510_h264_encode_init
+     printf("  gopLen          : %d\n", Cfg.gopLen);
+     printf("  FrameRate       : %d\n", Cfg.FrameRate);
+     printf("  rcMode          : %d\n", Cfg.rcMode);
+-	 printf("  SliceQP         : %d\n", Cfg.SliceQP);
+-	 printf("  bitrate         : %d\n", Cfg.BitRate);
+-	 printf("  maxbitrate      : %d\n", Cfg.MaxBitRate);
++	  printf("  SliceQP         : %d\n", Cfg.SliceQP);
++	  printf("  bitrate         : %d\n", Cfg.BitRate);
++	  printf("  maxbitrate      : %d\n", Cfg.MaxBitRate);
+     pCtx->hEnc = VideoEncoder_Create(&Cfg);
+ 
+     pCtx->pts = 0;
+@@ -247,12 +246,6 @@ static int k510_h264_encode_frame(AVCode
+ 
+         time = get_time();
+       
+-        if(pCtx->prev_data == pic->data[0])
+-        {
+-            printf("%s>duplicated frame\n", __FUNCTION__, pic->data[0]);
+-            *got_packet = 0;
+-            return 0;
+-        }
+         if(pCtx->in_pic == 0)
+         {
+             printf("pic: format %d, linesize %d, %d, %d, pts %ld\n", pic->format, pic->linesize[0], pic->linesize[1], pic->linesize[2], pic->pts);
+@@ -261,7 +254,6 @@ static int k510_h264_encode_frame(AVCode
+               
+             pCtx->pts = pic->pts;
+         }
+-        pCtx->prev_data = pic->data[0];
+         pCtx->in_pic++;
+         //printf("%s>in pts %ld, time %.4f ms\n", __FUNCTION__, pic->pts, get_time()/1000000.0);
+         
+@@ -277,6 +269,7 @@ static int k510_h264_encode_frame(AVCode
+         if(pCtx->in_pic <= 10)
+         {
+             fwrite(pic->data[0], 1, pic->linesize[0]*avctx->height*3/2, dump_file);
++            printf("YUV_DUMP pic %d\n", pCtx->in_pic);
+         }
+         if(pCtx->in_pic == 10)
+         {
+@@ -286,7 +279,6 @@ static int k510_h264_encode_frame(AVCode
+ #endif
+         if(pic->format == AV_PIX_FMT_NV12)
+         {
+-            //memcpy(pCtx->yuv_vAddr, pic->data[0], pic->linesize[0]*avctx->height*3/2);
+             input.data = pic->data[0];
+         }
+         else
+@@ -392,7 +384,7 @@ static const AVOption options[] =
+   { "g",                    "Set gop size",                                   OFFSET(gop_size),        AV_OPT_TYPE_INT,  {.i64 = 25}, 0, 1000, FLAGS },
+   { "b",                    "Set video bitrate",                              OFFSET(bit_rate),        AV_OPT_TYPE_INT,  {.i64 = 4000000}, 0, 100000000, FLAGS },
+   { "r",                    "Set video framerate",                            OFFSET(framerate),       AV_OPT_TYPE_INT,  {.i64 = 30}, 25, 60, FLAGS },
+-  { "idr_freq",             "IDR frequency. -1=No IDRs",                      OFFSET(idrFreq),         AV_OPT_TYPE_INT,  {.i64 = -1 }, -1, 256, FLAGS },
++  { "idr_freq",             "IDR frequency. -1=No IDRs",                      OFFSET(idrFreq),         AV_OPT_TYPE_INT,  {.i64 = 25 }, -1, 256, FLAGS },
+   // ***** Rate Control options ******
+   { "qp",                   "Use constant QP for encoding.",                  OFFSET(cqp),             AV_OPT_TYPE_INT,  {.i64 = -1}, -1, 100, FLAGS },
+   { "maxrate",              "Maximum bitrate. (0=ignore)",                    OFFSET(maxrate),         AV_OPT_TYPE_INT,  {.i64 = 0}, 0, 100000000, FLAGS },
+Index: b/libavdevice/libk510_video.c
+===================================================================
+--- a/libavdevice/libk510_video.c
++++ b/libavdevice/libk510_video.c
+@@ -133,7 +133,7 @@ static unsigned int alloc_memory(int fd_
+     printf("alloc_memory Error!\n");
+     return -1;
+   }
+-  //printf("%s>phy_addr 0x%x, size %d\n", __FUNCTION__, allocAlignMem.phyAddr, allocAlignMem.size);
++  printf("%s>phy_addr 0x%x, size %d\n", __FUNCTION__, allocAlignMem.phyAddr, allocAlignMem.size);
+   
+   return allocAlignMem.phyAddr;
+ }
+@@ -367,7 +367,7 @@ static int k510_video_read_header(AVForm
+     ds1_info.ds1_width = pCtx->width;
+     ds1_info.ds1_height = pCtx->height;
+     ds1_info.stride = pCtx->stride;
+-    // printf("%s>w %d, h %d, stride = %d\n", __FUNCTION__, pCtx->width, pCtx->height, ds1_info.stride);
++    printf("%s>w %d, h %d, stride = %d\n", __FUNCTION__, pCtx->width, pCtx->height, ds1_info.stride);
+ 
+     LCD_TYPE lcd_type = HX8399;//HX8399;//ITI7807_LCD; //AML550_LCD; //BT1120_DISPALY
+ 
+@@ -376,7 +376,7 @@ static int k510_video_read_header(AVForm
+ 
+     pCtx->isp_buf_vaddr = mmap(NULL, pCtx->isp_buf_size, PROT_READ|PROT_WRITE, MAP_SHARED, pCtx->fd_ddr, ds1_info.y_addr);
+     pCtx->isp_buf_paddr = ds1_info.y_addr;
+-    // printf("%s>isp_buf_paddr 0x%x, isp_buf_vaddr 0x%x, isp_buf_size %d\n", __FUNCTION__, ds1_info.y_addr, pCtx->isp_buf_vaddr, pCtx->isp_buf_size);
++    printf("%s>isp_buf_paddr 0x%x, isp_buf_vaddr 0x%x, isp_buf_size %d\n", __FUNCTION__, ds1_info.y_addr, pCtx->isp_buf_vaddr, pCtx->isp_buf_size);
+ 
+     pCtx->fd_isp = isp_video(&ds1_info, pCtx->sensor_type, lcd_type);
+ 
+@@ -391,7 +391,7 @@ static int k510_video_read_header(AVForm
+     
+     sleep(1);  //It seems ISP output is not stable at the beginning
+ 
+-    // printf("%s>fd_isp: 0x%x\n", __FUNCTION__, pCtx->fd_isp);
++    printf("%s>fd_isp: 0x%x\n", __FUNCTION__, pCtx->fd_isp);
+ 
+     pthread_create(&(pCtx->isp_thread), NULL, isp_ouput, pCtx);
+     pCtx->start = 1;
+@@ -399,6 +399,10 @@ static int k510_video_read_header(AVForm
+     return 0;
+ }
+ 
++static void k510_video_free(void *opaque, uint8_t *data)
++{
++    return; 
++}
+ 
+ static int k510_video_read_packet(AVFormatContext *s, AVPacket *pkt)
+ {
+@@ -452,20 +456,21 @@ static int k510_video_read_packet(AVForm
+         pkt->data = pCtx->isp_addr[pCtx->isp_rp];
+         //printf("%s>isp_addr[%d] = 0x%x\n", __FUNCTION__, pCtx->isp_rp, pCtx->isp_addr[pCtx->isp_rp]);
+ 
+-        pkt->buf = av_buffer_alloc(pkt->size);
+-        pkt->buf->data = pkt->data;
++        pkt->buf = av_buffer_create(pkt->data, pkt->size, k510_video_free, pCtx, 0);
++        //pkt->buf = av_buffer_alloc(pkt->size);
++        //pkt->buf->data = pkt->data;
+         pkt->stream_index = 0;
+         
+         pCtx->pts += 1;//90000LL/pCtx->framerate;
+         pkt->pts = pCtx->pts;
+-        pkt->dts = pCtx->pts;
++        pkt->dts = pCtx->pts;    
+ 
+         pCtx->isp_addr[pCtx->isp_rp] = 0;
+         pCtx->isp_rp++;
+         pCtx->isp_rp %= ISP_ADDR_BUFFER_CNT;
+-
++        
+         pCtx->out_pic++;  
+-        //printf("%s>pts %ld, size %d, time %.4f ms\n", __FUNCTION__, pkt->pts, pkt->size, get_time()/1000000.0);
++        //printf("%s>pts %ld, size %d, time %.4f ms\n", __FUNCTION__, pkt->pts, pkt->size, time/1000000.0);
+     }
+  
+     return 0;
+@@ -505,6 +510,8 @@ static int k510_video_read_close(AVForma
+     close(pCtx->fd_share_memory);
+     close(pCtx->fd_ddr);
+ 
++    printf("%s>\n", __FUNCTION__);
++
+     return 0;
+ }
+ 

@@ -1,0 +1,489 @@
+Index: b/configure
+===================================================================
+--- a/configure
++++ b/configure
+@@ -297,6 +297,7 @@ External library support:
+   --enable-libxcb-shape    enable X11 grabbing shape rendering [autodetect]
+   --enable-libk510_h264    enable H.264 encoding via Canaan K510 [no]
+   --enable-libk510_video   enable video capture via Canaan K510 [no]
++  --enable-libk510_jpeg    enable JPEG encoding via Canaan K510 [no]
+   --enable-audio3a         enalbe audio 3a via Canaan [no]
+   --enable-libxvid         enable Xvid encoding via xvidcore,
+                            native MPEG-4/Xvid encoder exists [no]
+@@ -1741,6 +1742,7 @@ EXTERNAL_LIBRARY_NONFREE_LIST="
+     openssl
+     libtls
+     libk510_h264
++	libk510_jpeg
+ 	libk510_video
+     audio3a
+ "
+@@ -3298,6 +3300,7 @@ libx264rgb_encoder_deps="libx264 x264_cs
+ libx264rgb_encoder_select="libx264_encoder"
+ libx265_encoder_deps="libx265"
+ libk510_h264_encoder_deps="libk510_h264"
++libk510_jpeg_encoder_deps="libk510_jpeg"
+ libk510_video_demuxer_deps="libk510_video"
+ libxavs_encoder_deps="libxavs"
+ libxavs2_encoder_deps="libxavs2"
+@@ -6488,6 +6491,7 @@ enabled libx264           && { check_pkg
+ enabled libx265           && require_pkg_config libx265 x265 x265.h x265_api_get &&
+                              require_cpp_condition libx265 x265.h "X265_BUILD >= 70"
+ enabled libk510_h264      && { add_extralibs -lvenc; }
++enabled libk510_jpeg      && { add_extralibs -lvenc; }
+ enabled libk510_video     && { add_extralibs -lvideo; }
+ enabled audio3a           && { add_extralibs -laudio3a; }
+ enabled libxavs           && require libxavs "stdint.h xavs.h" xavs_encoder_encode "-lxavs $pthreads_extralibs $libm_extralibs"
+Index: b/libavcodec/Makefile
+===================================================================
+--- a/libavcodec/Makefile
++++ b/libavcodec/Makefile
+@@ -1076,6 +1076,7 @@ OBJS-$(CONFIG_LIBXAVS2_ENCODER)
+ OBJS-$(CONFIG_LIBXVID_ENCODER)            += libxvid.o
+ OBJS-$(CONFIG_LIBZVBI_TELETEXT_DECODER)   += libzvbi-teletextdec.o ass.o
+ OBJS-$(CONFIG_LIBK510_H264_ENCODER)       += libk510_h264.o
++OBJS-$(CONFIG_LIBK510_JPEG_ENCODER)       += libk510_jpeg.o
+ 
+ # parsers
+ OBJS-$(CONFIG_AAC_LATM_PARSER)         += latm_parser.o
+Index: b/libavcodec/allcodecs.c
+===================================================================
+--- a/libavcodec/allcodecs.c
++++ b/libavcodec/allcodecs.c
+@@ -759,6 +759,8 @@ extern AVCodec ff_libvpx_vp8_decoder;
+ extern AVCodec ff_libvpx_vp9_encoder;
+ extern AVCodec ff_libvpx_vp9_decoder;
+ extern AVCodec ff_libk510_h264_encoder;
++extern AVCodec ff_libk510_jpeg_encoder;
++
+ /* preferred over libwebp */
+ extern AVCodec ff_libwebp_anim_encoder;
+ extern AVCodec ff_libwebp_encoder;
+Index: b/libavcodec/libk510_h264.c
+===================================================================
+--- a/libavcodec/libk510_h264.c
++++ b/libavcodec/libk510_h264.c
+@@ -57,6 +57,7 @@ typedef struct libk510_h264Context {
+     const AVClass   *class;
+     
+     EncoderHandle   *hEnc;
++    int             channel;
+     int             fd_ddr;
+     int             fd_share_memory;
+     long            yuv_phyAddr;
+@@ -170,7 +171,8 @@ static av_cold int k510_h264_encode_init
+         Cfg.rcMode = CONST_QP;
+         Cfg.SliceQP = pCtx->cqp;
+     }
+-    
++
++    Cfg.channel = pCtx->channel;
+     Cfg.width = avctx->width;
+     Cfg.height = avctx->height;
+     Cfg.level = pCtx->level;
+@@ -261,23 +263,27 @@ static int k510_h264_encode_frame(AVCode
+         
+ #ifdef YUV_DUMP
+         static FILE *dump_file=NULL;
++        unsigned char* yuv_vAddr;
++        
+         if(dump_file == NULL)
+         {
+-            if((dump_file=fopen("in_dump.yuv","w+b")) == NULL )
++            if((dump_file=fopen("ffmpeg_in_dump.yuv","w+b")) == NULL )
+             {
+                 printf("Cannot open output file!\n");
+             }
+         }
++        yuv_vAddr = (unsigned char*)mmap(NULL, pCtx->yuv_size, PROT_READ|PROT_WRITE, MAP_SHARED, pCtx->fd_ddr, pic->data[0]); 
+         if(pCtx->in_pic <= 10)
+         {
+-            fwrite(pic->data[0], 1, pic->linesize[0]*avctx->height*3/2, dump_file);
++            fwrite(yuv_vAddr, 1, pic->linesize[0]*avctx->height*3/2, dump_file);
+             printf("YUV_DUMP pic %d\n", pCtx->in_pic);
+         }
+         if(pCtx->in_pic == 10)
+         {
+             fclose(dump_file);
+             printf("YUV_DUMP is done\n");
+-        }       
++        }      
++        munmap((void*)yuv_vAddr, pCtx->yuv_size);
+ #endif
+         if(pic->format == AV_PIX_FMT_NV12)
+         {
+@@ -297,7 +303,7 @@ static int k510_h264_encode_frame(AVCode
+ 
+         VideoEncoder_GetStream(pCtx->hEnc, &output);
+ 
+-        //printf("%s>bufAddr 0x%x, bufSize %d\n", __FUNCTION__, output.bufAddr, output.bufSize);
++        //printf("%s>bufAddr %p, bufSize %d\n", __FUNCTION__, output.bufAddr, output.bufSize);
+ 
+         if(output.bufSize != 0)
+         {
+@@ -385,6 +391,7 @@ static const AVOption options[] =
+   { "g",                    "Set gop size",                                   OFFSET(gop_size),        AV_OPT_TYPE_INT,  {.i64 = 25}, 0, 1000, FLAGS },
+   { "b",                    "Set video bitrate",                              OFFSET(bit_rate),        AV_OPT_TYPE_INT,  {.i64 = 4000000}, 0, 100000000, FLAGS },
+   { "r",                    "Set video framerate",                            OFFSET(framerate),       AV_OPT_TYPE_INT,  {.i64 = 30}, 25, 60, FLAGS },
++  { "ch",                   "Set encode channel ",                            OFFSET(channel),         AV_OPT_TYPE_INT,  {.i64 = 0}, 0, 2, FLAGS },
+   { "idr_freq",             "IDR frequency. -1=No IDRs",                      OFFSET(idrFreq),         AV_OPT_TYPE_INT,  {.i64 = 25 }, -1, 256, FLAGS },
+   // ***** Rate Control options ******
+   { "qp",                   "Use constant QP for encoding.",                  OFFSET(cqp),             AV_OPT_TYPE_INT,  {.i64 = -1}, -1, 100, FLAGS },
+Index: b/libavcodec/libk510_jpeg.c
+===================================================================
+--- /dev/null
++++ b/libavcodec/libk510_jpeg.c
+@@ -0,0 +1,353 @@
++/*
++ * libk510_jpeg encoder
++ *
++ * Copyright (c) 2021 Canaan
++ *
++ * This file is part of FFmpeg.
++ *
++ * FFmpeg is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2.1 of the License, or (at your option) any later version.
++ *
++ * FFmpeg is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with FFmpeg; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
++ */
++
++
++#include <float.h>
++#include <stdio.h>
++#include <sys/types.h>
++#include <sys/stat.h>
++#include <fcntl.h>
++#include <sys/ioctl.h>
++#include <sys/mman.h>
++#include <assert.h>
++#include <errno.h>
++#include <time.h>
++#include <pthread.h>
++#include <ctype.h>
++#include <malloc.h>
++#include <unistd.h>
++#include <signal.h>
++#include <string.h>
++#include <stdlib.h>
++#include <dlfcn.h>
++#include <enc_interface.h>
++
++#include "libavutil/internal.h"
++#include "libavformat/internal.h"
++#include "libavutil/common.h"
++#include "libavutil/opt.h"
++#include "libavutil/pixdesc.h"
++#include "avcodec.h"
++#include "internal.h"
++
++typedef struct libk510_jpegContext {
++    const AVClass   *class;
++    
++    EncoderHandle   *hEnc;
++    int             channel;
++    int             fd_ddr;
++    int             fd_share_memory;
++    long            yuv_phyAddr;
++    unsigned char   *yuv_vAddr;
++    unsigned int    yuv_size;
++    int             gop_size;
++    int             bit_rate;
++    int             cqp;
++    int             maxrate;
++    int             framerate;
++    int             idrFreq;
++    int             profile;
++    int             level;
++    AVC_AspectRatio ar;
++    int             framesToEncode;    
++    int             out_pic;
++    int             in_pic;
++    int64_t         pts;
++} libk510_jpegContext;
++
++#define SHARE_MEMORY_DEV "/dev/k510-share-memory"
++#define DEV_NAME_DDR "/dev/mem"
++#define MEMORY_TEST_BLOCK_ALIGN 4096        /* align 4k for mmap */
++#define SHARE_MEMORY_ALLOC          _IOWR('m', 1, unsigned long)
++#define SHARE_MEMORY_ALIGN_ALLOC    _IOWR('m', 2, unsigned long)
++#define SHARE_MEMORY_FREE           _IOWR('m', 3, unsigned long)
++#define SHARE_MEMORY_SHOW           _IOWR('m', 4, unsigned long)
++
++struct share_memory_alloc_align_args {
++    unsigned int size;
++    unsigned int alignment;
++    unsigned int phyAddr;
++};
++
++
++static volatile int received_sigterm; 
++static void exit_handler(int sig)
++{
++  if(SIGINT == sig)
++  {
++    received_sigterm = 1;
++  }
++  return;
++}
++
++static unsigned int alloc_memory(int fd_share_memory, unsigned int size)
++{
++  struct share_memory_alloc_align_args  allocAlignMem;
++  
++  allocAlignMem.size = (size + 0xfff) & (~0xfff);
++  allocAlignMem.alignment = MEMORY_TEST_BLOCK_ALIGN;
++  allocAlignMem.phyAddr = 0;
++
++  if(ioctl(fd_share_memory, SHARE_MEMORY_ALIGN_ALLOC, &allocAlignMem) < 0)
++  {
++    printf("alloc_memory Error!\n");
++    return -1;
++  }
++  printf("%s>phy_addr 0x%x, size %d\n", __FUNCTION__, allocAlignMem.phyAddr, allocAlignMem.size);
++  
++  return allocAlignMem.phyAddr;
++}
++
++static av_cold int k510_jpeg_encode_init(AVCodecContext *avctx)
++{
++    libk510_jpegContext *pCtx = avctx->priv_data;  
++    EncSettings Cfg;
++
++    pCtx->fd_share_memory = open(SHARE_MEMORY_DEV,O_RDWR | O_SYNC);
++    if(pCtx->fd_share_memory < 0)
++    {
++       printf("Open %s Error!\n", SHARE_MEMORY_DEV);
++    }
++
++    pCtx->fd_ddr = open(DEV_NAME_DDR,O_RDWR|O_SYNC); 
++    if(pCtx->fd_ddr < 0)
++    {
++      printf("Open %s Error!\n", DEV_NAME_DDR);
++    }
++
++    pCtx->yuv_size = 1920*1080*3;
++    pCtx->yuv_phyAddr = alloc_memory(pCtx->fd_share_memory, pCtx->yuv_size);  
++    pCtx->yuv_vAddr = (unsigned char*)mmap(NULL, pCtx->yuv_size, PROT_READ|PROT_WRITE, MAP_SHARED, pCtx->fd_ddr, pCtx->yuv_phyAddr); 
++    printf("%s>yuv_vAddr %p, yuv_phyAddr 0x%lx, yuv_size %d\n", __FUNCTION__, pCtx->yuv_vAddr, pCtx->yuv_phyAddr, pCtx->yuv_size);
++
++    Cfg.channel = pCtx->channel;
++	  Cfg.width = avctx->width;
++    Cfg.height = avctx->height;
++    Cfg.profile = JPEG;    
++    Cfg.FrameRate = pCtx->framerate;
++    Cfg.AspectRatio = pCtx->ar; 
++    Cfg.rcMode = CONST_QP;
++    Cfg.SliceQP = pCtx->cqp;
++    Cfg.BitRate = pCtx->bit_rate;
++    Cfg.MaxBitRate = pCtx->maxrate;
++    Cfg.level = 42;
++    Cfg.FreqIDR = 25;
++    Cfg.gopLen = 25;
++    printf("Encoder Settings:\n");
++    printf("  width           : %d\n", Cfg.width);
++    printf("  height          : %d\n", Cfg.height);
++    printf("  profile         : %d\n", Cfg.profile); 
++    printf("  FrameRate       : %d\n", Cfg.FrameRate);
++    printf("  rcMode          : %d\n", Cfg.rcMode);
++	  printf("  SliceQP         : %d\n", Cfg.SliceQP);
++	  printf("  bitrate         : %d\n", Cfg.BitRate);
++	  printf("  maxbitrate      : %d\n", Cfg.MaxBitRate);
++	  printf("  AspectRatio     : %d\n", Cfg.AspectRatio);
++	  
++    pCtx->hEnc = VideoEncoder_Create(&Cfg);
++
++    pCtx->pts = 0;
++
++    signal(SIGINT, exit_handler);
++    
++    return 0;
++}
++
++static void planer_to_semi(AVCodecContext *avctx, const AVFrame *pic)
++{
++    libk510_jpegContext *pCtx = avctx->priv_data;
++    unsigned char *data, *pY, *pU, *pV;
++    int i;
++
++    pY = pic->data[0];
++    pU = pic->data[1];
++    pV = pic->data[2];
++    data = pCtx->yuv_vAddr;
++    memcpy(data, pY, pic->linesize[0]*avctx->height);
++    
++    data += pic->linesize[0]*avctx->height;
++    for(i=0; i<pic->linesize[1]*avctx->height/2; i++)
++    {
++        *data++ = *pU++;
++        *data++ = *pV++;
++    }
++}
++
++static unsigned long int get_time()
++{
++  struct timespec time;
++        
++  clock_gettime(CLOCK_REALTIME, &time);
++  
++  return time.tv_sec * 1000LL * 1000LL * 1000LL + time.tv_nsec;
++}
++
++static int k510_jpeg_encode_frame(AVCodecContext *avctx, AVPacket *pkt, const AVFrame *pic, int *got_packet)
++{
++    libk510_jpegContext *pCtx = avctx->priv_data;
++    EncInputFrame input;
++    EncOutputStream output;
++    int ret;  
++
++    if(received_sigterm == 1)
++    {
++      *got_packet = 0;
++      return 0;
++    }
++
++    if(pic)
++    {
++        unsigned long int time;
++
++        time = get_time();
++      
++        if(pCtx->in_pic == 0)
++        {
++            printf("pic: format %d, linesize %d, %d, %d, pts %ld\n", pic->format, pic->linesize[0], pic->linesize[1], pic->linesize[2], pic->pts);
++            printf("pic data %p, %p, %p, %p, %p, %p, %p, %p\n", 
++              pic->data[0], pic->data[1], pic->data[2], pic->data[3], pic->data[4], pic->data[5], pic->data[6], pic->data[7]);
++              
++            pCtx->pts = pic->pts;
++        }
++        pCtx->in_pic++;
++        //printf("%s>in pts %ld, time %.4f ms\n", __FUNCTION__, pic->pts, get_time()/1000000.0);
++        
++        if(pic->format == AV_PIX_FMT_NV12)
++        {
++            input.data = pic->data[0];
++        }
++        else
++        {           
++            planer_to_semi(avctx, pic);
++            input.data = (unsigned char*)pCtx->yuv_phyAddr;
++        }
++
++        input.width = avctx->width;
++        input.height = avctx->height;
++        input.stride = pic->linesize[0];
++
++        VideoEncoder_EncodeOneFrame(pCtx->hEnc, &input);
++
++        VideoEncoder_GetStream(pCtx->hEnc, &output);
++
++        //printf("%s>bufAddr %p, bufSize %d\n", __FUNCTION__, output.bufAddr, output.bufSize);
++
++        if(output.bufSize != 0)
++        {
++            if((get_time()-time)/1000000.0 >= (1000.0/pCtx->framerate) && pic->format == AV_PIX_FMT_NV12)
++            {
++              av_log(avctx, AV_LOG_WARNING, "big encode time %.4f ms\n", (get_time()-time)/1000000.0);
++            }
++            
++            ret = ff_alloc_packet2(avctx, pkt, output.bufSize, 0);
++            if (ret < 0)
++            {
++                av_log(avctx, AV_LOG_ERROR, "Error getting output packet.\n");
++                return ret;
++            }
++
++            memcpy(pkt->data, output.bufAddr, output.bufSize);
++
++            pCtx->pts += 1;//90000LL/pCtx->framerate;
++            pkt->pts = pCtx->pts;
++            pkt->dts = pCtx->pts;
++            pkt->size = output.bufSize;
++            
++            VideoEncoder_ReleaseStream(pCtx->hEnc, &output);
++
++            pCtx->out_pic++;
++            //printf("%s>out: ntp time %ld, in %d, out %d\n", __FUNCTION__, ff_ntp_time()/1000, pCtx->in_pic, pCtx->out_pic);
++            //printf("%s>out pts %d, size %d, time %.4f ms\n", __FUNCTION__, pkt->pts, pkt->size, get_time());
++        }   
++        *got_packet = 1;
++    }
++    else
++    {
++        printf("Receive NULL pic\n");
++        *got_packet = 0;
++    }
++  
++    return 0;
++}
++
++static av_cold int k510_jpeg_encode_close(AVCodecContext *avctx)
++{
++    libk510_jpegContext *pCtx = avctx->priv_data;
++
++    printf("%s>\n", __FUNCTION__);
++
++    VideoEncoder_Destroy(pCtx->hEnc);
++
++    if(pCtx->yuv_phyAddr != 0)
++    {
++      munmap((void*)pCtx->yuv_vAddr, pCtx->yuv_size);
++      if(ioctl(pCtx->fd_share_memory, SHARE_MEMORY_FREE, &pCtx->yuv_phyAddr) < 0)
++        printf("%s>Error!\n", __FUNCTION__);
++    }
++    return 0;
++}
++
++
++#define OFFSET(x) offsetof(libk510_jpegContext, x)
++#define FLAGS     (AV_OPT_FLAG_VIDEO_PARAM | AV_OPT_FLAG_ENCODING_PARAM)
++
++static const AVOption options[] = 
++{ 
++  //{ option name,            description,                            offset in the context object,    type             default, min, max, flags, unit}
++  { "qp",                   "Use constant QP for encoding.",                  OFFSET(cqp),             AV_OPT_TYPE_INT,  {.i64 = 25}, -1, 100, FLAGS },
++  { "r",                    "Set video framerate",                            OFFSET(framerate),       AV_OPT_TYPE_INT,  {.i64 = 30}, 25, 60, FLAGS },
++  { "b",                    "Set video bitrate",                              OFFSET(bit_rate),        AV_OPT_TYPE_INT,  {.i64 = 4000000}, 0, 100000000, FLAGS },
++  { "ch",                   "Set encode channel ",                            OFFSET(channel),         AV_OPT_TYPE_INT,  {.i64 = 0}, 0, 2, FLAGS },
++  { "maxrate",              "Maximum bitrate. (0=ignore)",                    OFFSET(maxrate),         AV_OPT_TYPE_INT,  {.i64 = 4000000}, 0, 100000000, FLAGS },
++  { "ar",                   "Set aspect ratio",                               OFFSET(ar),         AV_OPT_TYPE_INT,  {.i64 = ASPECT_RATIO_AUTO}, ASPECT_RATIO_AUTO, ASPECT_RATIO_16_9, FLAGS, "profile_flags"},
++  {     "auto",               "",  0, AV_OPT_TYPE_CONST, { .i64 = ASPECT_RATIO_AUTO },     0, 0, FLAGS, "profile_flags" },
++  {     "4:3",                "",  0, AV_OPT_TYPE_CONST, { .i64 = ASPECT_RATIO_4_3 },     0, 0, FLAGS, "profile_flags" },
++  {     "16:9",               "",  0, AV_OPT_TYPE_CONST, { .i64 = ASPECT_RATIO_16_9 },   0, 0, FLAGS, "profile_flags" },
++  {NULL}
++};
++
++static const AVClass class = {
++    .class_name = "libk510_jpeg",
++    .item_name  = av_default_item_name,
++    .option     = options,
++    .version    = LIBAVUTIL_VERSION_INT,
++};
++
++static const AVCodecDefault k510_jpeg_defaults[] = {
++    { "b", "0" },
++    { NULL },
++};
++
++
++AVCodec ff_libk510_jpeg_encoder = {
++    .name             = "libk510_jpeg",
++    .long_name        = NULL_IF_CONFIG_SMALL("libk510_jpeg JPEG"),
++    .type             = AVMEDIA_TYPE_VIDEO,
++    .id               = AV_CODEC_ID_MJPEG,
++    .init             = k510_jpeg_encode_init,
++    .encode2          = k510_jpeg_encode_frame,
++    .close            = k510_jpeg_encode_close,
++    .priv_data_size   = sizeof(libk510_jpegContext),
++    .priv_class       = &class,
++    .defaults         = k510_jpeg_defaults,
++    .capabilities     = AV_CODEC_CAP_DELAY | AV_CODEC_CAP_AUTO_THREADS,
++};

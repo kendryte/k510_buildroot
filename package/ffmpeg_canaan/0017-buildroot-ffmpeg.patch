@@ -1,0 +1,76 @@
+Index: b/libavdevice/libk510_video.c
+===================================================================
+--- a/libavdevice/libk510_video.c
++++ b/libavdevice/libk510_video.c
+@@ -62,9 +62,11 @@
+ #define SHARE_MEMORY_FREE           _IOWR('m', 3, unsigned long)
+ #define SHARE_MEMORY_SHOW           _IOWR('m', 4, unsigned long)
+ 
+-#define DDR_CTRL_REG_BASE 0x98000000
+-#define NOC_QOS_REG_BASE  0x99900000
+-#define MAILBOX_REG_BASE  0x970E0000
++#define ISP_CMD_ISP_RESET           _IOWR('q', 20, unsigned long)
++
++#define DDR_CTRL_REG_BASE 0x198000000
++#define NOC_QOS_REG_BASE  0x199900000
++#define MAILBOX_REG_BASE  0x1970E0000
+ 
+ 
+ typedef struct libk510_videoContext {
+@@ -87,6 +89,7 @@ typedef struct libk510_videoContext {
+     unsigned int    reg_QoS_ctrl1;
+     unsigned int    reg_QoS_ctrl2;
+     unsigned int    reg_h264_bw;
++    unsigned int    reg_h264_mode;
+     unsigned int    reg_isp_pri;
+     unsigned int    reg_isp_mode;
+     unsigned int    reg_ddr_cli;
+@@ -343,7 +346,10 @@ static int k510_video_read_header(AVForm
+   	pCtx->reg_h264_bw = *(volatile unsigned int *)(reg+0x290);
+   	*(volatile unsigned int *)(reg+0x290) = 0x110;
+   	printf("0x99900290: from 0x%08x to 0x%08x\n", pCtx->reg_h264_bw, *(volatile unsigned int *)(reg+0x290));
+-  	pCtx->reg_isp_mode = *(volatile unsigned int *)(reg+0x38c);
++  	pCtx->reg_h264_mode = *(volatile unsigned int *)(reg+0x28c);
++    *(volatile unsigned int *)(reg+0x28c) = 0;
++    printf("0x9990028c: from 0x%08x to 0x%08x\n", pCtx->reg_h264_mode, *(volatile unsigned int *)(reg+0x28c));
++    pCtx->reg_isp_mode = *(volatile unsigned int *)(reg+0x38c);
+   	*(volatile unsigned int *)(reg+0x38c) = 0;
+   	printf("0x9990038c: from 0x%08x to 0x%08x\n", pCtx->reg_isp_mode, *(volatile unsigned int *)(reg+0x38c));
+   	pCtx->reg_isp_pri = *(volatile unsigned int *)(reg+0x388);
+@@ -487,6 +493,11 @@ static int k510_video_read_close(AVForma
+ 
+     isp_video_exit();
+ 
++    if (ioctl(pCtx->fd_isp, ISP_CMD_ISP_RESET, 0) < 0)
++    {
++      printf("Call cmd ISP_CMD_ISP_RESET fail\n");
++    }
++
+     unsigned char *reg;
+     reg=(unsigned char * )mmap(NULL, MEMORY_TEST_BLOCK_ALIGN, PROT_READ | PROT_WRITE, MAP_SHARED, pCtx->fd_ddr, MAILBOX_REG_BASE);
+   	*(volatile unsigned int *)(reg+0xf4) = pCtx->reg_QoS_ctrl0;
+@@ -495,6 +506,7 @@ static int k510_video_read_close(AVForma
+   	munmap(reg, MEMORY_TEST_BLOCK_ALIGN);
+   	reg=(unsigned char * )mmap(NULL, MEMORY_TEST_BLOCK_ALIGN, PROT_READ | PROT_WRITE, MAP_SHARED, pCtx->fd_ddr, NOC_QOS_REG_BASE);
+   	*(volatile unsigned int *)(reg+0x290) = pCtx->reg_h264_bw;
++    *(volatile unsigned int *)(reg+0x28c) = pCtx->reg_h264_mode;
+   	*(volatile unsigned int *)(reg+0x388) = pCtx->reg_isp_pri;
+   	*(volatile unsigned int *)(reg+0x38c) = pCtx->reg_isp_mode;
+   	munmap(reg, MEMORY_TEST_BLOCK_ALIGN);
+Index: b/libavdevice/v4l2.c
+===================================================================
+--- a/libavdevice/v4l2.c
++++ b/libavdevice/v4l2.c
+@@ -84,9 +84,9 @@ struct share_memory_alloc_align_args {
+ #define SHARE_MEMORY_ALIGN_ALLOC    _IOWR('m', 2, unsigned long)
+ #define SHARE_MEMORY_FREE           _IOWR('m', 3, unsigned long)
+ #define SHARE_MEMORY_SHOW           _IOWR('m', 4, unsigned long)
+-#define DDR_CTRL_REG_BASE 0x98000000
+-#define NOC_QOS_REG_BASE  0x99900000
+-#define MAILBOX_REG_BASE  0x970E0000
++#define DDR_CTRL_REG_BASE 0x198000000
++#define NOC_QOS_REG_BASE  0x199900000
++#define MAILBOX_REG_BASE  0x1970E0000
+ #define ISP_ADDR_BUFFER_CNT  15
+ 
+ struct video_data {

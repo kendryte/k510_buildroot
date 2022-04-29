@@ -1,0 +1,7 @@
+
+config BR2_PACKAGE_LVGL
+	bool "lvgl"
+	depends on BR2_riscv
+	select BR2_PACKAGE_LIBDISP
+	help
+	  lvgl

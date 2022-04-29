@@ -1,0 +1,6 @@
+
+config BR2_PACKAGE_NNCASE_LINUX_RUNTIME
+	bool "nncase linux runtime"
+	depends on BR2_riscv
+	help
+	  nncase linux runtime, include the static library and header files, which are needed when compile GNNE demo programs.

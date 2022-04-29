@@ -1,0 +1,106 @@
+#!/bin/sh
+
+PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin
+
+# PATH environment setting
+export PATH=/demo:$PATH
+# LD_LIBRARY_PATH environment setting
+export LD_LIBRARY_PATH=/lib:/usr/lib:/usr/local/lib
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/X11R6/lib
+
+# mount root filesystem in read-write mode
+#/bin/echo "Mounting root fs rw ..."
+#/bin/mount -n -o remount,rw /
+
+
+/bin/echo "Sysinit starting"
+/bin/mount -t proc none /proc
+
+
+bootddev=$(cat /proc/cmdline  | sed  -n  "s#root=\(\/dev\/mmcblk[0-9]\).*#\1#p" )
+rootpart=$(cat /proc/cmdline  | sed  -n  "s/root=\/dev\/mmcblk[0-9]\p\([0-9]\).*/\1/p" )
+datapart=$(($rootpart+1))
+if ! ` cat /proc/cmdline  |  grep -E "ubifs|nfs" >/dev/null ` ; then
+	mount -o remount,ro rootfs /
+	fsck.ext2 -p "${bootddev}p${rootpart}"
+	fsck -p "${bootddev}p${datapart}" >/dev/null 2>&1	
+fi
+
+mount -o remount,rw rootfs /
+
+#/bin/mount -t devpts -o mode=620 none /dev/pts
+#/bin/mount -t tmpfs tmpfs /dev/shm
+/bin/mount -t sysfs none /sys
+/bin/hostname -F /etc/hostname
+/sbin/syslogd
+/sbin/klogd
+#date -s 092008002009
+date -s 2010.12.01-10:00:00
+#ifconfig lo 127.0.0.1
+/etc/init.d/S21rngd start
+
+# The ANSI/VT100 Terminal Control Escape Sequences 'ESC[9;X]'
+# is used to set 'sleep mode/screensaver' entering time.
+# (where X is a time in minute; 0 = never).
+# We use this command to avoid LCD panel entering sleep.
+# Confirm the LCD panel is link to tty0 or others.
+printf "\033[9;0]" > /dev/tty0
+
+# mount all other filesystems (/etc/fstab)
+#/bin/echo "Mounting other filesystems ..."
+#/bin/mount -a
+
+#ifconfig eth0 192.168.52.200
+#ifconfig lo 127.0.0.1 netmask 255.0.0.0 broadcast 127.255.255.255
+#route add -net 127.0.0.0 netmask 255.0.0.0 lo
+#route add default gw 192.168.52.254 dev eth0
+
+#Please set your own's mac address, the last 3 number is your job number.
+#  Ex. my job number is 130, my mac address is 00:23:96:00:F'1:30'
+#      your job number is 250, your mac address is 00:23:96:00:F'2:50'
+
+if cat /proc/cmdline | grep root=/dev/nfs >/dev/null ; then
+	.
+else
+	ifconfig eth0 down
+	if [ -f /etc/mac_addr_file ]; then
+		mac=$(cat /etc/mac_addr_file)
+	else
+		mac=$(ifconfig eth0 | sed -n "/HWaddr/s/.*HWaddr \(.*\)/\1/p")
+		echo "${mac}">/etc/mac_addr_file
+	fi
+	ifconfig eth0 hw ether ${mac}
+	#ifconfig eth0 up
+	#udhcpc -b  -i eth0  &
+fi
+
+/sbin/ifup -a -f
+
+#telnetd
+#ping -c 3 atcsqa06
+
+#Add ipv4 & ipv6 addr to /etc/hosts
+#name=" canaan"
+#ipv4=`ifconfig eth0 |grep "inet addr:" | awk '{print $2}'| cut -c6-15`
+#ipv6=`ifconfig eth0 |grep "inet6 addr:" | awk '{print $3}' | cut -c1-23`
+#IPV4=$ipv4$name
+#IPV6=$ipv6$name
+#echo $IPV4 >> /etc/hosts
+#echo $IPV6 >> /etc/hosts
+
+# enable telnet service at sysinit
+mkdir /dev/pts
+mount -t devpts devpts /dev/pts 
+telnetd
+
+
+cd /etc/init.d
+sh ./get_version.sh
+cd /
+
+ntpdate  ntp.aliyun.com >/dev/null 2>&1 &
+/app/dsp_log/dsp_log &
+
+cd /app/mediactl_lib/
+./v4l2_drm.out -f video_drm_1080x1920.conf &
+cd /

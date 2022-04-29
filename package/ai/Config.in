@@ -1,0 +1,14 @@
+menu "ai demo"
+config BR2_PACKAGE_AI
+	bool "ai demo"
+	depends on BR2_riscv
+	help
+	  k510 ai demo
+
+config BR2_PACKAGE_AI_KMODEL_DATA_SITE
+	string "ai kmodel data mode site"
+	depends on BR2_PACKAGE_AI
+	help
+	  ai kmodel data mode site
+
+endmenu
