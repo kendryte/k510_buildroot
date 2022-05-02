@@ -29,6 +29,7 @@ K510 CRB-KIT是基于K510芯片研发的开发者套装，它采用分级设计�
 
 ### 建立软件开发环境
 K510 软件开发基于 Linux 环境。用户需要准备一台装有 Linux 操作系统的主机用于软件编译及部署，如果您工作在 windows 下，推荐安装 Windows WSL 以便进行软件开发工作。
+
 ### 源代码下载
 ```sh
 git clone https://github.com/kendryte/k510_buildroot.git
