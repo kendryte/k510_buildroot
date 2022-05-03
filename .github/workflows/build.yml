@@ -1,0 +1,129 @@
+name: Build CRB
+
+on:
+  push:
+    branches:
+      - develop
+      - master
+      - main
+      - dev
+  pull_request:
+    branches:
+      - develop
+      - master
+      - main
+      - dev
+
+env:
+  PULL_REQUEST_ID: ${{ github.event.number }}
+  CI_ROOT_PATH: /data/github-actions
+  TFTP_ROOT_PATH: /data/tftp_server
+  NFS_ROOT_PATH: /data/nfs_server
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build_image:
+    name: Build
+    runs-on: [self-hosted, k510_buildroot]
+    timeout-minutes: 60
+    container:
+      image: ai.b-bug.org:5000/k510_sdk_github
+      env:
+        CONF: k510_${{ matrix.cfg }}_defconfig
+        ENV: development
+      volumes:
+        - /data:/data
+    strategy:
+      matrix:
+        cfg: ["crb_lp3_v0_1", "crb_lp3_v1_2"]
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          clean: false
+
+      - name: Install toolchain
+        run: |
+          set -x
+          test -f toolchain/nds64le-linux-glibc-v5d.txz || wget -c https://ai.b-bug.org/k510_buildroot/toolchain/nds64le-linux-glibc-v5d.txz -O toolchain/nds64le-linux-glibc-v5d.txz
+          test -f toolchain/nds64le-elf-mculib-v5d.txz || wget -c https://ai.b-bug.org/k510_buildroot/toolchain/nds64le-elf-mculib-v5d.txz -O toolchain/nds64le-elf-mculib-v5d.txz          
+      - name: Download package
+        run: |
+          set -x
+          test -f pkg-download/dl.tar.gz && rm pkg-download/dl.tar.gz
+          wget -qc https://ai.b-bug.org/k510_buildroot/pkg-download/dl.tar.gz -O pkg-download/dl.tar.gz
+          echo "dl.tar.gz file md5 check"
+          md5sum pkg-download/dl.tar.gz
+          test -d dl_bak && rm -rf dl_bak
+          test -d dl && mv dl dl_bak
+          tar -xvf pkg-download/dl.tar.gz
+          test -d dl/ai/ && mkdir -p dl/ai/
+          wget -qc https://ai.b-bug.org/k510_buildroot/pkg-download/ai_kmodel_data.tar.xz -O dl/ai/ai_kmodel_data.tar.xz
+          echo "ai_kmodel_data.tar.xz file md5 check"
+          md5sum dl/ai/ai_kmodel_data.tar.xz
+          test -d dl/riscv-pk-k510 && (test -d dl/riscv-pk-k510 || mv dl_bak/riscv-pk-k510 dl/)
+          test -d dl_bak && rm -rf dl_bak
+      
+      - name: Build image
+        run: |
+          sed -i "s/BR2_JLEVEL=5/BR2_JLEVEL=14/g" configs/$CONF
+          rm -rf $CONF
+          make CONF=$CONF
+
+      - name: Save image to CI root
+        run: |
+          set -x
+          export HW=`echo ${{ matrix.cfg }}|awk -F '_' '{print $1"_"$3"_"$4}'`
+          export SAVE_DIR=$PULL_REQUEST_ID"_"$GITHUB_RUN_ID
+          echo $HW
+          echo $SAVE_DIR
+          sudo mkdir -p $CI_ROOT_PATH/k510_buildroot/$HW/$SAVE_DIR/
+          sudo cp -r $CONF/images/* $CI_ROOT_PATH/k510_buildroot/$HW/$SAVE_DIR/
+
+      - name: Save image to TFTP
+        run: |
+          set -x
+          export FILE_SUFFIX=`echo ${{ matrix.cfg }}|awk -F '_' '{print $1"-"$3"_"$4}'`-$PULL_REQUEST_ID-$GITHUB_RUN_ID
+          echo $FILE_SUFFIX
+          sudo cp $CONF/images/bootm-bbl.img $TFTP_ROOT_PATH/bootm-bbl-$FILE_SUFFIX.img
+          sudo cp $CONF/images/k510.dtb $TFTP_ROOT_PATH/k510-$FILE_SUFFIX.dtb
+      
+      - name: Save image to NFS
+        run: |
+          set -x
+          export HW=`echo ${{ matrix.cfg }}|awk -F '_' '{print $1"_"$3"_"$4}'`
+          export SAVE_DIR=$PULL_REQUEST_ID"_"$GITHUB_RUN_ID
+          echo $HW
+          echo $SAVE_DIR
+          sudo mkdir -p $NFS_ROOT_PATH/k510_buildroot/$HW/$SAVE_DIR/
+          sudo tar -xf $CONF/images/rootfs.tar -C $NFS_ROOT_PATH/k510_buildroot/$HW/$PULL_REQUEST_ID"_"$GITHUB_RUN_ID
+
+  load_image:
+    name: Load
+    needs: build_image
+    timeout-minutes: 10
+    runs-on: [self-hosted, k510_buildroot]
+    container:
+      image: ai.b-bug.org:5000/k510_sdk_github
+      volumes:
+        - /data:/data
+    strategy:
+      matrix:
+        cfg: ["crb_lp3_v0_1", "crb_lp3_v1_2"]
+    steps:
+      - name: Load image
+        run: |
+          set -x
+          test -d bin && rm -rf bin
+          mkdir ./bin
+          wget -qc https://ai.b-bug.org/k510_buildroot/github/ci -O ./bin/ci
+          chmod +x ./bin/ci
+          export HW_MODEL=`echo ${{ matrix.cfg }}|awk -F '_' '{print $1}'`
+          export HW_VER=`echo ${{ matrix.cfg }}|awk -F '_' '{print $3"_"$4}'`
+          echo $HW_MODEL
+          echo $HW_VER
+          echo $PULL_REQUEST_ID
+          echo $GITHUB_RUN_ID
+          ./bin/ci --project k510_buildroot --merge_id $PULL_REQUEST_ID --pipeline_id $GITHUB_RUN_ID --hw_ver $HW_VER --hw_model $HW_MODEL
