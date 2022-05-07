@@ -1,0 +1,90 @@
+From 5feae1bd3042643b77c204560e29149d5e87ce02 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=E9=BB=84=E5=AD=90=E6=87=BF?=
+ <huangziyi@canaan-creative.com>
+Date: Sat, 7 May 2022 14:28:24 +0800
+Subject: [PATCH] canaan-20220507
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Signed-off-by: 黄子懿 <huangziyi@canaan-creative.com>
+---
+ board/Canaan/dsi_logo/bsp/controler/h264.c    | 28 +------------------
+ .../Canaan/dsi_logo/bsp/include/cpu/core_v5.h |  7 +++++
+ .../dsi_logo/bsp/include/utils/incbin.h       |  2 ++
+ 3 files changed, 10 insertions(+), 27 deletions(-)
+
+diff --git a/board/Canaan/dsi_logo/bsp/controler/h264.c b/board/Canaan/dsi_logo/bsp/controler/h264.c
+index d93a256d..9e1030d2 100755
+--- a/board/Canaan/dsi_logo/bsp/controler/h264.c
++++ b/board/Canaan/dsi_logo/bsp/controler/h264.c
+@@ -1,28 +1,4 @@
+-/* Copyright (c) 2022, Canaan Bright Sight Co., Ltd
+- *
+- * Redistribution and use in source and binary forms, with or without
+- * modification, are permitted provided that the following conditions are met:
+- * 1. Redistributions of source code must retain the above copyright
+- * notice, this list of conditions and the following disclaimer.
+- * 2. Redistributions in binary form must reproduce the above copyright
+- * notice, this list of conditions and the following disclaimer in the
+- * documentation and/or other materials provided with the distribution.
+- *
+- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+- * CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+- * INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+- * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+- * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+- * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+- * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+- * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+- * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+- * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+- */
+-
++/* Copyright (C) 2019 Allegro DVT2.  All rights reserved. */
+ #include <stdio.h>
+ //#include <k510.h>
+ //#include <interrupt.h>
+@@ -866,8 +842,6 @@ static void WriteAvcSliceSegmentHdr(AL_TBitStreamLite* pBS, AL_TAvcSliceHdr cons
+     AL_BitStreamLite_AlignWithBits(pBS, 1);
+ }
+ 
+-
+-
+ /****************************************************************************/
+ static const size_t AL_SL_INTRA = 0;
+ static const size_t AL_SL_INTER = 1;
+diff --git a/board/Canaan/dsi_logo/bsp/include/cpu/core_v5.h b/board/Canaan/dsi_logo/bsp/include/cpu/core_v5.h
+index 49abfe9c..6b726305 100755
+--- a/board/Canaan/dsi_logo/bsp/include/cpu/core_v5.h
++++ b/board/Canaan/dsi_logo/bsp/include/cpu/core_v5.h
+@@ -1,3 +1,10 @@
++/*
++ * Copyright (c) 2022, Canaan Bright Sight Co., Ltd
++ * Copyright (c) 2006-2021, RT-Thread Development Team
++ *
++ * SPDX-License-Identifier: Apache-2.0
++ *
++ */
+ #ifndef __CORE_V5_H__
+ #define __CORE_V5_H__
+ 
+diff --git a/board/Canaan/dsi_logo/bsp/include/utils/incbin.h b/board/Canaan/dsi_logo/bsp/include/utils/incbin.h
+index 0f3be3d3..4787f6b1 100755
+--- a/board/Canaan/dsi_logo/bsp/include/utils/incbin.h
++++ b/board/Canaan/dsi_logo/bsp/include/utils/incbin.h
+@@ -23,6 +23,8 @@
+  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+  */
+ /**
++ * Copyright (c) 2022, Canaan Bright Sight Co., Ltd
++ *
+  * @file incbin.h
+  * @author Dale Weiler
+  * @brief Utility for including binary files
+-- 
+2.35.1
+
