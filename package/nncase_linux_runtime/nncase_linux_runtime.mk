@@ -8,10 +8,10 @@
 #https://github.com/kendryte/nncase/releases/download/v1.6.0/nncase-k510-1.6.0.tgz
 #https://github.com/kendryte/nncase/releases/download/v1.6.0/nncase-k510-1.6.0.tgz
 NNCASE_PIP_VD = 1.6.0.20220505
-NNCASE_PIP_K510_VD = 1.6.0.20220505
+NNCASE_PIP_K510_VD = 1.6.1.20220510
 NNCASE_VSTR = v1.6.0
 
-NNCASE_LINUX_RUNTIME_SOURCE = nncase-k510-1.6.0.tgz
+NNCASE_LINUX_RUNTIME_SOURCE = nncase-k510-v1.6.1.tgz
 NNCASE_LINUX_RUNTIME_SITE = https://github.com/kendryte/nncase/releases/download/$(NNCASE_VSTR)
 NNCASE_LINUX_RUNTIME_EXTRA_DOWNLOADS = https://github.com/kendryte/nncase/releases/download/$(NNCASE_VSTR)/nncase-$(NNCASE_PIP_VD)-cp310-cp310-manylinux_2_24_x86_64.whl 
 NNCASE_LINUX_RUNTIME_EXTRA_DOWNLOADS += https://github.com/kendryte/nncase/releases/download/$(NNCASE_VSTR)/nncase-$(NNCASE_PIP_VD)-cp36-cp36m-manylinux_2_24_x86_64.whl
