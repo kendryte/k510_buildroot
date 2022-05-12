@@ -113,7 +113,7 @@ dl:
 		NNCASE_SITE=https://github.com/kendryte/nncase/releases/download;\
 		NNCASE_PIP_VD=1.6.0.20220505		;\
 		mkdir -p dl/nncase_linux_runtime;  cd dl/nncase_linux_runtime;		\
-		wget -c $${NNCASE_SITE}/$${NNCASE_VER}/nncase-k510-v1.6.1.tgz  ; \
+		wget -c $${NNCASE_SITE}/$${NNCASE_VER}/nncaseruntime-k510-v1.6.1.tgz  ; \
 		wget -c $${NNCASE_SITE}/$${NNCASE_VER}/nncase-$${NNCASE_PIP_VD}-cp310-cp310-manylinux_2_24_x86_64.whl; \
 		wget -c $${NNCASE_SITE}/$${NNCASE_VER}/nncase-$${NNCASE_PIP_VD}-cp36-cp36m-manylinux_2_24_x86_64.whl;\
 		wget -c $${NNCASE_SITE}/$${NNCASE_VER}/nncase-$${NNCASE_PIP_VD}-cp37-cp37m-manylinux_2_24_x86_64.whl;\
