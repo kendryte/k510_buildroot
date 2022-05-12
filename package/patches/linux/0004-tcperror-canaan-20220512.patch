@@ -32,12 +32,10 @@ index 745ec600..58cd91c1 100755
  			size = min(len, bp->max_tx_length);
  			entry = macb_tx_ring_wrap(bp, tx_head);
  			tx_skb = &queue->tx_skb[entry];
-+#if 0
 +			for(i =0;i < size;i ++)
 +			{
 +				reg_data = *(u8*)(lowmem_page_address(skb_frag_page(frag))+ frag->page_offset+offset + i);
 +			}
-+#endif
  
  			mapping = skb_frag_dma_map(&bp->pdev->dev, frag,
  						   offset, size, DMA_TO_DEVICE);
