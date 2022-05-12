@@ -12,7 +12,7 @@ K510 SDK是嘉楠公司提供的用于K510芯片应用研发的软件开发资�
 |4|[嘉楠勘智](https://canaan-creative.com/product/勘智k510)|嘉楠勘智官网|
 |5|[开发者社区](https://canaan-creative.com/developer)|嘉楠勘智论坛
 |6|[演示视频](https://space.bilibili.com/677429436)|K510开发板开箱视频及多个 AI 应用展示视频|
-|7|[K510 CRB-KIT]()|K510 开板板套装在线购买链接|
+|7|[K510 CRB-KIT](https://item.taobao.com/item.htm?spm=a230r.1.14.1.22714815bDh5ei&id=673510674381&ns=1&abbucket=0&mt=)|K510 开板板套装在线购买链接|
 |8|即时沟通|  社区互助 QQ 群：790699378<br>Telegram：nncase community |
 ## K510 CRB 开发者套装介绍
 K510 CRB-KIT是基于K510芯片研发的开发者套装，它采用分级设计，以K510核心模组为基础，外设丰富，便于扩展。 支持USB 2.0 OTG+PHY、千兆以太网口、3xSDIO、3xSPI等高速通信接口，支持4xUART、GPIO、I2C和I2S等低速通信接口。使用简单、资料丰富、能够帮助客户快速实现创意评估、产品原型验证，缩短产品设计周期。
@@ -67,6 +67,9 @@ cd /
 改为你想运行的 APP，例如改成人脸检测演示应用，可以改成：
 /app/ai/shell/face_detect.sh &
 ```
+
+## 贡献指南
+如果您对本项目感兴趣，想要反馈问题或提交代码，请参考[CONTRIBUTING](.github/CONTRIBUTING.md)
 
 ## 联系我们
 北京嘉楠捷思信息技术有限公司   
