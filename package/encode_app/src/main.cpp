@@ -17,6 +17,8 @@
 #include <poll.h>
 #include <linux/videodev2.h>
 #include <semaphore.h>
+#include<vector>
+using namespace std;
 #include "cJSON.h"
 
 #include "types.h"
@@ -57,6 +59,8 @@
 #define MIN(a,b) ((a) > (b) ? (b) : (a))
 
 static int received_sigterm = 0;
+typedef std::vector<EncROICfg>    ENC_ROI_CFG_ARRAY;
+
 
 struct share_memory_alloc_align_args {
     unsigned int size;
@@ -139,6 +143,9 @@ typedef struct
   char *conf_filename;
   struct video_info dev_info[2];
   IRtspServerEX **pRtspServer;
+  char **roi_filename;
+  ENC_ROI_CFG_ARRAY*   aryEncRoiCfg;
+  int*                 nLTRFreq;//Specifies the Long Term reference picture refresh frequency in number of frames
   EncSettings *Cfg;
   int *ch_en;
   char **infilename;
@@ -629,6 +636,21 @@ static void *encode_ch(void *arg)
           droped = 0;
         }
       }
+
+      //set LTR
+      if (pCtx->Cfg[channel].bEnableLTR && pCtx->nLTRFreq[channel] > 0)
+      {
+        if (0 == (pCtx->out_pic[channel] % pCtx->nLTRFreq[channel]))
+        {
+          VideoEncoder_SetLongTerm(pCtx->hEnc[channel]);
+        }
+        //next frame use ltr
+        else if (0 == ((pCtx->out_pic[channel]-1) % pCtx->nLTRFreq[channel]))
+        {
+          VideoEncoder_UseLongTerm(pCtx->hEnc[channel]);
+          //printf("==========VideoEncoder_UseLongTerm\n");
+        }
+      }
       
       VideoEncoder_EncodeOneFrame(pCtx->hEnc[channel], &input);
 
@@ -663,7 +685,7 @@ static void *encode_ch(void *arg)
         {
           if(pCtx->repeat[channel])
           {
-            if(repeated < pCtx->drop[channel])
+            if(repeated < pCtx->repeat[channel])
             {
               repeated++;
             }
@@ -783,6 +805,9 @@ int free_context(void *arg)
   free(pCtx->v4l2_thread     );
   free(pCtx->encode_thread   );
   free(pCtx->pRtspServer     );
+  free(pCtx->roi_filename    );
+  free(pCtx->aryEncRoiCfg    );
+  free(pCtx->nLTRFreq        );
   free(pCtx->Cfg             );
   free(pCtx->ch_en           );
   free(pCtx->infilename      );
@@ -1428,6 +1453,121 @@ read_pcm:
   return 0;
 }
 
+static int roi_parse_conf(const char* filename,ENC_ROI_CFG_ARRAY&aryEncRoiCfg, ROICtrlMode& nRoiCtrMode)
+{
+  FILE *fp = NULL;
+  int len = 0;
+  char* data = NULL;
+  char* out = NULL;
+  int roiCtrlTmp = 0;
+  cJSON *root;
+  cJSON *jsonCtrlMode;
+  cJSON *jsonRoiRegion;
+  cJSON*jsonRoiRegionArray;
+  cJSON*jsonRoiRect;
+  cJSON*jsonRoiRegionEnable;
+
+  fp=fopen(filename,"rb");
+  if(NULL == fp)
+  {
+    printf("read %s:file %s no exist!\n",__func__,filename);
+    return -1;
+  }
+  fseek(fp,0,SEEK_END);
+  len=ftell(fp);
+  fseek(fp,0,SEEK_SET);
+  data=(char*)malloc(len+1);
+  fread(data,1,len,fp);
+  fclose(fp);
+
+
+  root=cJSON_Parse(data);
+  if (!root) 
+  {
+    printf("cJSON_Parse Error:%s [%s]\n",filename,cJSON_GetErrorPtr());
+    return -1;
+  }
+  else
+  {
+
+    jsonCtrlMode = cJSON_GetObjectItem(root,"roiCtrMode");
+    if(NULL == jsonCtrlMode)
+    {
+      printf("not find roiCtrMode node\n");
+      return -1;
+    }
+    if(jsonCtrlMode->type==cJSON_Number)
+    {
+      roiCtrlTmp = jsonCtrlMode->valueint;
+      if (roiCtrlTmp != ROI_QP_TABLE_RELATIVE && roiCtrlTmp != ROI_QP_TABLE_ABSOLUTE)
+      {
+        printf("roiCtrMode type invalid\n");
+        return -1;      
+      }
+    }
+    else
+    {
+      return -1;
+    }
+
+    jsonRoiRegionArray = cJSON_GetObjectItem(root,"roiRegion");
+    if(NULL == jsonRoiRegionArray)
+    {
+      printf("not find roiRegion node\n");
+      return -1;
+    }
+    int nSize = cJSON_GetArraySize(jsonRoiRegionArray);
+    if (nSize <= 0)
+    {
+      printf("roiRegion array is empty\n");
+      return -1;
+    }
+
+    EncROICfg   encRoiCfg;
+    int nIndex = 0;
+    for (int i = 0;i < nSize;i ++)
+    {
+      jsonRoiRegion = cJSON_GetArrayItem(jsonRoiRegionArray,i);
+      jsonRoiRegionEnable = cJSON_GetObjectItem(jsonRoiRegion,"enable");
+      //filter unenable item
+      if (NULL != jsonRoiRegionEnable)
+      {
+        if(jsonRoiRegionEnable->type==cJSON_Number)
+        {
+          if (0 == jsonRoiRegionEnable->valueint)
+          {
+            printf("roi_parse_conf pass an iterm\n");
+            continue;
+          }
+        }
+      }
+
+      encRoiCfg.uIndex = nIndex++;
+      encRoiCfg.bEnable = true;
+      encRoiCfg.uQpValue = cJSON_GetObjectItem(jsonRoiRegion,"qpValue")->valueint;
+      jsonRoiRect = cJSON_GetObjectItem(jsonRoiRegion,"qpRegion");
+
+      encRoiCfg.stRect.s32X = cJSON_GetObjectItem(jsonRoiRect,"left")->valueint;
+      encRoiCfg.stRect.s32Y = cJSON_GetObjectItem(jsonRoiRect,"top")->valueint;
+      encRoiCfg.stRect.u32Width = cJSON_GetObjectItem(jsonRoiRect,"width")->valueint;
+      encRoiCfg.stRect.u32Height = cJSON_GetObjectItem(jsonRoiRect,"heigth")->valueint;
+      
+      printf("roi cfg info: index:%d,qpvalue:%d,rect(%d,%d,%d,%d)\n",
+        encRoiCfg.uIndex,encRoiCfg.uQpValue,encRoiCfg.stRect.s32X,
+        encRoiCfg.stRect.s32Y,encRoiCfg.stRect.u32Width,encRoiCfg.stRect.u32Height);
+
+      aryEncRoiCfg.push_back(encRoiCfg);
+    }
+
+    
+  }
+  cJSON_Delete(root);
+  nRoiCtrMode = (ROICtrlMode)roiCtrlTmp ;
+ 
+  return 0;	
+}
+
+
 int parse_conf()
 {
   printf("%s\n", __FUNCTION__);
@@ -1535,6 +1675,14 @@ int parse_conf()
   return 0;
 }
 
+static void DoEncRoi(EncoderHandle *hEnc,const ENC_ROI_CFG_ARRAY& aryEncRoiCfg)
+{
+  for(int i =0;i < aryEncRoiCfg.size();i ++)
+  {
+    VideoEncoder_SetRoiCfg(hEnc,&aryEncRoiCfg[i]);
+  }
+}
+
 int alloc_context(void *arg)
 {
   MainContext *pCtx = (MainContext *)arg;
@@ -1593,6 +1741,9 @@ int alloc_context(void *arg)
   pCtx->v4l2_thread     = (pthread_t*)malloc(sizeof(pthread_t) * pCtx->ch_cnt);
   pCtx->encode_thread   = (pthread_t*)malloc(sizeof(pthread_t) * pCtx->ch_cnt);
   pCtx->pRtspServer     = (IRtspServerEX**)malloc(sizeof(IRtspServerEX*) * pCtx->ch_cnt);
+  pCtx->roi_filename    = (char**)malloc(sizeof(char*) * pCtx->ch_cnt);
+  pCtx->aryEncRoiCfg    = (ENC_ROI_CFG_ARRAY*)malloc(sizeof(ENC_ROI_CFG_ARRAY) * pCtx->ch_cnt);
+  pCtx->nLTRFreq        = (int*)malloc(sizeof(int) * pCtx->ch_cnt);
   pCtx->Cfg             = (EncSettings*)malloc(sizeof(EncSettings) * pCtx->ch_cnt);
   pCtx->ch_en           = (int*)malloc(sizeof(int) * pCtx->ch_cnt);
   pCtx->infilename      = (char**)malloc(sizeof(char*) * pCtx->ch_cnt);
@@ -1632,7 +1783,19 @@ int parse_cmd(int argc, char *argv[])
       printf("-r: encoder output framrate\n");
       printf("-inframes: input frames for input file\n");
       printf("-outframes: output frames for output file\n");
-      printf("-bitrate: bitrate\n");
+      printf("-gop: gop length in frames including the I picture,use in IDR\n");
+      printf("-rcmode: 0:CONST_QP  1:CBR  2:VBR 3:jpg\n");
+      printf("-bitrate: bitrate(Kb)\n");
+      printf("-maxbitrate: max bitrate(Kb),use in vbr\n");
+      printf("-profile: 0: base  1:main 2:high\n");
+      printf("-level: from 10 to 42\n");
+      printf("-sliceqp: auto:-1,from 0 to 51 for AVC,from 1 to 100 for JPEG\n");
+      printf("-minqp: from 0 to sliceqp\n");
+      printf("-maxqp: from sliceqp to 51\n");
+      printf("-enableGDR: enbale intra refresh and specifies intra refresh peroid\n");
+      printf("-GDRMode: GDR mode 0:GDR_VERTICAL 1:GDR_HORIZONTAL\n");
+      printf("-enableLTR: enbale long term reference picture and specifies LTR refresh frequency in number of frames,0 to disable use refresh frequency\n");
+      printf("-roi: roi config file\n");
       printf("-conf: v4l2 config file\n");
       /* audio */
       printf("-alsa: enable audio\n");
@@ -1658,6 +1821,7 @@ int parse_cmd(int argc, char *argv[])
       }
       pCtx->ch_en[cur_ch] = 1;
       printf("-ch%d: %d\n", cur_ch, pCtx->ch_en[cur_ch]);
+      memset(&pCtx->Cfg[cur_ch],0,sizeof(EncSettings));
     }
     else if(strcmp(argv[i], "-i") == 0)
     {      
@@ -1713,7 +1877,7 @@ int parse_cmd(int argc, char *argv[])
           return -1;
         }
         pCtx->outfilename[cur_ch] = argv[i+1];
-
+#if 0
         char *ptr=strchr(pCtx->outfilename[cur_ch], '.');
         if(strcmp(ptr, ".jpg") == 0 || strcmp(ptr, ".mjpeg") == 0)
         {
@@ -1721,6 +1885,7 @@ int parse_cmd(int argc, char *argv[])
           pCtx->Cfg[cur_ch].rcMode = CONST_QP; 
           printf("JPEG encode\n");
         }
+#endif 
       }
     }
     else if(strcmp(argv[i], "-w") == 0)
@@ -1774,11 +1939,121 @@ int parse_cmd(int argc, char *argv[])
       pCtx->output_frames[cur_ch] = atoi(argv[i+1]);
       printf("output_frames %d\n", pCtx->output_frames[cur_ch]);
     }
+    else if(strcmp(argv[i], "-gop") == 0)
+    {
+      pCtx->Cfg[cur_ch].gopLen = atoi(argv[i+1]);
+      if (pCtx->Cfg[cur_ch].gopLen <= 0)
+      {
+        printf("gop len error\n");
+        return -1;
+      }
+      pCtx->Cfg[cur_ch].FreqIDR = pCtx->Cfg[cur_ch].gopLen;
+      printf("gop length %d\n", pCtx->Cfg[cur_ch].gopLen);
+    }
     else if(strcmp(argv[i], "-bitrate") == 0)
     {
-      pCtx->Cfg[cur_ch].BitRate = atoi(argv[i+1]);
-      pCtx->Cfg[cur_ch].MaxBitRate = atoi(argv[i+1]);
+      pCtx->Cfg[cur_ch].BitRate = atoi(argv[i+1])*1000;
       printf("bitrate %d\n", pCtx->Cfg[cur_ch].BitRate);
+    }
+    else if (strcmp(argv[i],"-maxbitrate") == 0 )
+    {
+      pCtx->Cfg[cur_ch].MaxBitRate = atoi(argv[i+1])*1000;
+      printf("maxbitrate %d\n", pCtx->Cfg[cur_ch].MaxBitRate);
+    }
+    else if (strcmp(argv[i],"-profile") == 0 )
+    {
+      int nProfile = atoi(argv[i+1]);
+      if (nProfile > 2 || nProfile < 0)
+      {
+        printf("profile:%d error\n",nProfile);
+        return -1;
+      }
+      pCtx->Cfg[cur_ch].profile = (AVC_Profile)nProfile;
+      printf("profile %d\n", pCtx->Cfg[cur_ch].profile);
+    }
+    else if (strcmp(argv[i],"-level") == 0 )
+    {
+      int nLevel = atoi(argv[i+1]);
+      if (nLevel < 10 || nLevel > 42)
+      {
+        printf("level:%d error\n",nLevel);
+        return -1;
+      }
+      pCtx->Cfg[cur_ch].level = nLevel;
+      printf("level:%d\n",nLevel);
+    }
+    else if (strcmp(argv[i],"-sliceqp") == 0 )
+    {
+      int nqp = atoi(argv[i+1]);
+      pCtx->Cfg[cur_ch].SliceQP = nqp;
+      printf("sliceqp %d\n", nqp);
+    }
+    else if (strcmp(argv[i],"-minqp") == 0 )
+    {
+      int nqp = atoi(argv[i+1]);
+      pCtx->Cfg[cur_ch].MinQP = nqp;
+      printf("minqp %d\n", nqp);
+    }
+    else if (strcmp(argv[i],"-maxqp") == 0 )
+    {
+      int nqp = atoi(argv[i+1]);
+      pCtx->Cfg[cur_ch].MaxQP = nqp;
+      printf("maxqp %d\n", nqp);
+    }
+    else if (strcmp(argv[i],"-rcmode") == 0)
+    {
+      int nRcMode = atoi(argv[i+1]);
+      if (nRcMode > 2 || nRcMode < 0)
+      {
+        printf("rcmode error,must be 0-2\n");
+        return -1;
+      }
+      pCtx->Cfg[cur_ch].rcMode = (RateCtrlMode)nRcMode;
+      printf("rcmode %d(0:CONST_QP 1:CBR 2:VBR)\n", pCtx->Cfg[cur_ch].rcMode);
+    }
+    else if(strcmp(argv[i], "-enableGDR") == 0)
+    {
+      pCtx->Cfg[cur_ch].bEnableGDR = true;
+      pCtx->Cfg[cur_ch].FreqIDR = atoi(argv[i+1]);
+      if (pCtx->Cfg[cur_ch].FreqIDR <= 0)
+      {
+        printf("gdr fresh period error\n");
+        return -1;
+      }
+
+      printf("enable gdr and fresh peroid %d\n", pCtx->Cfg[cur_ch].FreqIDR);
+    }
+    else if (strcmp(argv[i], "-GDRMode") == 0)
+    {
+      int nGdrMode = atoi(argv[i+1]);
+      if (nGdrMode < 0 || nGdrMode >= GDR_CTRLMAX)
+      {
+        printf("gdr mode set error\n");
+        return -1;
+      }
+      pCtx->Cfg[cur_ch].gdrMode = (GDRCtrlMode)nGdrMode;
+    }
+    else if(strcmp(argv[i], "-enableLTR") == 0)
+    {
+      pCtx->Cfg[cur_ch].bEnableLTR = true;
+      pCtx->nLTRFreq[cur_ch] = atoi(argv[i+1]);
+      printf("enable LTR and  refresh frequency %d\n", pCtx->nLTRFreq[cur_ch]);
+    }
+    else if (strcmp(argv[i], "-roi") == 0)
+    {
+      pCtx->roi_filename[cur_ch] = (char*)malloc(strlen(argv[i+1])+1);
+      memcpy(pCtx->roi_filename[cur_ch], argv[i+1], strlen(argv[i+1])+1);
+      printf("roi_filename %s\n",pCtx->roi_filename[cur_ch]);
+      if (0 != roi_parse_conf(pCtx->roi_filename[cur_ch],pCtx->aryEncRoiCfg[cur_ch],pCtx->Cfg[cur_ch].roiCtrlMode))
+      {
+        printf("roi_parse_conf failed\n");
+        //endof_encode();
+        return -1;
+      }
+      else
+      {
+        printf("roi_parse_conf ok\n");
+      }
     }
     else if(strcmp(argv[i], "-conf") == 0)
     {
@@ -1819,8 +2094,7 @@ int parse_cmd(int argc, char *argv[])
       printf("Error :Invalid arguments %s\n", argv[i]);      
       return -1;
     }
-  }
-  
+  }  
   return 0;
 }
 
@@ -1883,20 +2157,72 @@ int main(int argc, char *argv[])
       if(!pCtx->Cfg[i].FreqIDR)           pCtx->Cfg[i].FreqIDR     = 25;
       if(!pCtx->Cfg[i].gopLen)            pCtx->Cfg[i].gopLen      = 25;
       if(!pCtx->Cfg[i].AspectRatio)       pCtx->Cfg[i].AspectRatio = ASPECT_RATIO_AUTO;
+      if(!pCtx->Cfg[i].MinQP)             pCtx->Cfg[i].MinQP       = 0;//from 0 to SliceQP
+      if(!pCtx->Cfg[i].MaxQP)             pCtx->Cfg[i].MaxQP       = 51;//from SliceQP to 51
+      if(!pCtx->Cfg[i].roiCtrlMode)       pCtx->Cfg[i].roiCtrlMode = ROI_QP_TABLE_NONE;
+      
+    }
+
+    for(int i =0;i < pCtx->ch_cnt; i++)
+    {
+      if (pCtx->outfilename[i] != NULL)
+      {
+        char *ptr=strchr(pCtx->outfilename[i], '.');
+        if(strcmp(ptr, ".jpg") == 0 || strcmp(ptr, ".mjpeg") == 0)
+        {
+          pCtx->Cfg[i].profile = JPEG;
+          pCtx->Cfg[i].rcMode = CONST_QP; 
+          printf("JPEG encode\n");
+        }
+      }
+
+      if(CBR == pCtx->Cfg[i].rcMode)
+      {
+        if (pCtx->Cfg[i].MaxBitRate != pCtx->Cfg[i].BitRate)
+        {
+          pCtx->Cfg[i].MaxBitRate = pCtx->Cfg[i].BitRate;
+          printf("modify MaxBitRate  to BitRate:%d in cbr mode\n",pCtx->Cfg[i].BitRate);
+        }
+      }
+
+      if (JPEG == pCtx->Cfg[i].profile)
+      {
+        if (pCtx->Cfg[i].SliceQP < 1 || pCtx->Cfg[i].SliceQP > 100)
+        {
+          printf("slice qp error\n");
+          return -1;
+        }
+      }
+      else
+      {
+        if (pCtx->Cfg[i].SliceQP < -1 || pCtx->Cfg[i].SliceQP > 51)
+        {
+          printf("slice qp error\n");
+          return -1;
+        }
+      }
     }
 
     for(i = 0; i < pCtx->ch_cnt; i++)
     {
       printf("ch%d: enable_isp %d, enable_v4l2 %d, enable_rtsp %d\n", i, pCtx->enable_isp[i], pCtx->enable_v4l2[i], pCtx->enable_rtsp[i]);
+      printf("cur_ch:%d,roiCtrlMode:%d(0:NONE,1:RELATIVE,2:ABSOLUTE),sliceqp:%d,minqp:%d,maxqp:%d,rcMode:%d(0:CONST_QP, 1:CBR, 2:VBR),bitrate:%dkbps,maxbitrate:%dkbps,profile:%d,gop:%d,gdr:%d(freq:%d,mode:%d(0:VERTICAL 1:HORIZONTAL)),LTR:%d(%d)\n",
+        i,pCtx->Cfg[i].roiCtrlMode,pCtx->Cfg[i].SliceQP,pCtx->Cfg[i].MinQP,pCtx->Cfg[i].MaxQP,pCtx->Cfg[i].rcMode,pCtx->Cfg[i].BitRate/1000,pCtx->Cfg[i].MaxBitRate/1000,pCtx->Cfg[i].profile,
+        pCtx->Cfg[i].gopLen,pCtx->Cfg[i].bEnableGDR,pCtx->Cfg[i].FreqIDR,pCtx->Cfg[i].gdrMode,pCtx->Cfg[i].bEnableLTR,pCtx->nLTRFreq[i]);
     }
 
     for(i = 0; i < pCtx->ch_cnt; i++)
     {
       if(pCtx->ch_en[i])
       {
-        pCtx->Cfg[i].FrameRate = pCtx->out_framerate[i];  
+        pCtx->Cfg[i].FrameRate = pCtx->out_framerate[i];
         printf("ch%d-Cfg.Framerate: %d\n", i, pCtx->Cfg[i].FrameRate);
         pCtx->hEnc[i] = VideoEncoder_Create(&pCtx->Cfg[i]);
+
+        if (ROI_QP_TABLE_NONE != pCtx->Cfg[i].roiCtrlMode)
+        {
+          DoEncRoi(pCtx->hEnc[i],pCtx->aryEncRoiCfg[i]);
+        }
 
         if((pCtx->out_framerate[i] % pCtx->framerate[i] == 0) || (pCtx->framerate[i] % pCtx->out_framerate[i] == 0))
         {
