@@ -854,6 +854,10 @@ static void cfg_noc_prior(void)
     system("devmem 0x970E00fc 32 0x0fffff00");
     system("devmem 0x970E0100 32 0x00000000");
     system("devmem 0x970E0104 32 0x00000000");
+
+    system("devmem 0x9990038c 32 0x00000000");
+    system("devmem 0x9990048c 32 0x00000001");
+    system("devmem 0x98000504 32 0x00010303");
 }
 
 /**
