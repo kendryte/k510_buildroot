@@ -1,0 +1,52 @@
+From 449cc7a7b62f5b4a185caec570f4f4729123c541 Mon Sep 17 00:00:00 2001
+From: gh-sxp <sunxiaopeng@canaan-creative.com>
+Date: Fri, 13 May 2022 15:09:16 +0800
+Subject: [PATCH] tcp-error
+
+---
+ drivers/net/ethernet/cadence/macb_main.c | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/drivers/net/ethernet/cadence/macb_main.c b/drivers/net/ethernet/cadence/macb_main.c
+index 745ec600..7e44a85a 100755
+--- a/drivers/net/ethernet/cadence/macb_main.c
++++ b/drivers/net/ethernet/cadence/macb_main.c
+@@ -1464,9 +1464,16 @@ static unsigned int macb_tx_map(struct macb *bp,
+ 	size = hdrlen;
+ 
+ 	offset = 0;
++	volatile u8  reg_data = 0;
++	
+ 	while (len) {
+ 		entry = macb_tx_ring_wrap(bp, tx_head);
+ 		tx_skb = &queue->tx_skb[entry];
++		for(i = 0;i < size;i ++)
++		{
++			reg_data =*(u8*)(skb->data  + offset + i);
++		} 
++		
+ 
+ 		mapping = dma_map_single(&bp->pdev->dev,
+ 					 skb->data + offset,
+@@ -1498,6 +1505,10 @@ static unsigned int macb_tx_map(struct macb *bp,
+ 			size = min(len, bp->max_tx_length);
+ 			entry = macb_tx_ring_wrap(bp, tx_head);
+ 			tx_skb = &queue->tx_skb[entry];
++			for(i =0;i < size;i ++)
++			{
++				reg_data = *(u8*)(lowmem_page_address(skb_frag_page(frag))+ frag->page_offset+offset + i);
++			}
+ 
+ 			mapping = skb_frag_dma_map(&bp->pdev->dev, frag,
+ 						   offset, size, DMA_TO_DEVICE);
+@@ -1731,6 +1742,7 @@ static int macb_start_xmit(struct sk_buff *skb, struct net_device *dev)
+ 	/* Map socket buffer for DMA transfer */
+ 	if (!macb_tx_map(bp, queue, skb, hdrlen)) {
+ 		dev_kfree_skb_any(skb);
++		printk("=========macb_tx_map errorz\n");
+ 		goto unlock;
+ 	}
+ 
+-- 
+2.35.1
+
