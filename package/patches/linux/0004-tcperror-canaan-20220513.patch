@@ -1,14 +1,14 @@
-From 55671e75f460505e0131e821ac8d3eb70535d970 Mon Sep 17 00:00:00 2001
+From 449cc7a7b62f5b4a185caec570f4f4729123c541 Mon Sep 17 00:00:00 2001
 From: gh-sxp <sunxiaopeng@canaan-creative.com>
-Date: Thu, 12 May 2022 19:43:02 +0800
-Subject: [PATCH] tcperror
+Date: Fri, 13 May 2022 15:09:16 +0800
+Subject: [PATCH] tcp-error
 
 ---
- drivers/net/ethernet/cadence/macb_main.c | 14 ++++++++++++++
- 1 file changed, 14 insertions(+)
+ drivers/net/ethernet/cadence/macb_main.c | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
 
 diff --git a/drivers/net/ethernet/cadence/macb_main.c b/drivers/net/ethernet/cadence/macb_main.c
-index 745ec600..58cd91c1 100755
+index 745ec600..7e44a85a 100755
 --- a/drivers/net/ethernet/cadence/macb_main.c
 +++ b/drivers/net/ethernet/cadence/macb_main.c
 @@ -1464,9 +1464,16 @@ static unsigned int macb_tx_map(struct macb *bp,
@@ -28,7 +28,7 @@ index 745ec600..58cd91c1 100755
  
  		mapping = dma_map_single(&bp->pdev->dev,
  					 skb->data + offset,
-@@ -1498,6 +1505,12 @@ static unsigned int macb_tx_map(struct macb *bp,
+@@ -1498,6 +1505,10 @@ static unsigned int macb_tx_map(struct macb *bp,
  			size = min(len, bp->max_tx_length);
  			entry = macb_tx_ring_wrap(bp, tx_head);
  			tx_skb = &queue->tx_skb[entry];
@@ -39,7 +39,7 @@ index 745ec600..58cd91c1 100755
  
  			mapping = skb_frag_dma_map(&bp->pdev->dev, frag,
  						   offset, size, DMA_TO_DEVICE);
-@@ -1731,6 +1744,7 @@ static int macb_start_xmit(struct sk_buff *skb, struct net_device *dev)
+@@ -1731,6 +1742,7 @@ static int macb_start_xmit(struct sk_buff *skb, struct net_device *dev)
  	/* Map socket buffer for DMA transfer */
  	if (!macb_tx_map(bp, queue, skb, hdrlen)) {
  		dev_kfree_skb_any(skb);
