@@ -1,0 +1,51 @@
+Index: b/librtmp/dh.h
+===================================================================
+--- a/librtmp/dh.h
++++ b/librtmp/dh.h
+@@ -166,6 +166,8 @@ static int MDH_compute_key(uint8_t *secr
+ #else /* USE_OPENSSL */
+ #include <openssl/bn.h>
+ #include <openssl/dh.h>
++#include <openssl/ossl_typ.h>
++#include <openssl/dh_local.h>
+ 
+ typedef BIGNUM * MP_t;
+ #define MP_new(m)	m = BN_new()
+Index: b/librtmp/handshake.h
+===================================================================
+--- a/librtmp/handshake.h
++++ b/librtmp/handshake.h
+@@ -66,12 +66,13 @@ typedef struct arcfour_ctx*	RC4_handle;
+ #include <openssl/sha.h>
+ #include <openssl/hmac.h>
+ #include <openssl/rc4.h>
++#include <openssl/hmac_local.h>
+ #if OPENSSL_VERSION_NUMBER < 0x0090800 || !defined(SHA256_DIGEST_LENGTH)
+ #error Your OpenSSL is too old, need 0.9.8 or newer with SHA256
+ #endif
+-#define HMAC_setup(ctx, key, len)	HMAC_CTX_init(&ctx); HMAC_Init_ex(&ctx, key, len, EVP_sha256(), 0)
++#define HMAC_setup(ctx, key, len)	HMAC_CTX_reset(&ctx); HMAC_Init_ex(&ctx, key, len, EVP_sha256(), 0)
+ #define HMAC_crunch(ctx, buf, len)	HMAC_Update(&ctx, buf, len)
+-#define HMAC_finish(ctx, dig, dlen)	HMAC_Final(&ctx, dig, &dlen); HMAC_CTX_cleanup(&ctx)
++#define HMAC_finish(ctx, dig, dlen)	HMAC_Final(&ctx, dig, &dlen); HMAC_CTX_free(&ctx)
+ 
+ typedef RC4_KEY *	RC4_handle;
+ #define RC4_alloc(h)	*h = malloc(sizeof(RC4_KEY))
+Index: b/librtmp/hashswf.c
+===================================================================
+--- a/librtmp/hashswf.c
++++ b/librtmp/hashswf.c
+@@ -57,10 +57,11 @@
+ #include <openssl/sha.h>
+ #include <openssl/hmac.h>
+ #include <openssl/rc4.h>
+-#define HMAC_setup(ctx, key, len)	HMAC_CTX_init(&ctx); HMAC_Init_ex(&ctx, (unsigned char *)key, len, EVP_sha256(), 0)
++#include <openssl/hmac_local.h>
++#define HMAC_setup(ctx, key, len)	HMAC_CTX_reset(&ctx); HMAC_Init_ex(&ctx, (unsigned char *)key, len, EVP_sha256(), 0)
+ #define HMAC_crunch(ctx, buf, len)	HMAC_Update(&ctx, (unsigned char *)buf, len)
+ #define HMAC_finish(ctx, dig, dlen)	HMAC_Final(&ctx, (unsigned char *)dig, &dlen);
+-#define HMAC_close(ctx)	HMAC_CTX_cleanup(&ctx)
++#define HMAC_close(ctx)	HMAC_CTX_free(&ctx)
+ #endif
+ 
+ extern void RTMP_TLS_Init();
