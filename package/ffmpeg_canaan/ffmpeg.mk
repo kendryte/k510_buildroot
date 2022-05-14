@@ -48,7 +48,6 @@ define FFMPEG_CANAAN_CONFIGURE_CMDS
 		--enable-libk510_video \
 		--enable-libk510_h264 \
 		--enable-libk510_jpeg \
-		--enable-alsa \
 		--disable-autodetect \
 		--disable-ffplay \
 		--disable-ffprobe \
