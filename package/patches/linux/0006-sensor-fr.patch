@@ -1,0 +1,482 @@
+From f623b11142bce36d4d025504d25448280c99ccdd Mon Sep 17 00:00:00 2001
+From: longyiluo <longyiluo@canaan-creative.com>
+Date: Sun, 15 May 2022 17:54:16 +0800
+Subject: [PATCH] sensor-fr
+
+---
+ .../i2c/soc_camera/canaanchip/imx219_0.c      | 214 ++++++++++++++++++
+ .../i2c/soc_camera/canaanchip/imx219_1.c      | 212 +++++++++++++++++
+ 2 files changed, 426 insertions(+)
+
+diff --git a/drivers/media/i2c/soc_camera/canaanchip/imx219_0.c b/drivers/media/i2c/soc_camera/canaanchip/imx219_0.c
+index 82d2c509..745e76c0 100755
+--- a/drivers/media/i2c/soc_camera/canaanchip/imx219_0.c
++++ b/drivers/media/i2c/soc_camera/canaanchip/imx219_0.c
+@@ -401,6 +401,195 @@ static const struct imx219_reg imx219_init_tab_1080_1920_30fps[] = {
+ 	{IMX219_TABLE_END, 0x00}	
+ };
+ 
++
++static const struct imx219_reg imx219_init_tab_1280_720_60fps[] = {
++	{0x30eb, 0x05},
++	{0x30eb, 0x0c},
++	{0x300a, 0xff},
++	{0x300b, 0xff},
++	{0x30eb, 0x05},
++	{0x30eb, 0x09},
++	//
++	{0x0114, 0x01}, //REG_CSI_LANE 01 -2lanes 03-4lanes
++	{0x0128, 0x00}, //REG_DPHY_CTRL
++	{0x012a, 0x18}, //REG_EXCK_FREQ_MSB
++	{0x012b, 0x00}, //REG_EXCK_FREQ_LSB
++	//
++	//
++	{0x0160, 0x06},//FRM_LENGTH_A[15:8]0x05  0x06  0x04	 0x0d			frame 1166  gaicheng 3402   / 2 = 1738 - 300 = 1430 + 100 + 10 - 4
++	{0x0161, 0x00},//FRM_LENGTH_A[7:0] 0x96  0xca  0x8e     0x4a
++	{0x0162, 0x0d},//0x0d},//LINE_LENGTH_A[15:8] 			line 3476
++	{0x0163, 0x94},//0x78},//LINE_LENGTH_A[7:0]
++
++	{0x0164, 0x03}, //X_ADD_STA_A[11:8] 	0x04
++	{0x0165, 0xe8},//X_ADD_STA_A[7:0] 		0x4a
++	{0x0166, 0x08}, //X_ADD_END_A[11:8] 	0x09
++	{0x0167, 0xe7}, //X_ADD_END_A[7:0] 		0x49
++
++	{0x0168, 0x03},//Y_ADD_STA_A[11:8] 		0x00
++	{0x0169, 0x68},//Y_ADD_STA_A[7:0] 		0xde
++	{0x016a, 0x06},//Y_ADD_END_A[11:8] 		0x03
++	{0x016b, 0x37},//Y_ADD_END_A[7:0] 		0xae
++
++	//
++	{0x016c, 0x05},//x_output_size[11:8] 				1280
++	{0x016d, 0x00},//x_output_size[7:0]
++	{0x016e, 0x02},//y_output_size[11:8] 				720
++	{0x016f, 0xd0},// y_output_size[7:0] 
++	//
++	{0x0170, 0x01},//X_ODD_INC_A
++	{0x0171, 0x01},//Y_ODD_INC_A
++	//
++	//{0x0172, 0x01},//IMG_ORIENTATION_A
++	//BINNING
++	{0x0174, 0x00},//BINNING_MODE_H_A
++	{0x0175, 0x00},//BINNING_MODE_V_A
++
++	{0x0301, 0x05},//VTPXCK_DIV
++	{0x0303, 0x01},//VTSYCK_DIV
++	//
++	{0x0304, 0x03},//PREPLLCK_VT_DIV
++	{0x0305, 0x03},//PREPLLCK_OP_DIV
++	//
++	{0x0306, 0x00},//PLL_VT_MPY[10:8]
++	{0x0307, 0x63},//0x25},//PLL_VT_MPY[7:0] 0x39  0x26 0x39
++	//
++	//{0x0309, 0x00},//OPPXCK_DIV
++	//
++	{0x030b, 0x01},//OPSYCK_DIV
++	//
++	{0x030c, 0x00},//PLL_OP_MPY[10:8] 
++	{0x030d, 0x55},//PLL_OP_MPY[7:0] 0x36
++
++	//{0x0157, 0x64},//analog gain
++	//
++	{0x0624, 0x07},
++	{0x0625, 0x80},
++	{0x0626, 0x04},
++	{0x0627, 0x38},
++	{0x455e, 0x00},
++	{0x471e, 0x4b},
++	{0x4767, 0x0f},
++	{0x4750, 0x14},
++	{0x4540, 0x00},
++	{0x47b4, 0x14},
++	{0x4713, 0x30},
++	{0x478b, 0x10},
++	{0x478f, 0x10},
++	{0x4793, 0x10},
++	{0x4797, 0x0e},
++	{0x479b, 0x0e},
++	{0x0157, 0x40},//analog gain
++	{0x0158, 0x01},
++	{0x0159, 0x00},
++	{0x015a, 0x03},
++	{0x015b, 0xe8},
++	//
++//    {0x0100, 0x01}, //REG_MODE_SEL
++
++	{IMX219_TABLE_END, 0x00}
++
++};
++
++static const struct imx219_reg imx219_init_tab_640_480_75fps[] = {
++	{0x30eb, 0x05},
++	{0x30eb, 0x0c},
++	{0x300a, 0xff},
++	{0x300b, 0xff},
++	{0x30eb, 0x05},
++	{0x30eb, 0x09},
++	//
++	{0x0114, 0x01}, //REG_CSI_LANE 01 -2lanes 03-4lanes
++	{0x0128, 0x00}, //REG_DPHY_CTRL
++	{0x012a, 0x18}, //REG_EXCK_FREQ_MSB
++	{0x012b, 0x00}, //REG_EXCK_FREQ_LSB
++	//
++	//
++	{0x0160, 0x04},//FRM_LENGTH_A[15:8]0x05  0x06  0x04	 0x0d			frame  1189 + 20 = 1209 + 20 = 1229 - 1=1128
++	{0x0161, 0xcc},//FRM_LENGTH_A[7:0] 0x96  0xca  0x8e     0x4a
++	{0x0162, 0x0d},//0x0d},//LINE_LENGTH_A[15:8] 			line 3476
++	{0x0163, 0x94},//0x78},//LINE_LENGTH_A[7:0]
++	// 
++#if 0
++
++	{0x0164, 0x02}, //X_ADD_STA_A[11:8] 				   1279
++	{0x0165, 0xa8},//X_ADD_STA_A[7:0] 
++	{0x0166, 0x04}, //X_ADD_END_A[11:8] 
++	{0x0167, 0xff}, //X_ADD_END_A[7:0] 
++
++	{0x0168, 0x02},//Y_ADD_STA_A[11:8] 						719
++	{0x0169, 0xb4},//Y_ADD_STA_A[7:0] 
++	{0x016a, 0x05},//Y_ADD_END_A[11:8] 
++	{0x016b, 0x77},//Y_ADD_END_A[7:0] 
++#else
++	{0x0164, 0x05}, //X_ADD_STA_A[11:8] 	0x04
++	{0x0165, 0x28},//X_ADD_STA_A[7:0] 		0x4a
++	{0x0166, 0x07}, //X_ADD_END_A[11:8] 	0x09
++	{0x0167, 0xa8}, //X_ADD_END_A[7:0] 		0x49
++
++	{0x0168, 0x03},//Y_ADD_STA_A[11:8] 		0x00
++	{0x0169, 0xe0},//Y_ADD_STA_A[7:0] 		0xde
++	{0x016a, 0x05},//Y_ADD_END_A[11:8] 		0x03
++	{0x016b, 0xc0},//Y_ADD_END_A[7:0] 		0xae
++#endif
++	//
++
++	//
++	{0x016c, 0x02},//x_output_size[11:8] 				640
++	{0x016d, 0x80},//x_output_size[7:0]
++	{0x016e, 0x01},//y_output_size[11:8] 				480
++	{0x016f, 0xe0},// y_output_size[7:0] 
++	//
++	{0x0170, 0x01},//X_ODD_INC_A
++	{0x0171, 0x01},//Y_ODD_INC_A
++	//
++	//{0x0172, 0x01},//IMG_ORIENTATION_A
++	//BINNING
++	{0x0174, 0x00},//BINNING_MODE_H_A
++	{0x0175, 0x00},//BINNING_MODE_V_A
++
++	{0x0301, 0x05},//VTPXCK_DIV
++	{0x0303, 0x01},//VTSYCK_DIV
++	//
++	{0x0304, 0x03},//PREPLLCK_VT_DIV
++	{0x0305, 0x03},//PREPLLCK_OP_DIV
++	//
++	{0x0306, 0x00},//PLL_VT_MPY[10:8]
++	{0x0307, 0x63},//0x25},//PLL_VT_MPY[7:0] 0x39  0x26 0x39
++	//
++	//{0x0309, 0x00},//OPPXCK_DIV
++	//
++	{0x030b, 0x01},//OPSYCK_DIV
++	//
++	{0x030c, 0x00},//PLL_OP_MPY[10:8] 
++	{0x030d, 0x55},//PLL_OP_MPY[7:0] 0x36
++
++	//{0x0157, 0x64},//analog gain
++	//
++	{0x0624, 0x07},
++	{0x0625, 0x80},
++	{0x0626, 0x04},
++	{0x0627, 0x38},
++	{0x455e, 0x00},
++	{0x471e, 0x4b},
++	{0x4767, 0x0f},
++	{0x4750, 0x14},
++	{0x4540, 0x00},
++	{0x47b4, 0x14},
++	{0x4713, 0x30},
++	{0x478b, 0x10},
++	{0x478f, 0x10},
++	{0x4793, 0x10},
++	{0x4797, 0x0e},
++	{0x479b, 0x0e},
++	{0x0157, 0x40},//analog gain
++	{0x0158, 0x01},
++	{0x0159, 0x00},
++	{0x015a, 0x03},
++	{0x015b, 0xe8},
++	{IMX219_TABLE_END, 0x00}
++};
++
+ static const struct imx219_reg start[] = {
+ 	{0x0100, 0x01},		/* mode select streaming on */
+ 	{IMX219_TABLE_END, 0x00}
+@@ -500,6 +689,28 @@ static const struct imx219_mode supported_modes[] = {
+ 		.vts_def = 0x0898,
+ 		.reg_list = imx219_init_tab_1080_1920_30fps,
+ 	},
++	{
++		.width = 1280,
++		.height = 720,
++		.max_fps = {
++			.numerator = 10000,
++			.denominator = 300000,
++		},
++		.hts_def = 0x0d94 - IMX219_EXP_LINES_MARGIN,
++		.vts_def = 0x0600,
++		.reg_list = imx219_init_tab_1280_720_60fps,
++	},
++	{
++		.width = 640,
++		.height = 480,
++		.max_fps = {
++			.numerator = 10000,
++			.denominator = 300000,
++		},
++		.hts_def = 0x0d94 - IMX219_EXP_LINES_MARGIN,
++		.vts_def = 0x04cc,
++		.reg_list = imx219_init_tab_640_480_75fps,
++	},
+ #if 0
+ 	{
+ 		.width = 1920,
+@@ -969,6 +1180,9 @@ static int imx219_set_fmt(struct v4l2_subdev *sd,
+ 		return 0;
+ 
+ 	mode = imx219_find_best_fit(fmt);
++
++	printk("/n *************mode->width is %d mode->height is %d   \n", mode->width, mode->height );
++
+ 	fmt->format.code = MEDIA_BUS_FMT_SRGGB10_1X10;
+ 	fmt->format.width = mode->width;
+ 	fmt->format.height = mode->height;
+diff --git a/drivers/media/i2c/soc_camera/canaanchip/imx219_1.c b/drivers/media/i2c/soc_camera/canaanchip/imx219_1.c
+index b1c7d294..91e984b3 100755
+--- a/drivers/media/i2c/soc_camera/canaanchip/imx219_1.c
++++ b/drivers/media/i2c/soc_camera/canaanchip/imx219_1.c
+@@ -383,6 +383,195 @@ static const struct imx219_reg imx219_init_tab_1080_1920_30fps[] = {
+ 	{IMX219_TABLE_END, 0x00}
+ };
+ 
++
++static const struct imx219_reg imx219_init_tab_1280_720_60fps[] = {
++	{0x30eb, 0x05},
++	{0x30eb, 0x0c},
++	{0x300a, 0xff},
++	{0x300b, 0xff},
++	{0x30eb, 0x05},
++	{0x30eb, 0x09},
++	//
++	{0x0114, 0x01}, //REG_CSI_LANE 01 -2lanes 03-4lanes
++	{0x0128, 0x00}, //REG_DPHY_CTRL
++	{0x012a, 0x18}, //REG_EXCK_FREQ_MSB
++	{0x012b, 0x00}, //REG_EXCK_FREQ_LSB
++	//
++	//
++	{0x0160, 0x06},//FRM_LENGTH_A[15:8]0x05  0x06  0x04	 0x0d			frame 1166  gaicheng 3402   / 2 = 1738 - 300 = 1430 + 100 + 10 - 4
++	{0x0161, 0x00},//FRM_LENGTH_A[7:0] 0x96  0xca  0x8e     0x4a
++	{0x0162, 0x0d},//0x0d},//LINE_LENGTH_A[15:8] 			line 3476
++	{0x0163, 0x94},//0x78},//LINE_LENGTH_A[7:0]
++
++	{0x0164, 0x03}, //X_ADD_STA_A[11:8] 	0x04
++	{0x0165, 0xe8},//X_ADD_STA_A[7:0] 		0x4a
++	{0x0166, 0x08}, //X_ADD_END_A[11:8] 	0x09
++	{0x0167, 0xe7}, //X_ADD_END_A[7:0] 		0x49
++
++	{0x0168, 0x03},//Y_ADD_STA_A[11:8] 		0x00
++	{0x0169, 0x68},//Y_ADD_STA_A[7:0] 		0xde
++	{0x016a, 0x06},//Y_ADD_END_A[11:8] 		0x03
++	{0x016b, 0x37},//Y_ADD_END_A[7:0] 		0xae
++
++	//
++	{0x016c, 0x05},//x_output_size[11:8] 				1280
++	{0x016d, 0x00},//x_output_size[7:0]
++	{0x016e, 0x02},//y_output_size[11:8] 				720
++	{0x016f, 0xd0},// y_output_size[7:0] 
++	//
++	{0x0170, 0x01},//X_ODD_INC_A
++	{0x0171, 0x01},//Y_ODD_INC_A
++	//
++	//{0x0172, 0x01},//IMG_ORIENTATION_A
++	//BINNING
++	{0x0174, 0x00},//BINNING_MODE_H_A
++	{0x0175, 0x00},//BINNING_MODE_V_A
++
++	{0x0301, 0x05},//VTPXCK_DIV
++	{0x0303, 0x01},//VTSYCK_DIV
++	//
++	{0x0304, 0x03},//PREPLLCK_VT_DIV
++	{0x0305, 0x03},//PREPLLCK_OP_DIV
++	//
++	{0x0306, 0x00},//PLL_VT_MPY[10:8]
++	{0x0307, 0x63},//0x25},//PLL_VT_MPY[7:0] 0x39  0x26 0x39
++	//
++	//{0x0309, 0x00},//OPPXCK_DIV
++	//
++	{0x030b, 0x01},//OPSYCK_DIV
++	//
++	{0x030c, 0x00},//PLL_OP_MPY[10:8] 
++	{0x030d, 0x55},//PLL_OP_MPY[7:0] 0x36
++
++	//{0x0157, 0x64},//analog gain
++	//
++	{0x0624, 0x07},
++	{0x0625, 0x80},
++	{0x0626, 0x04},
++	{0x0627, 0x38},
++	{0x455e, 0x00},
++	{0x471e, 0x4b},
++	{0x4767, 0x0f},
++	{0x4750, 0x14},
++	{0x4540, 0x00},
++	{0x47b4, 0x14},
++	{0x4713, 0x30},
++	{0x478b, 0x10},
++	{0x478f, 0x10},
++	{0x4793, 0x10},
++	{0x4797, 0x0e},
++	{0x479b, 0x0e},
++	{0x0157, 0x40},//analog gain
++	{0x0158, 0x01},
++	{0x0159, 0x00},
++	{0x015a, 0x03},
++	{0x015b, 0xe8},
++	//
++//    {0x0100, 0x01}, //REG_MODE_SEL
++
++	{IMX219_TABLE_END, 0x00}
++
++};
++
++static const struct imx219_reg imx219_init_tab_640_480_75fps[] = {
++	{0x30eb, 0x05},
++	{0x30eb, 0x0c},
++	{0x300a, 0xff},
++	{0x300b, 0xff},
++	{0x30eb, 0x05},
++	{0x30eb, 0x09},
++	//
++	{0x0114, 0x01}, //REG_CSI_LANE 01 -2lanes 03-4lanes
++	{0x0128, 0x00}, //REG_DPHY_CTRL
++	{0x012a, 0x18}, //REG_EXCK_FREQ_MSB
++	{0x012b, 0x00}, //REG_EXCK_FREQ_LSB
++	//
++	//
++	{0x0160, 0x04},//FRM_LENGTH_A[15:8]0x05  0x06  0x04	 0x0d			frame  1189 + 20 = 1209 + 20 = 1229 - 1=1128
++	{0x0161, 0xcc},//FRM_LENGTH_A[7:0] 0x96  0xca  0x8e     0x4a
++	{0x0162, 0x0d},//0x0d},//LINE_LENGTH_A[15:8] 			line 3476
++	{0x0163, 0x94},//0x78},//LINE_LENGTH_A[7:0]
++	// 
++#if 0
++
++	{0x0164, 0x02}, //X_ADD_STA_A[11:8] 				   1279
++	{0x0165, 0xa8},//X_ADD_STA_A[7:0] 
++	{0x0166, 0x04}, //X_ADD_END_A[11:8] 
++	{0x0167, 0xff}, //X_ADD_END_A[7:0] 
++
++	{0x0168, 0x02},//Y_ADD_STA_A[11:8] 						719
++	{0x0169, 0xb4},//Y_ADD_STA_A[7:0] 
++	{0x016a, 0x05},//Y_ADD_END_A[11:8] 
++	{0x016b, 0x77},//Y_ADD_END_A[7:0] 
++#else
++	{0x0164, 0x05}, //X_ADD_STA_A[11:8] 	0x04
++	{0x0165, 0x28},//X_ADD_STA_A[7:0] 		0x4a
++	{0x0166, 0x07}, //X_ADD_END_A[11:8] 	0x09
++	{0x0167, 0xa8}, //X_ADD_END_A[7:0] 		0x49
++
++	{0x0168, 0x03},//Y_ADD_STA_A[11:8] 		0x00
++	{0x0169, 0xe0},//Y_ADD_STA_A[7:0] 		0xde
++	{0x016a, 0x05},//Y_ADD_END_A[11:8] 		0x03
++	{0x016b, 0xc0},//Y_ADD_END_A[7:0] 		0xae
++#endif
++	//
++
++	//
++	{0x016c, 0x02},//x_output_size[11:8] 				640
++	{0x016d, 0x80},//x_output_size[7:0]
++	{0x016e, 0x01},//y_output_size[11:8] 				480
++	{0x016f, 0xe0},// y_output_size[7:0] 
++	//
++	{0x0170, 0x01},//X_ODD_INC_A
++	{0x0171, 0x01},//Y_ODD_INC_A
++	//
++	//{0x0172, 0x01},//IMG_ORIENTATION_A
++	//BINNING
++	{0x0174, 0x00},//BINNING_MODE_H_A
++	{0x0175, 0x00},//BINNING_MODE_V_A
++
++	{0x0301, 0x05},//VTPXCK_DIV
++	{0x0303, 0x01},//VTSYCK_DIV
++	//
++	{0x0304, 0x03},//PREPLLCK_VT_DIV
++	{0x0305, 0x03},//PREPLLCK_OP_DIV
++	//
++	{0x0306, 0x00},//PLL_VT_MPY[10:8]
++	{0x0307, 0x63},//0x25},//PLL_VT_MPY[7:0] 0x39  0x26 0x39
++	//
++	//{0x0309, 0x00},//OPPXCK_DIV
++	//
++	{0x030b, 0x01},//OPSYCK_DIV
++	//
++	{0x030c, 0x00},//PLL_OP_MPY[10:8] 
++	{0x030d, 0x55},//PLL_OP_MPY[7:0] 0x36
++
++	//{0x0157, 0x64},//analog gain
++	//
++	{0x0624, 0x07},
++	{0x0625, 0x80},
++	{0x0626, 0x04},
++	{0x0627, 0x38},
++	{0x455e, 0x00},
++	{0x471e, 0x4b},
++	{0x4767, 0x0f},
++	{0x4750, 0x14},
++	{0x4540, 0x00},
++	{0x47b4, 0x14},
++	{0x4713, 0x30},
++	{0x478b, 0x10},
++	{0x478f, 0x10},
++	{0x4793, 0x10},
++	{0x4797, 0x0e},
++	{0x479b, 0x0e},
++	{0x0157, 0x40},//analog gain
++	{0x0158, 0x01},
++	{0x0159, 0x00},
++	{0x015a, 0x03},
++	{0x015b, 0xe8},
++	{IMX219_TABLE_END, 0x00}
++};
++
+ static const struct imx219_reg start[] = {
+ 	{0x0100, 0x01},		/* mode select streaming on */
+ 	{IMX219_TABLE_END, 0x00}
+@@ -482,6 +671,29 @@ static const struct imx219_mode supported_modes[] = {
+ 		.vts_def = 0x0898,
+ 		.reg_list = imx219_init_tab_1080_1920_30fps,
+ 	},
++	{
++		.width = 1280,
++		.height = 720,
++		.max_fps = {
++			.numerator = 10000,
++			.denominator = 300000,
++		},
++		.hts_def = 0x0d94 - IMX219_EXP_LINES_MARGIN,
++		.vts_def = 0x0600,
++		.reg_list = imx219_init_tab_1280_720_60fps,
++	},
++	{
++		.width = 640,
++		.height = 480,
++		.max_fps = {
++			.numerator = 10000,
++			.denominator = 300000,
++		},
++		.hts_def = 0x0d94 - IMX219_EXP_LINES_MARGIN,
++		.vts_def = 0x04cc,
++		.reg_list = imx219_init_tab_640_480_75fps,
++	},
++
+ #if 0
+ 	{
+ 		.width = 1920,
+-- 
+2.35.1
+
