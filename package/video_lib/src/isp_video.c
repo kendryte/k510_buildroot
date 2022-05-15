@@ -2401,10 +2401,21 @@ int run_video(enum _SENSOR_TYPE sensor_type, enum _SENSOR_MODE sensor_mode, enum
                 
                 imx219_sensor_config();
             }
-            else
+
+            if(sensor_mode == IMX219_1080_1920)
             {
                 imx219_1080_1920_sensor_config();
-            }          
+            }  
+
+            if(sensor_mode == IMX219_720P60)
+            {
+                imx219_sensor_720p60_config();
+            }  
+
+            if(sensor_mode == IMX219_VGA_480P75)
+            {
+                imx219_sensor_rga_480p75_config();
+            }              
         }
         //
         sleep(1);

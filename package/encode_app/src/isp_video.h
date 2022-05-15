@@ -113,6 +113,8 @@ typedef enum _SENSOR_MODE
 {
     IMX219_1920_1080 = 0,
     IMX219_1080_1920 = 1,
+    IMX219_720P60 = 2,
+    IMX219_VGA_480P75 = 3,
 }SENSOR_MODE;
 
 
@@ -677,6 +679,7 @@ int run_video(enum _SENSOR_TYPE sensor_type,enum _SENSOR_MODE sensor_mode, enum 
 int run_multi_video(struct isp_pipeline_info *isp_pipeline,enum _LCD_TYPE lcd_type,unsigned int debug_en);
 void isp_exit(void);
 void isp_video_exit(void);
+int isp_video(DS1_INFO *ds1_info, SENSOR_TYPE sensor_type,LCD_TYPE lcd_type, SENSOR_MODE sensor_mode);
 void imx219_close_sensor(void);
 void video_set_ae_dgain_cfg(unsigned int expl);
 void video_set_ae_again_cfg(unsigned int agc);

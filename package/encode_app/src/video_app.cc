@@ -677,7 +677,7 @@ int set_vo_dsi_params(enum VO_OUT_IMGTYPE imgtype,struct video_vo_info *voInfo)
     return 0;
 }
 //
-int isp_video(DS1_INFO *ds1_info, SENSOR_TYPE sensor_type,LCD_TYPE lcd_type)
+int isp_video(DS1_INFO *ds1_info, SENSOR_TYPE sensor_type,LCD_TYPE lcd_type, SENSOR_MODE sensor_mode)
 {    
     int fd_isp;
 
@@ -771,13 +771,37 @@ int isp_video(DS1_INFO *ds1_info, SENSOR_TYPE sensor_type,LCD_TYPE lcd_type)
     }   
     else if(IMX219_SENSOR == sensor_type) 
     {
+	if(sensor_mode == IMX219_1920_1080)
+	{
         isp_info.total_width = 3476;//3448;
         isp_info.total_height = 1166;
         isp_info.input_width = 1920;
         isp_info.input_height = 1080;        
-    }  
+
     isp_info.output_width = 1920;
     isp_info.output_height = 1080;
+	}
+	if(sensor_mode == IMX219_720P60)
+	{
+		printf("IMX219_720P60-------------- \n");
+        	isp_info.total_width = 3476;//3448;
+        	isp_info.total_height = 1536;
+        	isp_info.input_width = 1280;
+        	isp_info.input_height =720;        
+		isp_info.output_width = 1280;
+		isp_info.output_height = 720;
+	}
+	if(sensor_mode == IMX219_VGA_480P75)
+	{
+		printf("IMX219_VGA_480P75 ------------- \n");
+        	isp_info.total_width = 3476;//3448;
+        	isp_info.total_height = 1228;
+        	isp_info.input_width = 640;
+        	isp_info.input_height = 480;        
+		isp_info.output_width = 640;
+		isp_info.output_height = 480;
+	}
+    }  
     //mipi csi
     if(IMX385_SENSOR == sensor_type)
     {
@@ -814,7 +838,7 @@ int isp_video(DS1_INFO *ds1_info, SENSOR_TYPE sensor_type,LCD_TYPE lcd_type)
         set_isp_r2k_params(sensor_type,&isp_info);
     }
     
-	enum _SENSOR_MODE sensor_mode = IMX219_1920_1080;
+	// enum _SENSOR_MODE sensor_mode = IMX219_1920_1080;
 	
     fd_isp = run_video(sensor_type,sensor_mode,lcd_type,isp_info.isp_pipeline,0);
 

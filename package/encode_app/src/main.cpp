@@ -161,6 +161,7 @@ typedef struct
   int *width;
   int *height;
   int *input_frames;
+  SENSOR_MODE *sensor_mode;
   pthread_t *isp_thread;
   pthread_t *v4l2_thread;
   pthread_t *encode_thread;
@@ -827,6 +828,7 @@ int free_context(void *arg)
   free(pCtx->width           );
   free(pCtx->height          );
   free(pCtx->input_frames    );
+  free(pCtx->sensor_mode     );
   free(pCtx->isp_thread      );
   free(pCtx->v4l2_thread     );
   free(pCtx->encode_thread   );
@@ -1091,7 +1093,7 @@ static void init_isp()
     pCtx->isp_buf_paddr[0] = ds1_info.y_addr;
     printf("%s>isp_buf_paddr 0x%x, isp_buf_vaddr 0x%x, isp_buf_size %d\n", __FUNCTION__, ds1_info.y_addr, pCtx->isp_buf_vaddr, pCtx->isp_buf_size);
 
-    pCtx->fd_isp = isp_video(&ds1_info, sensor_type, lcd_type);
+    pCtx->fd_isp = isp_video(&ds1_info, sensor_type, lcd_type, pCtx->sensor_mode[0]);
 
     if(pCtx->exp[0] > 0)
     {
@@ -1763,6 +1765,7 @@ int alloc_context(void *arg)
   pCtx->width           = (int*)malloc(sizeof(int) * pCtx->ch_cnt);
   pCtx->height          = (int*)malloc(sizeof(int) * pCtx->ch_cnt);
   pCtx->input_frames    = (int*)malloc(sizeof(int) * pCtx->ch_cnt);
+  pCtx->sensor_mode     = (SENSOR_MODE*)malloc(sizeof(SENSOR_MODE) * pCtx->ch_cnt);
   pCtx->isp_thread      = (pthread_t*)malloc(sizeof(pthread_t) * pCtx->ch_cnt);
   pCtx->v4l2_thread     = (pthread_t*)malloc(sizeof(pthread_t) * pCtx->ch_cnt);
   pCtx->encode_thread   = (pthread_t*)malloc(sizeof(pthread_t) * pCtx->ch_cnt);
@@ -2080,6 +2083,11 @@ int parse_cmd(int argc, char *argv[])
       {
         printf("roi_parse_conf ok\n");
       }
+    }
+	else if(strcmp(argv[i], "-sensor") == 0)
+    {
+      pCtx->sensor_mode[cur_ch] = (SENSOR_MODE)(atoi(argv[i+1]));
+      printf("sensor_mode %d\n", pCtx->sensor_mode[cur_ch]);
     }
     else if(strcmp(argv[i], "-conf") == 0)
     {

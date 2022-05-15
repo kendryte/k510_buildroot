@@ -113,6 +113,9 @@ typedef enum _SENSOR_MODE
 {
     IMX219_1920_1080 = 0,
     IMX219_1080_1920 = 1,
+    IMX219_720P60 = 2,
+    IMX219_VGA_480P75 = 3,
+
 }SENSOR_MODE;
 
 typedef struct _DS2_INFO

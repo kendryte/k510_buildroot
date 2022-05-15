@@ -41,7 +41,7 @@ extern "C"{
 
 #include "isp_video.h"
 
-int isp_video(DS1_INFO *ds1_info, SENSOR_TYPE sensor_type,LCD_TYPE lcd_type);
+int isp_video(DS1_INFO *ds1_info, SENSOR_TYPE sensor_type,LCD_TYPE lcd_type, SENSOR_MODE sensor_mode);
 void isp_video_exit(void);
 
 #ifdef __cplusplus
