@@ -23,6 +23,10 @@ FFMPEG_CANAAN_DEPENDENCIES += alsa-lib
 FFMPEG_CANAAN_DEPENDENCIES += audio3a_lib
 FFMPEG_CANAAN_DEPENDENCIES += mediactl_lib
 FFMPEG_CANAAN_DEPENDENCIES += dsp_scheduler
+FFMPEG_CANAAN_DEPENDENCIES += libzlib
+FFMPEG_CANAAN_DEPENDENCIES += libopenssl
+FFMPEG_CANAAN_DEPENDENCIES += librtmp
+
 
 FFMPEG_CANAAN_CONF_ENV += CFLAGS="$(FFMPEG_CANAAN_CFLAGS)"
 FFMPEG_CANAAN_CONF_OPTS += $(call qstrip,$(BR2_PACKAGE_FFMPEG_CANAAN_EXTRACONF))
@@ -53,6 +57,7 @@ define FFMPEG_CANAAN_CONFIGURE_CMDS
 		--disable-doc \
 		--enable-audio3a \
 		--enable-indev=v4l2 \
+		--enable-librtmp \
 	)
 endef
 

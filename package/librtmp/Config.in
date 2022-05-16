@@ -1,0 +1,5 @@
+config BR2_PACKAGE_LIBRTMP
+	bool "librtmp"
+    depends on BR2_riscv
+	help
+	  librtmp
