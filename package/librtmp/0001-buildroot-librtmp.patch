@@ -1,8 +1,12 @@
-Index: b/librtmp/dh.h
-===================================================================
---- a/librtmp/dh.h
-+++ b/librtmp/dh.h
-@@ -166,6 +166,8 @@ static int MDH_compute_key(uint8_t *secr
+diff -uNr librtmp/.applied_patches_list librtmp_patch/.applied_patches_list
+--- librtmp/.applied_patches_list	2022-05-16 07:57:39.293694173 +0800
++++ librtmp_patch/.applied_patches_list	2022-05-16 07:55:59.577091606 +0800
+@@ -0,0 +1 @@
++/home/sunxiaopeng/src/work/github/k510_buildroot/package/librtmp//0001-buildroot-librtmp.patch
+diff -uNr librtmp/librtmp/dh.h librtmp_patch/librtmp/dh.h
+--- librtmp/librtmp/dh.h	2015-12-24 03:09:27.000000000 +0800
++++ librtmp_patch/librtmp/dh.h	2022-05-16 07:55:59.577091606 +0800
+@@ -166,6 +166,8 @@
  #else /* USE_OPENSSL */
  #include <openssl/bn.h>
  #include <openssl/dh.h>
@@ -11,11 +15,10 @@ Index: b/librtmp/dh.h
  
  typedef BIGNUM * MP_t;
  #define MP_new(m)	m = BN_new()
-Index: b/librtmp/handshake.h
-===================================================================
---- a/librtmp/handshake.h
-+++ b/librtmp/handshake.h
-@@ -66,12 +66,13 @@ typedef struct arcfour_ctx*	RC4_handle;
+diff -uNr librtmp/librtmp/handshake.h librtmp_patch/librtmp/handshake.h
+--- librtmp/librtmp/handshake.h	2015-12-24 03:09:27.000000000 +0800
++++ librtmp_patch/librtmp/handshake.h	2022-05-16 07:55:59.581091631 +0800
+@@ -66,12 +66,13 @@
  #include <openssl/sha.h>
  #include <openssl/hmac.h>
  #include <openssl/rc4.h>
@@ -31,10 +34,9 @@ Index: b/librtmp/handshake.h
  
  typedef RC4_KEY *	RC4_handle;
  #define RC4_alloc(h)	*h = malloc(sizeof(RC4_KEY))
-Index: b/librtmp/hashswf.c
-===================================================================
---- a/librtmp/hashswf.c
-+++ b/librtmp/hashswf.c
+diff -uNr librtmp/librtmp/hashswf.c librtmp_patch/librtmp/hashswf.c
+--- librtmp/librtmp/hashswf.c	2015-12-24 03:09:27.000000000 +0800
++++ librtmp_patch/librtmp/hashswf.c	2022-05-16 07:55:59.581091631 +0800
 @@ -57,10 +57,11 @@
  #include <openssl/sha.h>
  #include <openssl/hmac.h>
@@ -49,3 +51,14 @@ Index: b/librtmp/hashswf.c
  #endif
  
  extern void RTMP_TLS_Init();
+diff -uNr librtmp/librtmp/Makefile librtmp_patch/librtmp/Makefile
+--- librtmp/librtmp/Makefile	2015-12-24 03:09:27.000000000 +0800
++++ librtmp_patch/librtmp/Makefile	2022-05-16 08:00:18.006582281 +0800
+@@ -115,6 +115,7 @@
+ 	cp librtmp.3 $(MANDIR)/man3
+ 
+ install_so:	librtmp$(SO_EXT)
++	-mkdir -p $(SODIR)
+ 	cp librtmp$(SO_EXT) $(SODIR)
+ 	$(INSTALL_IMPLIB)
+ 	cd $(SODIR); ln -sf librtmp$(SO_EXT) librtmp.$(SOX)
