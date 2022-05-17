@@ -161,7 +161,7 @@ static int read_frame(struct camera_info *camera,unsigned int camera_seq)
     // process_image(&buffers[buf.index]);
     //printf("%s:buf.index(%d)\n",__func__,buf.index);
     EnQueue(f2k_queue,buf.index);
-    //mediactl_set_ae(ISP_F2K_PIPELINE);
+    mediactl_set_ae(ISP_F2K_PIPELINE);
 
     struct drm_buffer *fbuf;
     static struct v4l2_buffer old_buffer;
@@ -238,7 +238,7 @@ static int read_frame1(struct camera_info *camera,unsigned int camera_seq)
     // process_image(&buffers[buf.index]);
     //printf("%s:buf.index1(%d)\n",__func__,buf.index);
     EnQueue(r2k_queue,buf.index);
-    //mediactl_set_ae(ISP_R2K_PIPELINE);
+    mediactl_set_ae(ISP_R2K_PIPELINE);
     struct drm_buffer *fbuf;
     static struct v4l2_buffer old_buffer;
     static int screen_init_flag = 0;
