@@ -1,0 +1,24 @@
+Index: b/libavcodec/libk510_h264.c
+===================================================================
+--- a/libavcodec/libk510_h264.c
++++ b/libavcodec/libk510_h264.c
+@@ -116,6 +116,7 @@ static av_cold int k510_h264_encode_init
+ {
+     libk510_h264Context *pCtx = avctx->priv_data;  
+     EncSettings Cfg;
++    memset(&Cfg,0,sizeof(Cfg));
+ 
+     pCtx->fd_share_memory = open(SHARE_MEMORY_DEV,O_RDWR | O_SYNC);
+     if(pCtx->fd_share_memory < 0)
+Index: b/libavcodec/libk510_jpeg.c
+===================================================================
+--- a/libavcodec/libk510_jpeg.c
++++ b/libavcodec/libk510_jpeg.c
+@@ -105,6 +105,7 @@ static av_cold int k510_jpeg_encode_init
+ {
+     libk510_jpegContext *pCtx = avctx->priv_data;  
+     EncSettings Cfg;
++    memset(&Cfg,0,sizeof(Cfg));
+ 
+     pCtx->fd_share_memory = open(SHARE_MEMORY_DEV,O_RDWR | O_SYNC);
+     if(pCtx->fd_share_memory < 0)

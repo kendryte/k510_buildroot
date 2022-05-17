@@ -1,0 +1,17 @@
+Index: buildroot-2020.02.11/package/libopenssl/libopenssl.mk
+===================================================================
+--- buildroot-2020.02.11.orig/package/libopenssl/libopenssl.mk
++++ buildroot-2020.02.11/package/libopenssl/libopenssl.mk
+@@ -103,6 +103,12 @@ endef
+ 
+ define LIBOPENSSL_INSTALL_STAGING_CMDS
+ 	$(TARGET_MAKE_ENV) $(MAKE) -C $(@D) DESTDIR=$(STAGING_DIR) install
++	cp -rf $(@D)/crypto/hmac/hmac_local.h $(STAGING_DIR)/usr/include/openssl
++	cp -rf $(@D)/crypto/dh/dh_local.h $(STAGING_DIR)/usr/include/openssl
++	cp -rf $(@D)/include/* $(STAGING_DIR)/usr/include/openssl
++
++	cp -rf $(@D)/*.a  $(STAGING_DIR)/lib64/lp64d/
++	cp -rf $(@D)/*.so*  $(STAGING_DIR)/lib64/lp64d/
+ endef
+ 
+ define HOST_LIBOPENSSL_INSTALL_CMDS
