@@ -64,6 +64,7 @@ jobs:
         run: |
           sed -i "s/BR2_JLEVEL=5/BR2_JLEVEL=14/g" configs/$CONF
           rm -rf $CONF
+          rm -rf buildroot-2020.02.11
           make CONF=$CONF
 
       - name: Save image to CI root
