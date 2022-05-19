@@ -27,6 +27,7 @@
 
 #include "uv/unix.h"
 #include <bits/pthreadtypes.h>
+#include <malloc.h>
 #include <pthread.h>
 #include <signal.h>
 #include <stdint.h>
@@ -524,7 +525,7 @@ void stdin_read(uv_stream_t *stream, ssize_t nread, const uv_buf_t* buf)
   if (flag_send_pic == 0) {
     // do not send
     ptr = 0;
-    return;
+    goto clean;
   }
   uint8_t* pic_nv12_buffer = pic_write_buffer[pic_write_buffer_select] + 6;
   size_t lack = PIC_YUV_SIZE - ptr;
@@ -545,18 +546,15 @@ void stdin_read(uv_stream_t *stream, ssize_t nread, const uv_buf_t* buf)
     memcpy(pic_nv12_buffer + ptr, buf->base, nread);
     ptr += nread;
   }
-
+clean:
   if (buf->base) {
     free(buf->base);
   }
 }
 
 void idle_mock_stdin (uv_idle_t* idle) {
-  char stack_dirty[PIC_YUV_SIZE];
-  uv_buf_t buf = {
-    .base = stack_dirty,
-    .len = 4
-  };
+  char *stack_dirty = malloc(PIC_YUV_SIZE);
+  uv_buf_t buf = {.base = stack_dirty, .len = PIC_YUV_SIZE};
   stdin_read(NULL, PIC_YUV_SIZE, &buf);
 }
 
