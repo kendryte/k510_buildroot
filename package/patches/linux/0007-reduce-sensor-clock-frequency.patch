@@ -1,0 +1,116 @@
+From 696b50cdf62ac4aaae845d66f29f6df03f885bc3 Mon Sep 17 00:00:00 2001
+From: goatxiu <liujiaan@canaan-creative.com>
+Date: Thu, 19 May 2022 16:11:16 +0800
+Subject: [PATCH] reduce sensor clock frequency
+
+---
+ .../i2c/soc_camera/canaanchip/imx219_0.c      | 43 +++++++++----------
+ 1 file changed, 21 insertions(+), 22 deletions(-)
+
+diff --git a/drivers/media/i2c/soc_camera/canaanchip/imx219_0.c b/drivers/media/i2c/soc_camera/canaanchip/imx219_0.c
+index 745e76c0..0554d87c 100755
+--- a/drivers/media/i2c/soc_camera/canaanchip/imx219_0.c
++++ b/drivers/media/i2c/soc_camera/canaanchip/imx219_0.c
+@@ -33,7 +33,7 @@
+ 
+ /* IMX219 supported geometry */
+ #define IMX219_TABLE_END				0xffff
+-#define IMX219_ANALOGUE_GAIN_MULTIPLIER	32 //256
++#define IMX219_ANALOGUE_GAIN_MULTIPLIER	256 //256
+ #define IMX219_ANALOGUE_GAIN_MIN		(1 * IMX219_ANALOGUE_GAIN_MULTIPLIER)
+ #define IMX219_ANALOGUE_GAIN_MAX		(11 * IMX219_ANALOGUE_GAIN_MULTIPLIER)
+ #define IMX219_ANALOGUE_GAIN_DEFAULT	(2 * IMX219_ANALOGUE_GAIN_MULTIPLIER)
+@@ -43,8 +43,8 @@
+ #define IMX219_DIGITAL_GAIN_MAX			43663
+ #define IMX219_DIGITAL_GAIN_DEFAULT		256
+ 
+-#define IMX219_DIGITAL_EXPOSURE_MIN		0
+-#define IMX219_DIGITAL_EXPOSURE_MAX		4095
++#define IMX219_DIGITAL_EXPOSURE_MIN		1
++#define IMX219_DIGITAL_EXPOSURE_MAX		1965
+ #define IMX219_DIGITAL_EXPOSURE_DEFAULT	1000//1575
+ 
+ #define IMX219_EXP_LINES_MARGIN			4
+@@ -54,7 +54,7 @@
+ #define IMX219_LANES					2
+ 
+ static const s64 link_freq_menu_items[] = {
+-	456000000,
++	408000000,
+ };
+ 
+ struct imx219_reg {
+@@ -306,21 +306,20 @@ static const struct imx219_reg imx219_init_tab_1080_1920_30fps[] = {
+ 	{0x012a, 0x18}, //REG_EXCK_FREQ_MSB
+ 	{0x012b, 0x00}, //REG_EXCK_FREQ_LSB
+ 
+-	{0x0160, 0x08},//FRM_LENGTH_A[15:8] 1166
+-	{0x0161, 0x98},//FRM_LENGTH_A[7:0] 1166     
+-	{0x0162, 0x0d},//0x0d},//LINE_LENGTH_A[15:8] 3476
+-	{0x0163, 0x94},//0x78},//LINE_LENGTH_A[7:0]
++	{0x0160, 0x07},//FRM_LENGTH_A[15:8] 1979,  frame lines: 1979, Vblank minimum: 49, frame lines minimum: 1920 + 59 = 1979 (0x07bb)
++	{0x0161, 0xb1},//FRM_LENGTH_A[7:0]    
++	{0x0162, 0x0d},//LINE_LENGTH_A[15:8] 3453,  line pixels: 3453, Hblank minimum value: 173, line pixel minimum = 3280+173 =  3453  (0x0d7d)
++	{0x0163, 0x81},//LINE_LENGTH_A[7:0]
+ 
+-	{0x0164, 0x02}, //X_ADD_STA_A[11:8]    680 + 1080 - 1                      3476 * 2200
+-	{0x0165, 0xb4},//X_ADD_STA_A[7:0] 
+-	{0x0166, 0x06}, //X_ADD_END_A[11:8]  1771
+-	{0x0167, 0xeb}, //X_ADD_END_A[7:0] 
++	{0x0164, 0x04}, //X_ADD_STA_A[11:8]    (3280-1080)/2=1100, x start:  0x044C
++	{0x0165, 0x4c},//X_ADD_STA_A[7:0] 
++	{0x0166, 0x08}, //X_ADD_END_A[11:8]  	1100+1080-1=2179, x end:   0x0883
++	{0x0167, 0x83}, //X_ADD_END_A[7:0] 
+ 	
+-	//
+-	{0x0168, 0x01},//Y_ADD_STA_A[11:8] 
+-	{0x0169, 0x00},//Y_ADD_STA_A[7:0] 
+-	{0x016a, 0x08},//Y_ADD_END_A[11:8]  		2175	
+-	{0x016b, 0x7f},//Y_ADD_END_A[7:0] 
++	{0x0168, 0x01},//Y_ADD_STA_A[11:8] , 	 (2464-1920)/2=272, y start: 0x0110
++	{0x0169, 0x10},//Y_ADD_STA_A[7:0] 
++	{0x016a, 0x08},//Y_ADD_END_A[11:8]  	272+1920-1=2191, y end: 0x088F	
++	{0x016b, 0x8f},//Y_ADD_END_A[7:0] 
+ 	//
+ 	{0x016c, 0x04},//x_output_size[11:8] 
+ 	{0x016d, 0x38},//x_output_size[7:0]
+@@ -364,14 +363,14 @@ static const struct imx219_reg imx219_init_tab_1080_1920_30fps[] = {
+ 	//{0x01A3,0x00), //LSC_TUNING_B_A[7:0]
+ 	//{0x01A4,0x00), //LSC_KNOT_POINT_FORMAT_A
+ 	//
+-	{0x0301, 0x05},//VTPXCK_DIV
++	{0x0301, 0x04},//VTPXCK_DIV
+ 	{0x0303, 0x01},//VTSYCK_DIV
+ 	//
+ 	{0x0304, 0x03},//PREPLLCK_VT_DIV
+ 	{0x0305, 0x03},//PREPLLCK_OP_DIV
+ 	//
+ 	{0x0306, 0x00},//PLL_VT_MPY[10:8]
+-	{0x0307, 0x48},//0x25},//PLL_VT_MPY[7:0] 0x39
++	{0x0307, 0x33},//0x25},//PLL_VT_MPY[7:0] 0x39
+ 
+ 	//
+ 	//{0x0309, 0x00},//OPPXCK_DIV
+@@ -379,7 +378,7 @@ static const struct imx219_reg imx219_init_tab_1080_1920_30fps[] = {
+ 	{0x030b, 0x01},//OPSYCK_DIV
+ 	//
+ 	{0x030c, 0x00},//PLL_OP_MPY[10:8] 
+-	{0x030d, 0x40},//PLL_OP_MPY[7:0] 0x72  0x56  0x51  0x40
++	{0x030d, 0x2c},//PLL_OP_MPY[7:0] 0x72  0x56  0x51  0x40
+ 	//
+ 	{0x0624, 0x07},
+ 	{0x0625, 0x80},
+@@ -685,8 +684,8 @@ static const struct imx219_mode supported_modes[] = {
+ 			.numerator = 10000,
+ 			.denominator = 300000,
+ 		},
+-		.hts_def = 0x0d78 - IMX219_EXP_LINES_MARGIN,
+-		.vts_def = 0x0898,
++		.hts_def = 0x0d81 - IMX219_EXP_LINES_MARGIN,
++		.vts_def = 0x07b1,
+ 		.reg_list = imx219_init_tab_1080_1920_30fps,
+ 	},
+ 	{
+-- 
+2.36.1
+
