@@ -22,27 +22,17 @@
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-/******************************************************************************
-  File Name     : enc_interface.h
-  Version       : Initial Draft
-  Author        : 
-  Created       : 
-  Description   : 
-  History       :
-  1.Date        : 
-    Author      :
-    Modification: Created file
 
-******************************************************************************/
 #pragma once
 
 #include <string.h>
+#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define VENC_MAX_CHANNELS  (8)
+#define VENC_MAX_CHANNELS (8)
 
 typedef void* EncoderHandle;
 
@@ -59,6 +49,7 @@ typedef enum
     I_SLICE,
     IDR_SLICE
 }EncSliceType;
+
 
 typedef enum
 {
@@ -83,6 +74,36 @@ typedef enum
     ASPECT_RATIO_NONE
 } AVC_AspectRatio;
 
+typedef struct
+{
+    unsigned int          s32X;
+    unsigned int          s32Y;
+    unsigned int          u32Width;
+    unsigned int          u32Height;
+}RECT_S;
+
+typedef struct 
+{
+    unsigned int          uIndex;//index[0-7]
+    bool                  bEnable;
+    int                   uQpValue;
+    RECT_S                stRect;
+}EncROICfg;
+
+typedef enum
+{
+    ROI_QP_TABLE_NONE,
+    ROI_QP_TABLE_RELATIVE,//[-32,31],6 LSBs effective
+    ROI_QP_TABLE_ABSOLUTE,//[0,51],6 LSBs effective
+} ROICtrlMode;
+
+typedef enum
+{
+  GDR_VERTICAL = 0,
+  GDR_HORIZONTAL ,
+  GDR_CTRLMAX,
+}GDRCtrlMode;
+
 typedef enum
 {
     SECTION_SEI_PREFIX_FLAG = 0x80000000, /*< this section data is from a SEI prefix */
@@ -95,20 +116,27 @@ typedef enum
 
 typedef struct
 {
-    int channel;  //encode channel number
-    unsigned short width;
-    unsigned short height;
-    unsigned char FrameRate;
-    RateCtrlMode rcMode;
-    unsigned int BitRate;
-    unsigned int MaxBitRate;
-    int SliceQP;  //auto: -1, or from 0 to 51
-    AVC_Profile profile;
-    unsigned int level;  //1 .. 51, 51 is 5.1
-    AVC_AspectRatio AspectRatio;
-    int FreqIDR; //default value  : -1
-    unsigned int gopLen;
-}EncSettings;
+    int                       channel;  //encode channel number
+    unsigned short            width;
+    unsigned short            height;
+    unsigned char             FrameRate;
+    RateCtrlMode              rcMode;
+    unsigned int              BitRate;
+    unsigned int              MaxBitRate;
+    int                       SliceQP;  //auto: -1, or from 0 to 51
+    int                       MinQP;//from 0 to SliceQP
+    int                       MaxQP;//from SliceQP to 51
+    AVC_Profile               profile;
+    unsigned int              level;  //1 .. 51, 51 is 5.1
+    AVC_AspectRatio           AspectRatio;
+    int                       FreqIDR; //default value  : -1,IDR:number of frames between two IDR pictures;GDR:refresh period
+    unsigned int              gopLen;  
+    bool                      bEnableGDR;//gdr
+    GDRCtrlMode               gdrMode;
+    bool                      bEnableLTR;//Long Term reference
+
+    ROICtrlMode               roiCtrlMode;
+}EncSettings;	
 
 typedef struct
 {
@@ -125,11 +153,18 @@ typedef struct
     SectionFlags uFlags; /*!< Flags associated with the section; see macro SectionFlags*/
 }StreamSection;
 
+typedef enum 
+{
+    EM_VIDEO_PACKET_UNKOWN = 0,
+    EM_VIDEO_PACKET_IDR,
+    EM_VIDEO_PACKET_P,
+}EncVideoPacketType;
 
 typedef struct
 {
     unsigned char *bufAddr;
     unsigned int bufSize;  
+    EncVideoPacketType packetType;
 }EncOutputStream;
 
 typedef struct
@@ -141,10 +176,17 @@ typedef struct
 }EncOutputStreamSection;
 
 EncoderHandle* VideoEncoder_Create(EncSettings *pCfg);
+EncStatus      VideoEncoder_SetRoiCfg(EncoderHandle *hEnc,const EncROICfg*pEncRoiCfg);
+
+EncStatus      VideoEncoder_SetLongTerm(EncoderHandle *hEnc);
+EncStatus      VideoEncoder_UseLongTerm(EncoderHandle *hEnc);
+
 
 EncStatus VideoEncoder_Destroy(EncoderHandle *hEnc);
 
 EncStatus VideoEncoder_EncodeOneFrame(EncoderHandle *hEnc, EncInputFrame *input);
+
+EncStatus VideoEncoder_EncodeOneFrame_Async(EncoderHandle *hEnc, EncInputFrame *input, void (*callback)());
 
 EncStatus VideoEncoder_GetStream(EncoderHandle *hEnc, EncOutputStream *output);
 

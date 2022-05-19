@@ -4,6 +4,7 @@ config BR2_PACKAGE_FFMPEG_CANAAN
 	depends on BR2_PACKAGE_VIDEO_LIB
 	depends on BR2_PACKAGE_VENC_LIB
 	depends on BR2_PACKAGE_MEDIACTL_LIB
+	depends on BR2_PACKAGE_LIBRTMP
 	help
 	  k510 ffmpeg app
 
