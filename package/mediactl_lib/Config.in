@@ -2,6 +2,5 @@
 config BR2_PACKAGE_MEDIACTL_LIB
 	bool "mediactl_lib"
 	depends on BR2_riscv
-	select BR2_PACKAGE_LIBUV
 	help
 	  k510 mediactl lib for demo
