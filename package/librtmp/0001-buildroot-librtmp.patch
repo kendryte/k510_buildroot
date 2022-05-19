@@ -1,0 +1,64 @@
+diff -uNr librtmp/.applied_patches_list librtmp_patch/.applied_patches_list
+--- librtmp/.applied_patches_list	2022-05-16 07:57:39.293694173 +0800
++++ librtmp_patch/.applied_patches_list	2022-05-16 07:55:59.577091606 +0800
+@@ -0,0 +1 @@
++/home/sunxiaopeng/src/work/github/k510_buildroot/package/librtmp//0001-buildroot-librtmp.patch
+diff -uNr librtmp/librtmp/dh.h librtmp_patch/librtmp/dh.h
+--- librtmp/librtmp/dh.h	2015-12-24 03:09:27.000000000 +0800
++++ librtmp_patch/librtmp/dh.h	2022-05-16 07:55:59.577091606 +0800
+@@ -166,6 +166,8 @@
+ #else /* USE_OPENSSL */
+ #include <openssl/bn.h>
+ #include <openssl/dh.h>
++#include <openssl/ossl_typ.h>
++#include <openssl/dh_local.h>
+ 
+ typedef BIGNUM * MP_t;
+ #define MP_new(m)	m = BN_new()
+diff -uNr librtmp/librtmp/handshake.h librtmp_patch/librtmp/handshake.h
+--- librtmp/librtmp/handshake.h	2015-12-24 03:09:27.000000000 +0800
++++ librtmp_patch/librtmp/handshake.h	2022-05-16 07:55:59.581091631 +0800
+@@ -66,12 +66,13 @@
+ #include <openssl/sha.h>
+ #include <openssl/hmac.h>
+ #include <openssl/rc4.h>
++#include <openssl/hmac_local.h>
+ #if OPENSSL_VERSION_NUMBER < 0x0090800 || !defined(SHA256_DIGEST_LENGTH)
+ #error Your OpenSSL is too old, need 0.9.8 or newer with SHA256
+ #endif
+-#define HMAC_setup(ctx, key, len)	HMAC_CTX_init(&ctx); HMAC_Init_ex(&ctx, key, len, EVP_sha256(), 0)
++#define HMAC_setup(ctx, key, len)	HMAC_CTX_reset(&ctx); HMAC_Init_ex(&ctx, key, len, EVP_sha256(), 0)
+ #define HMAC_crunch(ctx, buf, len)	HMAC_Update(&ctx, buf, len)
+-#define HMAC_finish(ctx, dig, dlen)	HMAC_Final(&ctx, dig, &dlen); HMAC_CTX_cleanup(&ctx)
++#define HMAC_finish(ctx, dig, dlen)	HMAC_Final(&ctx, dig, &dlen); HMAC_CTX_free(&ctx)
+ 
+ typedef RC4_KEY *	RC4_handle;
+ #define RC4_alloc(h)	*h = malloc(sizeof(RC4_KEY))
+diff -uNr librtmp/librtmp/hashswf.c librtmp_patch/librtmp/hashswf.c
+--- librtmp/librtmp/hashswf.c	2015-12-24 03:09:27.000000000 +0800
++++ librtmp_patch/librtmp/hashswf.c	2022-05-16 07:55:59.581091631 +0800
+@@ -57,10 +57,11 @@
+ #include <openssl/sha.h>
+ #include <openssl/hmac.h>
+ #include <openssl/rc4.h>
+-#define HMAC_setup(ctx, key, len)	HMAC_CTX_init(&ctx); HMAC_Init_ex(&ctx, (unsigned char *)key, len, EVP_sha256(), 0)
++#include <openssl/hmac_local.h>
++#define HMAC_setup(ctx, key, len)	HMAC_CTX_reset(&ctx); HMAC_Init_ex(&ctx, (unsigned char *)key, len, EVP_sha256(), 0)
+ #define HMAC_crunch(ctx, buf, len)	HMAC_Update(&ctx, (unsigned char *)buf, len)
+ #define HMAC_finish(ctx, dig, dlen)	HMAC_Final(&ctx, (unsigned char *)dig, &dlen);
+-#define HMAC_close(ctx)	HMAC_CTX_cleanup(&ctx)
++#define HMAC_close(ctx)	HMAC_CTX_free(&ctx)
+ #endif
+ 
+ extern void RTMP_TLS_Init();
+diff -uNr librtmp/librtmp/Makefile librtmp_patch/librtmp/Makefile
+--- librtmp/librtmp/Makefile	2015-12-24 03:09:27.000000000 +0800
++++ librtmp_patch/librtmp/Makefile	2022-05-16 08:00:18.006582281 +0800
+@@ -115,6 +115,7 @@
+ 	cp librtmp.3 $(MANDIR)/man3
+ 
+ install_so:	librtmp$(SO_EXT)
++	-mkdir -p $(SODIR)
+ 	cp librtmp$(SO_EXT) $(SODIR)
+ 	$(INSTALL_IMPLIB)
+ 	cd $(SODIR); ln -sf librtmp$(SO_EXT) librtmp.$(SOX)
