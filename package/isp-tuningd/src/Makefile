@@ -5,7 +5,7 @@ TARGET = isp-tuningd
 OBJS = isp-tuningd.c
 
 all:
-	${CC} ${OBJS} -Wall -lpthread -luv -lvenc -o ${TARGET}
+	${CC} ${OBJS} -Wall -lpthread -luv -lvenc -g -o ${TARGET}
 	@echo "Compile done."
 clean:
 	@rm -f *.o ${TARGET}

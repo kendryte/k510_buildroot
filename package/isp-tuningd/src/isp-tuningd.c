@@ -614,7 +614,7 @@ int main(int argc, char *argv[]) {
   assert(mem_yuv_logic_addr != MAP_FAILED);
 
   // open encoder
-  const EncSettings encoder_settings = {
+  EncSettings encoder_settings = {
       .channel = 0, // TODO
       .width = PIC_YUV_WIDTH,
       .height = PIC_YUV_HEIGHT,
