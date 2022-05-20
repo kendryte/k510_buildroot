@@ -34,7 +34,6 @@ define MEDIACTL_LIB_INSTALL_TARGET_CMDS
 	$(INSTALL) -D -m 0755 $(@D)/v4l2_test/v4l2_test.out $(TARGET_DIR)/app/mediactl_lib/
 	$(INSTALL) -D -m 0755 $(@D)/v4l2_test/video_test.conf $(TARGET_DIR)/app/mediactl_lib/
 	$(INSTALL) -D -m 0755 $(@D)/v4l2_drm_isptool/v4l2_drm_isptool.out $(TARGET_DIR)/app/mediactl_lib/
-	$(INSTALL) -D -m 0755 $(@D)/v4l2_drm_isptool/isp-tuningd $(TARGET_DIR)/app/mediactl_lib/
 endef
 
 $(eval $(generic-package))
