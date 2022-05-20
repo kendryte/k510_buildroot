@@ -520,16 +520,11 @@ void stdin_read(uv_stream_t *stream, ssize_t nread, const uv_buf_t* buf)
     return;
   }
   static uint32_t ptr = 0;
-  if (flag_send_pic == 0) {
-    // do not send
-    ptr = 0;
-    goto clean;
-  }
   uint8_t* pic_nv12_buffer = pic_write_buffer[pic_write_buffer_select] + 6;
   size_t lack = PIC_YUV_SIZE - ptr;
   if (nread >= lack) {
     static time_t last_time = 0;
-    if (time(NULL) - last_time >= 1) {
+    if (flag_send_pic && time(NULL) - last_time >= 1) {
       memcpy(pic_nv12_buffer + ptr, buf->base, lack);
       // broadcast
       broadcast(pic_write_buffer[pic_write_buffer_select], sizeof(pic_write_buffer[0]), 1);
@@ -538,13 +533,21 @@ void stdin_read(uv_stream_t *stream, ssize_t nread, const uv_buf_t* buf)
       fflush(stdout);
       last_time = time(NULL);
     }
+    // reset
     pic_write_buffer_select ^= 1;
-    ptr = 0;
+    pic_nv12_buffer = pic_write_buffer[pic_write_buffer_select] + 6;
+    // drop on too much data, align PIC_YUV_SIZE
+    ptr = (nread - lack) % PIC_YUV_SIZE;
+    if (flag_send_pic) {
+      memcpy(pic_nv12_buffer, buf->base + (nread - ptr), ptr);
+    }
   } else {
-    memcpy(pic_nv12_buffer + ptr, buf->base, nread);
+    if (flag_send_pic) {
+      memcpy(pic_nv12_buffer + ptr, buf->base, nread);
+    }
     ptr += nread;
   }
-clean:
+
   if (buf->base) {
     free(buf->base);
   }
