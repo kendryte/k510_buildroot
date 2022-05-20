@@ -186,6 +186,8 @@ EncStatus VideoEncoder_Destroy(EncoderHandle *hEnc);
 
 EncStatus VideoEncoder_EncodeOneFrame(EncoderHandle *hEnc, EncInputFrame *input);
 
+EncStatus VideoEncoder_EncodeOneFrame_Async(EncoderHandle *hEnc, EncInputFrame *input, void (*callback)());
+
 EncStatus VideoEncoder_GetStream(EncoderHandle *hEnc, EncOutputStream *output);
 
 EncStatus VideoEncoder_GetStreamSection(EncoderHandle *hEnc, EncOutputStreamSection *output);
