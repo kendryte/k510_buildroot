@@ -1,0 +1,8 @@
+
+config BR2_PACKAGE_ISP_TUNINGD
+	bool "isp-tuningd"
+	depends on BR2_riscv
+	select BR2_PACKAGE_VENC_LIB
+	select BR2_PACKAGE_LIBUV
+	help
+	  k510 ISP tuning daemon

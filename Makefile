@@ -30,7 +30,9 @@ BR2_DL_DIR ?= $(BRW_ROOT)/dl
 define DOWNLOAD
 	set -e;\
 	if [ ! -d $(BR2_DL_DIR) ]; then \
-		[ -f pkg-download/dl.tar.gz ] && tar -zxf pkg-download/dl.tar.gz ;\
+		if [ -f pkg-download/dl.tar.gz ]; then  \
+			tar -zxf pkg-download/dl.tar.gz || { echo -e "\n\nfile pkg-download/dl.tar.gz is error,please delete .\n";exit 1; }  ; \
+		fi;	\
 		mkdir -p $(BR2_DL_DIR); \
 	fi; \
 	if [ ! -f $(BRW_FILE) ]; then \
@@ -104,14 +106,14 @@ clean:
 
 dl:
 	rm -rf pkg-download/dl.tar.gz;
-	wget -c  https://github.com/kendryte/k510_buildroot/releases/download/v1.5/dl.tar.gz  -O pkg-download/dl.tar.gz;
+	wget -c  https://github.com/kendryte/k510_buildroot/releases/download/v1.6/dl.tar.gz  -O pkg-download/dl.tar.gz;
 	tar -zxf pkg-download/dl.tar.gz;
-	mkdir -p  dl/ai/; wget -c https://github.com/kendryte/k510_buildroot/releases/download/v1.5/ai_kmodel_data.tar.xz  -O dl/ai/ai_kmodel_data.tar.xz;
+	mkdir -p  dl/ai/; wget -c https://github.com/kendryte/k510_buildroot/releases/download/v1.6/ai_kmodel_data.tar.xz  -O dl/ai/ai_kmodel_data.tar.xz;
 	(set -x;   NNCASE_VER=v1.6.0 ;\
 		NNCASE_SITE=https://github.com/kendryte/nncase/releases/download;\
 		NNCASE_PIP_VD=1.6.0.20220505		;\
 		mkdir -p dl/nncase_linux_runtime;  cd dl/nncase_linux_runtime;		\
-		wget -c $${NNCASE_SITE}/$${NNCASE_VER}/nncase-k510-1.6.0.tgz  ; \
+		wget -c $${NNCASE_SITE}/$${NNCASE_VER}/nncaseruntime-k510-v1.6.1.tgz  ; \
 		wget -c $${NNCASE_SITE}/$${NNCASE_VER}/nncase-$${NNCASE_PIP_VD}-cp310-cp310-manylinux_2_24_x86_64.whl; \
 		wget -c $${NNCASE_SITE}/$${NNCASE_VER}/nncase-$${NNCASE_PIP_VD}-cp36-cp36m-manylinux_2_24_x86_64.whl;\
 		wget -c $${NNCASE_SITE}/$${NNCASE_VER}/nncase-$${NNCASE_PIP_VD}-cp37-cp37m-manylinux_2_24_x86_64.whl;\

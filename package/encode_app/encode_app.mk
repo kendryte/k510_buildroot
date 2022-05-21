@@ -20,8 +20,11 @@ endef
 define ENCODE_APP_INSTALL_TARGET_CMDS
 	$(INSTALL) -D -m 0755 $(@D)/encode_app $(TARGET_DIR)/app/encode_app/encode_app
 	$(INSTALL) -D -m 0755 $(@D)/video_sample.conf $(TARGET_DIR)/app/encode_app/video_sample.conf
+	$(INSTALL) -D -m 0755 $(@D)/video_sample_720p60.conf $(TARGET_DIR)/app/encode_app/video_sample_720p60.conf
+	$(INSTALL) -D -m 0755 $(@D)/video_sample_vga480p75.conf $(TARGET_DIR)/app/encode_app/video_sample_vga480p75.conf
 	$(INSTALL) -D -m 0755 $(@D)/imx219_0.conf $(TARGET_DIR)/app/encode_app/imx219_0.conf
 	$(INSTALL) -D -m 0755 $(@D)/imx219_1.conf $(TARGET_DIR)/app/encode_app/imx219_1.conf
+	$(INSTALL) -D -m 0755 $(@D)/roi_1920x1080.conf $(TARGET_DIR)/app/encode_app/roi_1920x1080.conf
 endef
 
 $(eval $(generic-package))
