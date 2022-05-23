@@ -892,7 +892,7 @@ error_video:
 }
 /*
  * isp_fbc_init - FBC module initialization.
- * @isp: Device pointer specific to the OMAP3 ISP.
+ * @isp: Device pointer.
  *
  * TODO: Get the initialisation values from platform data.
  *
@@ -919,7 +919,7 @@ int isp_fbc_init(struct isp_device *isp)
 }
 /*
  * isp_fbc_cleanup - FBC module cleanup.
- * @isp: Device pointer specific to the OMAP3 ISP.
+ * @isp: Device pointer.
  */
 void isp_fbc_cleanup(struct isp_device *isp)
 {

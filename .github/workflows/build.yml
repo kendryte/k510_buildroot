@@ -3,8 +3,6 @@ name: Build CRB
 on:
   pull_request:
     branches:
-      - develop
-      - master
       - main
       - dev
 
@@ -22,7 +20,7 @@ jobs:
   build_image:
     name: Build
     runs-on: [self-hosted, k510_buildroot]
-    timeout-minutes: 60
+    timeout-minutes: 45
     container:
       image: ai.b-bug.org:5000/k510_sdk_github
       env:
@@ -42,7 +40,8 @@ jobs:
         run: |
           test -f toolchain/nds64le-linux-glibc-v5d.txz || wget -c https://ai.b-bug.org/k510_buildroot/toolchain/nds64le-linux-glibc-v5d.txz -O toolchain/nds64le-linux-glibc-v5d.txz
           test -f toolchain/nds64le-elf-mculib-v5d.txz || wget -c https://ai.b-bug.org/k510_buildroot/toolchain/nds64le-elf-mculib-v5d.txz -O toolchain/nds64le-elf-mculib-v5d.txz          
-      - name: Download package
+      
+      - name: Download cache package
         run: |
           test -f pkg-download/dl.tar.gz && rm pkg-download/dl.tar.gz
           wget -qc https://ai.b-bug.org/k510_buildroot/pkg-download/dl.tar.gz -O pkg-download/dl.tar.gz
@@ -50,8 +49,8 @@ jobs:
           md5sum pkg-download/dl.tar.gz
           test -d dl_bak && rm -rf dl_bak
           test -d dl && mv dl dl_bak
-          tar -xvf pkg-download/dl.tar.gz
-          test -d dl/ai/ && mkdir -p dl/ai/
+          tar -xf pkg-download/dl.tar.gz
+          test -d dl/ai/ || mkdir -p dl/ai/
           wget -qc https://ai.b-bug.org/k510_buildroot/pkg-download/ai_kmodel_data.tar.xz -O dl/ai/ai_kmodel_data.tar.xz
           echo "ai_kmodel_data.tar.xz file md5 check"
           md5sum dl/ai/ai_kmodel_data.tar.xz
@@ -62,9 +61,10 @@ jobs:
         run: |
           sed -i "s/BR2_JLEVEL=5/BR2_JLEVEL=14/g" configs/$CONF
           rm -rf $CONF
+          rm -rf buildroot-*
           make CONF=$CONF
 
-      - name: Save image to CI root
+      - name: Save image to CI cache
         run: |
           export HW=`echo ${{ matrix.cfg }}|awk -F '_' '{print $1"_"$3"_"$4}'`
           export SAVE_DIR=$PULL_REQUEST_ID"_"$GITHUB_RUN_ID
@@ -92,7 +92,7 @@ jobs:
   load_image:
     name: Load
     needs: build_image
-    timeout-minutes: 10
+    timeout-minutes: 5
     runs-on: [self-hosted, k510_buildroot]
     container:
       image: ai.b-bug.org:5000/k510_sdk_github
