@@ -69,14 +69,12 @@ jobs:
       - name: Save image to CI cache
         run: |
           export HW=`echo ${{ matrix.cfg }}|awk -F '_' '{print $1"_"$3"_"$4}'`
-          export SAVE_DIR=$PULL_REQUEST_ID"_"$GITHUB_RUN_ID
           echo $HW
-          echo $SAVE_DIR
           VER=$(cat $CONF/target/etc/version/release_version | grep ".*CST-github-pull-request" | sed 's/\(.*\)CST-github-pull-request/\1/g') || exit 1
           echo $VER
-          mkdir -p $CI_ROOT/$HW/$SAVE_DIR/
-          cp -r $CONF/images/* $CI_ROOT/$HW/$SAVE_DIR/
-          cp -r $CONF/target/etc/version/release_version $CI_ROOT/$HW/$SAVE_DIR/
+          mkdir -p $CI_ROOT/$VER/$HW/
+          cp -r $CONF/images/* $CI_ROOT/$VER/$HW/
+          cp -r $CONF/target/etc/version/release_version $CI_ROOT/$VER/$HW/
 
       - name: Save image to TFTP
         run: |
