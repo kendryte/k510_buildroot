@@ -1,0 +1,28 @@
+Index: b/libavcodec/libk510_h264.c
+===================================================================
+--- a/libavcodec/libk510_h264.c
++++ b/libavcodec/libk510_h264.c
+@@ -173,6 +173,9 @@ static av_cold int k510_h264_encode_init
+     Cfg.gopLen = pCtx->gop_size;
+     Cfg.FrameRate = pCtx->framerate;
+     Cfg.AspectRatio = pCtx->ar; 
++    Cfg.MinQP       = 0;//from 0 to SliceQP
++    Cfg.MaxQP    = 51;//from SliceQP to 51
++    Cfg.roiCtrlMode = ROI_QP_TABLE_NONE;
+     printf("Encoder Settings:\n");
+     printf("  width           : %d\n", Cfg.width);
+     printf("  height          : %d\n", Cfg.height);
+Index: b/libavcodec/libk510_jpeg.c
+===================================================================
+--- a/libavcodec/libk510_jpeg.c
++++ b/libavcodec/libk510_jpeg.c
+@@ -137,6 +137,9 @@ static av_cold int k510_jpeg_encode_init
+     Cfg.level = 42;
+     Cfg.FreqIDR = 25;
+     Cfg.gopLen = 25;
++    Cfg.MinQP       = 0;//from 0 to SliceQP
++    Cfg.MaxQP    = 51;//from SliceQP to 51
++    Cfg.roiCtrlMode = ROI_QP_TABLE_NONE;
+     printf("Encoder Settings:\n");
+     printf("  width           : %d\n", Cfg.width);
+     printf("  height          : %d\n", Cfg.height);

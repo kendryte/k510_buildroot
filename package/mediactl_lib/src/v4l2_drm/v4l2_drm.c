@@ -57,6 +57,10 @@ static char 	*video_cfg_file = "video_drm.cfg";
 #define FORCED_FIELD  V4L2_FIELD_ANY
 #define VIDEO_NAME    "/dev/video3"
 static int verbose = 0;
+
+static int isp_ae_status = 0;
+//static int r_2k_status = 0;
+
 #define pr_debug(fmt, arg...) \
     if (verbose) fprintf(stderr, fmt, ##arg)
 
@@ -161,7 +165,11 @@ static int read_frame(struct camera_info *camera,unsigned int camera_seq)
     // process_image(&buffers[buf.index]);
     //printf("%s:buf.index(%d)\n",__func__,buf.index);
     EnQueue(f2k_queue,buf.index);
-    //mediactl_set_ae(ISP_F2K_PIPELINE);
+    if(isp_ae_status == 1 || isp_ae_status == 3)
+    {
+        mediactl_set_ae(ISP_F2K_PIPELINE);
+    }
+    
 
     struct drm_buffer *fbuf;
     static struct v4l2_buffer old_buffer;
@@ -238,7 +246,12 @@ static int read_frame1(struct camera_info *camera,unsigned int camera_seq)
     // process_image(&buffers[buf.index]);
     //printf("%s:buf.index1(%d)\n",__func__,buf.index);
     EnQueue(r2k_queue,buf.index);
-    //mediactl_set_ae(ISP_R2K_PIPELINE);
+
+    if(isp_ae_status == 2 || isp_ae_status == 3)
+    {
+        mediactl_set_ae(ISP_R2K_PIPELINE);
+    }
+
     struct drm_buffer *fbuf;
     static struct v4l2_buffer old_buffer;
     static int screen_init_flag = 0;
@@ -721,17 +734,19 @@ static void usage(FILE *fp, int argc, char **argv)
          "Version 1.3\n"
          "Options:\n"
          "-f | --device cfg name   Video device cfg name [%s]\n"
+         "-e | --ae config   0 close all, 1 open f-2k ae, 2 open r-2k ae, 3 open all\n"
          "-h | --help          Print this message\n"
          "-v | --verbose       Verbose output\n"
          "",
          argv[0], video_cfg_file);
 }
 
-static const char short_options[] = "f:hv";// 短选项 ：表示带参数
+static const char short_options[] = "f:e:hv:";// 短选项 ：表示带参数
 
 static const struct option //长选项
 long_options[] = {
     { "device_cfg name", required_argument, NULL, 'f' },
+    { "ae config", required_argument, NULL, 'e' },
     { "help",   no_argument,       NULL, 'h' },
     { "verbose", no_argument,      NULL, 'v' },
     { 0, 0, 0, 0 }
@@ -984,6 +999,9 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
 
         switch (c) {
         case 0: /* getopt_long() flag */
+            break;
+        case 'e': 
+            isp_ae_status = atol(optarg);//dev_name = ;
             break;
 
         case 'f':

@@ -102,5 +102,5 @@ ntpdate  ntp.aliyun.com >/dev/null 2>&1 &
 /app/dsp_log/dsp_log &
 
 cd /app/mediactl_lib/
-./v4l2_drm.out -f video_drm_1080x1920.conf &
+./v4l2_drm.out -f video_drm_1080x1920.conf -e 1 &
 cd /
