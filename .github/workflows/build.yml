@@ -3,14 +3,12 @@ name: Build CRB
 on:
   pull_request:
     branches:
-      - develop
-      - master
       - main
       - dev
 
 env:
   PULL_REQUEST_ID: ${{ github.event.number }}
-  CI_ROOT_PATH: /data/github-actions
+  CI_ROOT_PATH: /data/k510/github-actions
   TFTP_ROOT_PATH: /data/tftp_server
   NFS_ROOT_PATH: /data/nfs_server
 
@@ -22,7 +20,7 @@ jobs:
   build_image:
     name: Build
     runs-on: [self-hosted, k510_buildroot]
-    timeout-minutes: 60
+    timeout-minutes: 45
     container:
       image: ai.b-bug.org:5000/k510_sdk_github
       env:
@@ -30,29 +28,30 @@ jobs:
         ENV: development
       volumes:
         - /data:/data
+      options: --hostname pull-request
     strategy:
       matrix:
         cfg: ["crb_lp3_v0_1", "crb_lp3_v1_2"]
     steps:
       - uses: actions/checkout@v3
         with:
+          fetch-depth: 0
           clean: false
 
       - name: Install toolchain
         run: |
-          set -x
           test -f toolchain/nds64le-linux-glibc-v5d.txz || wget -c https://ai.b-bug.org/k510_buildroot/toolchain/nds64le-linux-glibc-v5d.txz -O toolchain/nds64le-linux-glibc-v5d.txz
           test -f toolchain/nds64le-elf-mculib-v5d.txz || wget -c https://ai.b-bug.org/k510_buildroot/toolchain/nds64le-elf-mculib-v5d.txz -O toolchain/nds64le-elf-mculib-v5d.txz          
-      - name: Download package
+
+      - name: Download cache package
         run: |
-          set -x
           test -f pkg-download/dl.tar.gz && rm pkg-download/dl.tar.gz
           wget -qc https://ai.b-bug.org/k510_buildroot/pkg-download/dl.tar.gz -O pkg-download/dl.tar.gz
           echo "dl.tar.gz file md5 check"
           md5sum pkg-download/dl.tar.gz
           test -d dl_bak && rm -rf dl_bak
           test -d dl && mv dl dl_bak
-          tar -xvf pkg-download/dl.tar.gz
+          tar -xf pkg-download/dl.tar.gz
           test -d dl/ai/ || mkdir -p dl/ai/
           wget -qc https://ai.b-bug.org/k510_buildroot/pkg-download/ai_kmodel_data.tar.xz -O dl/ai/ai_kmodel_data.tar.xz
           echo "ai_kmodel_data.tar.xz file md5 check"
@@ -64,22 +63,23 @@ jobs:
         run: |
           sed -i "s/BR2_JLEVEL=5/BR2_JLEVEL=14/g" configs/$CONF
           rm -rf $CONF
-          rm -rf buildroot-2020.02.11
+          rm -rf buildroot-*
           make CONF=$CONF
 
-      - name: Save image to CI root
+      - name: Save image to CI cache
         run: |
-          set -x
           export HW=`echo ${{ matrix.cfg }}|awk -F '_' '{print $1"_"$3"_"$4}'`
           export SAVE_DIR=$PULL_REQUEST_ID"_"$GITHUB_RUN_ID
           echo $HW
           echo $SAVE_DIR
-          sudo mkdir -p $CI_ROOT_PATH/k510_buildroot/$HW/$SAVE_DIR/
-          sudo cp -r $CONF/images/* $CI_ROOT_PATH/k510_buildroot/$HW/$SAVE_DIR/
+          VER=$(cat $CONF/target/etc/version/release_version | grep ".*CST-github-pull-request" | sed 's/\(.*\)CST-github-pull-request/\1/g') || exit 1
+          echo $VER
+          mkdir -p $CI_ROOT_PATH/k510_buildroot/$HW/$SAVE_DIR/
+          cp -r $CONF/images/* $CI_ROOT_PATH/k510_buildroot/$HW/$SAVE_DIR/
+          cp -r $CONF/target/etc/version/release_version $DEV_RELEASE/$HW/$SAVE_DIR/
 
       - name: Save image to TFTP
         run: |
-          set -x
           export FILE_SUFFIX=`echo ${{ matrix.cfg }}|awk -F '_' '{print $1"-"$3"_"$4}'`-$PULL_REQUEST_ID-$GITHUB_RUN_ID
           echo $FILE_SUFFIX
           sudo cp $CONF/images/bootm-bbl.img $TFTP_ROOT_PATH/bootm-bbl-$FILE_SUFFIX.img
@@ -87,7 +87,6 @@ jobs:
       
       - name: Save image to NFS
         run: |
-          set -x
           export HW=`echo ${{ matrix.cfg }}|awk -F '_' '{print $1"_"$3"_"$4}'`
           export SAVE_DIR=$PULL_REQUEST_ID"_"$GITHUB_RUN_ID
           echo $HW
@@ -98,7 +97,7 @@ jobs:
   load_image:
     name: Load
     needs: build_image
-    timeout-minutes: 10
+    timeout-minutes: 5
     runs-on: [self-hosted, k510_buildroot]
     container:
       image: ai.b-bug.org:5000/k510_sdk_github
@@ -110,7 +109,6 @@ jobs:
     steps:
       - name: Load image
         run: |
-          set -x
           test -d bin && rm -rf bin
           mkdir ./bin
           wget -qc https://ai.b-bug.org/k510_buildroot/github/ci -O ./bin/ci
