@@ -31,7 +31,7 @@ jobs:
       options: --hostname pull-request
     strategy:
       matrix:
-        cfg: ["crb_lp3_v0_1", "crb_lp3_v1_2"]
+        cfg: ["crb_lp3_v1_2"]
     steps:
       - uses: actions/checkout@v3
         with:
@@ -103,7 +103,7 @@ jobs:
         - /data:/data
     strategy:
       matrix:
-        cfg: ["crb_lp3_v0_1", "crb_lp3_v1_2"]
+        cfg: ["crb_lp3_v1_2"]
     steps:
       - name: Load image
         run: |
