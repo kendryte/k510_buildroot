@@ -61,7 +61,7 @@ jobs:
           rm -rf buildroot-*
           make CONF=$CONF
 
-      - name: Save image to dev release path
+      - name: Save image to release path
         run: |
           export HW=`echo ${{ matrix.cfg }}|awk -F '_' '{print $1"_"$3"_"$4}'`
           echo $HW
