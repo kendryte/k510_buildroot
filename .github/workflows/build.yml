@@ -8,9 +8,9 @@ on:
 
 env:
   PULL_REQUEST_ID: ${{ github.event.number }}
-  CI_ROOT_PATH: /data/k510/github-actions
-  TFTP_ROOT_PATH: /data/tftp_server
-  NFS_ROOT_PATH: /data/nfs_server
+  CI_ROOT: /data/k510/github-actions
+  TFTP_ROOT: /data/tftp_server
+  NFS_ROOT: /data/nfs_server
 
 defaults:
   run:
@@ -31,7 +31,7 @@ jobs:
       options: --hostname pull-request
     strategy:
       matrix:
-        cfg: ["crb_lp3_v0_1", "crb_lp3_v1_2"]
+        cfg: ["crb_lp3_v1_2"]
     steps:
       - uses: actions/checkout@v3
         with:
@@ -69,21 +69,19 @@ jobs:
       - name: Save image to CI cache
         run: |
           export HW=`echo ${{ matrix.cfg }}|awk -F '_' '{print $1"_"$3"_"$4}'`
-          export SAVE_DIR=$PULL_REQUEST_ID"_"$GITHUB_RUN_ID
           echo $HW
-          echo $SAVE_DIR
           VER=$(cat $CONF/target/etc/version/release_version | grep ".*CST-github-pull-request" | sed 's/\(.*\)CST-github-pull-request/\1/g') || exit 1
           echo $VER
-          mkdir -p $CI_ROOT_PATH/k510_buildroot/$HW/$SAVE_DIR/
-          cp -r $CONF/images/* $CI_ROOT_PATH/k510_buildroot/$HW/$SAVE_DIR/
-          cp -r $CONF/target/etc/version/release_version $DEV_RELEASE/$HW/$SAVE_DIR/
+          mkdir -p $CI_ROOT/$VER/$HW/
+          cp -r $CONF/images/* $CI_ROOT/$VER/$HW/
+          cp -r $CONF/target/etc/version/release_version $CI_ROOT/$VER/$HW/
 
       - name: Save image to TFTP
         run: |
           export FILE_SUFFIX=`echo ${{ matrix.cfg }}|awk -F '_' '{print $1"-"$3"_"$4}'`-$PULL_REQUEST_ID-$GITHUB_RUN_ID
           echo $FILE_SUFFIX
-          sudo cp $CONF/images/bootm-bbl.img $TFTP_ROOT_PATH/bootm-bbl-$FILE_SUFFIX.img
-          sudo cp $CONF/images/k510.dtb $TFTP_ROOT_PATH/k510-$FILE_SUFFIX.dtb
+          cp $CONF/images/bootm-bbl.img $TFTP_ROOT/bootm-bbl-$FILE_SUFFIX.img
+          cp $CONF/images/k510.dtb $TFTP_ROOT/k510-$FILE_SUFFIX.dtb
       
       - name: Save image to NFS
         run: |
@@ -91,8 +89,8 @@ jobs:
           export SAVE_DIR=$PULL_REQUEST_ID"_"$GITHUB_RUN_ID
           echo $HW
           echo $SAVE_DIR
-          sudo mkdir -p $NFS_ROOT_PATH/k510_buildroot/$HW/$SAVE_DIR/
-          sudo tar -xf $CONF/images/rootfs.tar -C $NFS_ROOT_PATH/k510_buildroot/$HW/$PULL_REQUEST_ID"_"$GITHUB_RUN_ID
+          mkdir -p $NFS_ROOT/k510_buildroot/$HW/$SAVE_DIR/
+          tar -xf $CONF/images/rootfs.tar -C $NFS_ROOT/k510_buildroot/$HW/$PULL_REQUEST_ID"_"$GITHUB_RUN_ID
 
   load_image:
     name: Load
@@ -105,7 +103,7 @@ jobs:
         - /data:/data
     strategy:
       matrix:
-        cfg: ["crb_lp3_v0_1", "crb_lp3_v1_2"]
+        cfg: ["crb_lp3_v1_2"]
     steps:
       - name: Load image
         run: |
