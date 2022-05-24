@@ -25,7 +25,7 @@ jobs:
       image: ai.b-bug.org:5000/k510_sdk_github
       env:
         CONF: k510_${{ matrix.cfg }}_defconfig
-        ENV: development
+        ENV: pull-request
       volumes:
         - /data:/data
       options: --hostname pull-request
