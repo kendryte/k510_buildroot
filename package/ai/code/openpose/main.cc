@@ -176,6 +176,11 @@ void ai_worker(ai_worker_args ai_args)
             fbuf_argb = &drm_dev.drm_bufs_argb[drm_bufs_argb_index];
             img_argb = cv::Mat(DRM_INPUT_HEIGHT, DRM_INPUT_WIDTH, CV_8UC4, (uint8_t *)fbuf_argb->map);
 
+            if(obj_cnt == 0)
+            {
+                img_argb.setTo(cv::Scalar(0, 0, 0, 0));
+            }
+
             for(uint32_t i = 0; i < obj_cnt; i++)
             {
                 if(i == 0)

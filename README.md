@@ -1,3 +1,6 @@
+[![Gitee repository](https://img.shields.io/badge/gitee-repository-blue?logo=gitee&style=plastic)](https://gitee.com/kendryte/k510_buildroot)
+[![GitHub release](https://img.shields.io/github/v/release/kendryte/k510_buildroot?color=brightgreen&display_name=tag&logo=github&style=plastic)](https://github.com/kendryte/k510_buildroot/releases)
+
 # K510 SDK
 
 勘智K510是嘉楠公司推出的第二代AI边缘侧推理芯片，它为AI应用提供了高性能的图像及语音处理能力。K510搭载自主研发的第二代神经网络处理器KPU2.0， 采用独创计算数据流技术，算力较上一代提升3倍同时降低功耗。集成最新一代图像处理器ISP，支持TOF深度相机接入，支持2D/3D降噪、宽动态范围（WDR）、硬件3A等完备功能。3D ISP支持深度摄像头TOF sensor。可广泛应用于无人机、高清航拍、专业相机、视频会议、智能机器人、教育STEAM、自动辅助驾驶等不同应用领域。
@@ -91,6 +94,6 @@ cd /
 
 ## 联系我们
 
-北京嘉楠捷思信息技术有限公司
-网址：[canaan-creative.com](canaan-creative.com)
+北京嘉楠捷思信息技术有限公司  
+网址：[canaan-creative.com](https://canaan-creative.com)  
 商务垂询：[salesAI@canaan-creative.com](mailto:salesAI@canaan-creative.com)
