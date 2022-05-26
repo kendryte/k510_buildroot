@@ -99,10 +99,31 @@ typedef enum
 
 typedef enum
 {
-  GDR_VERTICAL = 0,
-  GDR_HORIZONTAL ,
-  GDR_CTRLMAX,
+    GDR_VERTICAL = 0,
+    GDR_HORIZONTAL ,
+    GDR_CTRLMAX,
 }GDRCtrlMode;
+
+typedef struct
+{
+    bool bSplitEnable;
+    unsigned int u32SplitMode; // 0:splite by byte; 1:splite by slice count
+    unsigned int u32SliceSize;
+}EncSliceSplitCfg;
+
+typedef enum
+{
+    ENTROPY_MODE_CABAC = 0,
+    ENTROPY_MODE_CAVLC,
+    ENTROPY_MODE_MAX,
+}EncEntropyMode;
+
+typedef struct
+{
+    unsigned int  disable_deblocking_filter_idc;//[0,2]
+    int  slice_alpha_c0_offset_div2;//[-6,6]
+    int  slice_beta_offset_div2;//[-6,6]
+}EncDblkCfg;
 
 typedef enum
 {
@@ -136,6 +157,9 @@ typedef struct
     bool                      bEnableLTR;//Long Term reference
 
     ROICtrlMode               roiCtrlMode;
+    EncSliceSplitCfg          sliceSplitCfg;
+    EncEntropyMode            entropyMode;//Profile is set to AVC_MAIN or AVC_HIGH is valid
+    EncDblkCfg                encDblkCfg;
 }EncSettings;	
 
 typedef struct
@@ -179,7 +203,10 @@ EncoderHandle* VideoEncoder_Create(EncSettings *pCfg);
 EncStatus      VideoEncoder_SetRoiCfg(EncoderHandle *hEnc,const EncROICfg*pEncRoiCfg);
 
 EncStatus      VideoEncoder_SetLongTerm(EncoderHandle *hEnc);
-EncStatus      VideoEncoder_UseLongTerm(EncoderHandle *hEnc);
+EncStatus      VideoEncoder_UseLongTerm(EncoderHandle *hEnc);  
+EncStatus      VideoEncoder_InsertUserData(EncoderHandle *hEnc,char*pUserData,unsigned int nlen);
+
+
 
 
 EncStatus VideoEncoder_Destroy(EncoderHandle *hEnc);
