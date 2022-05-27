@@ -864,20 +864,6 @@ static void endof_encode()
             pCtx->out_pic[i], (pCtx->out_pic[i] * 1000.0) / ((get_time()-pCtx->start_time[i])/1000000.0));
   
     printf("total_out_size %d\n", pCtx->total_out_size[i]);
-    if( pCtx->enable_rtsp[i] == 0){  
-      if(pCtx->total_out_size[i] > 0)
-      {
-        if(pCtx->total_out_size[i] <= pCtx->stream_size[i])
-        {
-          fwrite(pCtx->out_buffer[i], 1, pCtx->total_out_size[i], pCtx->out_file[i]);
-        }
-        else
-        {
-          printf("out_buffer is too small\n");
-          fwrite(pCtx->out_buffer[i], 1, pCtx->stream_size[i], pCtx->out_file[i]);
-        }
-      }  
-    }
 
     if(pCtx->out_file[i])
       fclose(pCtx->out_file[i]);
@@ -2186,6 +2172,12 @@ int main(int argc, char *argv[])
       if(!pCtx->Cfg[i].MinQP)             pCtx->Cfg[i].MinQP       = 0;//from 0 to SliceQP
       if(!pCtx->Cfg[i].MaxQP)             pCtx->Cfg[i].MaxQP       = 51;//from SliceQP to 51
       if(!pCtx->Cfg[i].roiCtrlMode)       pCtx->Cfg[i].roiCtrlMode = ROI_QP_TABLE_NONE;
+
+      pCtx->Cfg[i].encDblkCfg.disable_deblocking_filter_idc        = 0;
+      pCtx->Cfg[i].encDblkCfg.slice_beta_offset_div2               = 1;
+      pCtx->Cfg[i].encDblkCfg.slice_alpha_c0_offset_div2           = 1;
+      pCtx->Cfg[i].entropyMode                                     = ENTROPY_MODE_CAVLC;
+      pCtx->Cfg[i].sliceSplitCfg.bSplitEnable                      = false;
       
     }
 
@@ -2244,6 +2236,11 @@ int main(int argc, char *argv[])
         pCtx->Cfg[i].FrameRate = pCtx->out_framerate[i];
         printf("ch%d-Cfg.Framerate: %d\n", i, pCtx->Cfg[i].FrameRate);
         pCtx->hEnc[i] = VideoEncoder_Create(&pCtx->Cfg[i]);
+        if (NULL == pCtx->hEnc[i])
+        {
+          printf("[%s] VideoEncoder_Create failed\n",__FUNCTION__);
+          return -1;
+        }
 
         if (ROI_QP_TABLE_NONE != pCtx->Cfg[i].roiCtrlMode)
         {
