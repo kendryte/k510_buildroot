@@ -4,7 +4,7 @@ set -x
 commitid="unkonwn"
 last_tag="unkonwn"
 git rev-parse --short HEAD  &&  commitid=$(git rev-parse --short HEAD) 
-git describe --abbrev=0 --tags && last_tag=$(git describe --abbrev=0 --tags) 
+git describe --tags `git rev-list --tags --max-count=1` && last_tag=$(git describe --tags `git rev-list --tags --max-count=1`)
 
 ver="${last_tag}-${commitid}-$(date "+%Y%m%d-%H%M%S%Z")-$(whoami)-$(hostname)"
 echo -e "#############SDK VERSION######################################" >${TARGET_DIR}/etc/version/release_version
