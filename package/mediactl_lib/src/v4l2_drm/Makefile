@@ -2,7 +2,7 @@ CROSS_COMPILE = riscv64-linux-
 CC=$(CROSS_COMPILE)gcc
 
 TARGET = v4l2_drm.out
-OBJS = v4l2_drm.c drm/k510_drm.c sequeue.c
+OBJS = v4l2_drm.c drm/k510_drm.c
 
 all:
 	${CC} ${OBJS} -I. -L. -L../ -Idrm -ldrm -lmediactl -lpthread -lstdc++ -o ${TARGET}
