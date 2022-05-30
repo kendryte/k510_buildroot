@@ -1,0 +1,40 @@
+Index: b/libavcodec/libk510_h264.c
+===================================================================
+--- a/libavcodec/libk510_h264.c
++++ b/libavcodec/libk510_h264.c
+@@ -174,8 +174,14 @@ static av_cold int k510_h264_encode_init
+     Cfg.FrameRate = pCtx->framerate;
+     Cfg.AspectRatio = pCtx->ar; 
+     Cfg.MinQP       = 0;//from 0 to SliceQP
+-    Cfg.MaxQP    = 51;//from SliceQP to 51
++    Cfg.MaxQP    = 51;//from SliceQP to 51
+     Cfg.roiCtrlMode = ROI_QP_TABLE_NONE;
++    Cfg.encDblkCfg.disable_deblocking_filter_idc        = 0;
++    Cfg.encDblkCfg.slice_beta_offset_div2               = 1;
++    Cfg.encDblkCfg.slice_alpha_c0_offset_div2           = 1;
++    Cfg.entropyMode                                     = ENTROPY_MODE_CAVLC;
++    Cfg.sliceSplitCfg.bSplitEnable                      = false;
++    
+     printf("Encoder Settings:\n");
+     printf("  width           : %d\n", Cfg.width);
+     printf("  height          : %d\n", Cfg.height);
+Index: b/libavcodec/libk510_jpeg.c
+===================================================================
+--- a/libavcodec/libk510_jpeg.c
++++ b/libavcodec/libk510_jpeg.c
+@@ -138,8 +138,14 @@ static av_cold int k510_jpeg_encode_init
+     Cfg.FreqIDR = 25;
+     Cfg.gopLen = 25;
+     Cfg.MinQP       = 0;//from 0 to SliceQP
+-    Cfg.MaxQP    = 51;//from SliceQP to 51
++    Cfg.MaxQP    = 51;//from SliceQP to 51
+     Cfg.roiCtrlMode = ROI_QP_TABLE_NONE;
++    Cfg.encDblkCfg.disable_deblocking_filter_idc        = 0;
++    Cfg.encDblkCfg.slice_beta_offset_div2               = 1;
++    Cfg.encDblkCfg.slice_alpha_c0_offset_div2           = 1;
++    Cfg.entropyMode                                     = ENTROPY_MODE_CAVLC;
++    Cfg.sliceSplitCfg.bSplitEnable                      = false;
++
+     printf("Encoder Settings:\n");
+     printf("  width           : %d\n", Cfg.width);
+     printf("  height          : %d\n", Cfg.height);
