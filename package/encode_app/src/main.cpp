@@ -214,7 +214,7 @@ MainContext Ctx;
 MainContext *pCtx=&Ctx;
 
 static unsigned int alloc_memory(int fd_share_memory, unsigned int size);
-static void get_yuv(MainContext *pCtx, char *infilename, int channel);
+static int get_yuv(MainContext *pCtx, char *infilename, int channel);
 static void write_output(MainContext *pCtx, FILE *out_file, EncOutputStream *src);
 static unsigned long int get_time();
 static void *isp_output(void *arg);
@@ -226,7 +226,7 @@ static void endof_encode();
 static void exit_handler(int sig);
 static void set_QoS();
 #if TEST_ISP
-static void init_isp();
+static int init_isp();
 #endif
 int init_v4l2();
 int init_audio();
@@ -253,7 +253,7 @@ static unsigned int alloc_memory(int fd_share_memory, unsigned int size)
   return allocAlignMem.phyAddr;
 }
 
-static void get_yuv(MainContext *pCtx, char *infilename, int channel)
+static int get_yuv(MainContext *pCtx, char *infilename, int channel)
 {
   FILE *fp;
   char ch;
@@ -266,7 +266,7 @@ static void get_yuv(MainContext *pCtx, char *infilename, int channel)
 
   if( (fp=fopen(infilename,"r+b")) == NULL ){
       printf("Cannot open yuv file!\n");
-      return;
+      return -1;
   }
 
   fseek(fp,0L,SEEK_END);
@@ -284,6 +284,11 @@ static void get_yuv(MainContext *pCtx, char *infilename, int channel)
   size = (size + 0xfff) & (~0xfff);
 
   phyAddr = alloc_memory(pCtx->fd_share_memory, size);
+  if(phyAddr == -1)
+  {
+    printf("Not enough memory for input data.\n");
+    return -1;
+  }
  
   map_src_pic = mmap(NULL, size, PROT_READ|PROT_WRITE, MAP_SHARED, pCtx->fd_ddr, (uint64_t)phyAddr|0x100000000);
 
@@ -311,7 +316,7 @@ static void get_yuv(MainContext *pCtx, char *infilename, int channel)
   pCtx->yuv_vAddr[channel] = map_src_pic;
   pCtx->yuv_size[channel] = size;
   printf("%s>yuv paddr = 0x%x, vaddr 0x%x, yuv_size %d, filesize %d\n", __FUNCTION__, pCtx->yuv_phyAddr, pCtx->yuv_vAddr, pCtx->yuv_size, filesize);
-  return;
+  return 0;
 }
 
 static void write_output(MainContext *pCtx, FILE *out_file, EncOutputStream *src)
@@ -864,20 +869,6 @@ static void endof_encode()
             pCtx->out_pic[i], (pCtx->out_pic[i] * 1000.0) / ((get_time()-pCtx->start_time[i])/1000000.0));
   
     printf("total_out_size %d\n", pCtx->total_out_size[i]);
-    if( pCtx->enable_rtsp[i] == 0){  
-      if(pCtx->total_out_size[i] > 0)
-      {
-        if(pCtx->total_out_size[i] <= pCtx->stream_size[i])
-        {
-          fwrite(pCtx->out_buffer[i], 1, pCtx->total_out_size[i], pCtx->out_file[i]);
-        }
-        else
-        {
-          printf("out_buffer is too small\n");
-          fwrite(pCtx->out_buffer[i], 1, pCtx->stream_size[i], pCtx->out_file[i]);
-        }
-      }  
-    }
 
     if(pCtx->out_file[i])
       fclose(pCtx->out_file[i]);
@@ -1049,13 +1040,18 @@ static void set_QoS()
 }
 
 #if TEST_ISP
-static void init_isp()
+static int init_isp()
 {
     int src_index=0;
     
 #ifdef ISP_OUTPUT_DUMP
     pCtx->yuv_size = frame_size*pCtx->input_frames;
     pCtx->yuv_phyAddr = alloc_memory(pCtx->fd_share_memory, pCtx->yuv_size);  
+    if(pCtx->yuv_phyAddr)
+    {
+      printf("Not enough memory for isp init.\n");
+      return -1;
+    }
     pCtx->yuv_vAddr = mmap(NULL, pCtx->yuv_size, PROT_READ|PROT_WRITE, MAP_SHARED, pCtx->fd_ddr, pCtx->yuv_phyAddr); 
     printf("%s>yuv_vAddr 0x%x, yuv_phyAddr 0x%x, yuv_size %d\n", __FUNCTION__, pCtx->yuv_vAddr, pCtx->yuv_phyAddr, pCtx->yuv_size);
 #endif  
@@ -1086,7 +1082,11 @@ static void init_isp()
 
     pCtx->isp_buf_size[0] =(1920 *1080 *3 /2) * ISP_ADDR_BUFFER_CNT;// frame_size * 22;
     ds1_info.y_addr = alloc_memory(pCtx->fd_share_memory, pCtx->isp_buf_size[0]);
-
+    if(ds1_info.y_addr == -1)
+    {
+      printf("Not enough memory for ds1 info.\n");
+      return -1;
+    }
     pCtx->isp_buf_vaddr[0] = mmap(NULL, pCtx->isp_buf_size[0], PROT_READ|PROT_WRITE, MAP_SHARED, pCtx->fd_ddr, ds1_info.y_addr);
     pCtx->isp_buf_paddr[0] = ds1_info.y_addr;
     printf("%s>isp_buf_paddr 0x%x, isp_buf_vaddr 0x%x, isp_buf_size %d\n", __FUNCTION__, ds1_info.y_addr, pCtx->isp_buf_vaddr, pCtx->isp_buf_size);
@@ -1261,6 +1261,11 @@ int init_v4l2()
 
           pCtx->v4l2_buf[j][i].length = (buf.length + 0xfff) & (~0xfff);
           pCtx->v4l2_buf[j][i].paddr = alloc_memory(pCtx->fd_share_memory, pCtx->v4l2_buf[j][i].length);
+          if(pCtx->v4l2_buf[j][i].paddr == -1)
+          {
+            printf("Not enough memory for v4l2 buf.\n");
+            return -1;
+          }
           pCtx->v4l2_buf[j][i].vaddr = mmap(NULL, pCtx->v4l2_buf[j][i].length, PROT_READ|PROT_WRITE, MAP_SHARED, pCtx->fd_ddr, pCtx->v4l2_buf[j][i].paddr);
 
           if(pCtx->v4l2_buf[j][i].vaddr == MAP_FAILED)
@@ -2186,6 +2191,12 @@ int main(int argc, char *argv[])
       if(!pCtx->Cfg[i].MinQP)             pCtx->Cfg[i].MinQP       = 0;//from 0 to SliceQP
       if(!pCtx->Cfg[i].MaxQP)             pCtx->Cfg[i].MaxQP       = 51;//from SliceQP to 51
       if(!pCtx->Cfg[i].roiCtrlMode)       pCtx->Cfg[i].roiCtrlMode = ROI_QP_TABLE_NONE;
+
+      pCtx->Cfg[i].encDblkCfg.disable_deblocking_filter_idc        = 0;
+      pCtx->Cfg[i].encDblkCfg.slice_beta_offset_div2               = 1;
+      pCtx->Cfg[i].encDblkCfg.slice_alpha_c0_offset_div2           = 1;
+      pCtx->Cfg[i].entropyMode                                     = ENTROPY_MODE_CAVLC;
+      pCtx->Cfg[i].sliceSplitCfg.bSplitEnable                      = false;
       
     }
 
@@ -2244,6 +2255,11 @@ int main(int argc, char *argv[])
         pCtx->Cfg[i].FrameRate = pCtx->out_framerate[i];
         printf("ch%d-Cfg.Framerate: %d\n", i, pCtx->Cfg[i].FrameRate);
         pCtx->hEnc[i] = VideoEncoder_Create(&pCtx->Cfg[i]);
+        if (NULL == pCtx->hEnc[i])
+        {
+          printf("[%s] VideoEncoder_Create failed\n",__FUNCTION__);
+          return -1;
+        }
 
         if (ROI_QP_TABLE_NONE != pCtx->Cfg[i].roiCtrlMode)
         {
@@ -2310,7 +2326,11 @@ int main(int argc, char *argv[])
     {
       if(pCtx->ch_en[i] && (pCtx->enable_isp[i] == 0) && (pCtx->enable_v4l2[i] == 0))
       {
-        get_yuv(pCtx, pCtx->infilename[i], i);
+        if(get_yuv(pCtx, pCtx->infilename[i], i) < 0)
+        {
+          endof_encode();
+          return -1;
+        }
       }
     }
   }
@@ -2319,7 +2339,11 @@ int main(int argc, char *argv[])
   if(pCtx->isp_enabled == 1)
   { 
     set_QoS();  
-    init_isp();
+    if(init_isp() < 0)
+    {
+      endof_encode();
+      return -1;
+    }
   }
 #endif
   if(pCtx->v4l2_enabled == 1)
@@ -2330,7 +2354,11 @@ int main(int argc, char *argv[])
       printf("parse_conf error\n");
       return -1;
     }
-    init_v4l2();
+    if(init_v4l2() < 0)
+    {
+      endof_encode();
+      return -1;
+    }
   }
 
   if(pCtx->audio_enabled == 1)
