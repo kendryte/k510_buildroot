@@ -15,7 +15,7 @@ CFLAGS = \
 
 OBJ ?= encode_app
 
-$(OBJ): main.cpp video_app.cc
+$(OBJ): main.cpp video_app.cc G711Codec.cpp
 	$(C++) $(CFLAGS) $^ -L ./ -Wl,-Bdynamic -lvenc -L ./ -Wl,-Bstatic -llive555 -L ./ -Wl,-Bdynamic -lmediactl -L ./ -Wl,-Bdynamic -lvideo -L ./ -Wl,-Bdynamic -lasound -lstdc++ -Wl,-rpath . -lpthread -g -o $@
 	
 clean:
