@@ -1,0 +1,28 @@
+From a45bbd422e05488a4818106a8f59d6046388b899 Mon Sep 17 00:00:00 2001
+From: cuiyan <cuiyan@canaan-creative.com>
+Date: Sat, 28 May 2022 11:51:36 +0800
+Subject: [PATCH] cuiyan
+
+---
+ drivers/memory/canaan/k510_share_memory.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/drivers/memory/canaan/k510_share_memory.c b/drivers/memory/canaan/k510_share_memory.c
+index e357c56a..561ce639 100755
+--- a/drivers/memory/canaan/k510_share_memory.c
++++ b/drivers/memory/canaan/k510_share_memory.c
+@@ -625,6 +625,11 @@ static long share_memory_align_alloc(unsigned long arg)
+ #endif
+ 
+     alloc_args.phyAddr = BlockPhysical;
++    if(pBlockVirtual == NULL)
++    {
++        copy_to_user((void *)arg, (void *)&alloc_args, sizeof(struct share_memory_alloc_align_args));
++        return -EFAULT;
++    }
+     if(copy_to_user((void *)arg, (void *)&alloc_args, sizeof(struct share_memory_alloc_align_args)))
+          return -EFAULT;
+ 
+-- 
+2.36.1
+
