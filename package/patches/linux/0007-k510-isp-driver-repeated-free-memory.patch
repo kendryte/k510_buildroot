@@ -1,0 +1,54 @@
+From 1ba14e3eb5abdd73bc6314d7c25d9f503a394d35 Mon Sep 17 00:00:00 2001
+From: wangjianxin <wangjianxin@canaan-creative.com>
+Date: Mon, 30 May 2022 11:51:48 +0800
+Subject: [PATCH] k510 isp driver repeated free memory
+
+---
+ drivers/media/platform/canaan-isp/k510isp_video.c | 11 ++++++++++-
+ drivers/media/platform/canaan-isp/k510isp_video.h |  1 +
+ 2 files changed, 11 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/media/platform/canaan-isp/k510isp_video.c b/drivers/media/platform/canaan-isp/k510isp_video.c
+index 8ec8b02c..dc2fdfad 100755
+--- a/drivers/media/platform/canaan-isp/k510isp_video.c
++++ b/drivers/media/platform/canaan-isp/k510isp_video.c
+@@ -1447,6 +1447,11 @@ static int k510isp_video_streamon(struct file *file, void *fh, enum v4l2_buf_typ
+ 	 */
+ 	pipe = video->video.entity.pipe
+ 	     ? to_isp_pipeline(&video->video.entity) : &video->pipe;
++	if(pipe->streamon_count++ !=  0)
++	{
++		kfree(pipe->ent_enum.bmap);
++		pipe->ent_enum.bmap=NULL;
++	}
+ 	ret = media_entity_enum_init(&pipe->ent_enum, &video->isp->media_dev);
+ 	if (ret)
+ 	{
+@@ -1622,7 +1627,11 @@ static int k510isp_video_streamoff(struct file *file, void *fh, enum v4l2_buf_ty
+ 	/* TODO: Implement PM QoS */
+ 	media_pipeline_stop(&video->video.entity);
+ 
+-	media_entity_enum_cleanup(&pipe->ent_enum);
++	if( pipe->streamon_count--  == 1)
++	{
++		media_entity_enum_cleanup(&pipe->ent_enum);
++		pipe->ent_enum.bmap=NULL;
++	}
+ 
+ done:
+ 	dev_dbg(video->isp->dev,"%s:end\n",__func__);
+diff --git a/drivers/media/platform/canaan-isp/k510isp_video.h b/drivers/media/platform/canaan-isp/k510isp_video.h
+index e3c28a2a..d7d342bf 100755
+--- a/drivers/media/platform/canaan-isp/k510isp_video.h
++++ b/drivers/media/platform/canaan-isp/k510isp_video.h
+@@ -111,6 +111,7 @@ struct k510isp_pipeline {
+ 	struct v4l2_subdev *external;
+ 	unsigned int external_rate;
+ 	unsigned int external_width;
++	unsigned char streamon_count;
+ };
+ 
+ #define to_isp_pipeline(__e) \
+-- 
+2.30.2
+
