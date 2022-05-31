@@ -1201,31 +1201,40 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
     while (!done) {
         // dqbuf
         char flag = 0;
+        bit_mask_w = bit_mask;
+        fd_set rfds = fds;
+        // FIXME
         do {
-            bit_mask_w = bit_mask;
-            fd_set rfds = fds;
-            int r = select(max_fd, &rfds, NULL, NULL, &tv);
+            fd_set rrfds = rfds;
+            int r = select(max_fd, &rrfds, NULL, NULL, &tv);
             if (r > 0) {
-                if (dev_info[0].video_used && FD_ISSET(camera[0].fd, &rfds)) {
+                if (dev_info[0].video_used && FD_ISSET(camera[0].fd, &rrfds)) {
                     if (readframe(camera[0].fd, &vbuf[0]) < 0) {
                         // error
                         flag = 1;
                         break;
                     }
+#define AE 0
+#if AE
                     if(isp_ae_status == 1 || isp_ae_status == 3) {
                         mediactl_set_ae(ISP_F2K_PIPELINE);
                     }
+#endif
+                    FD_CLR(camera[0].fd, &rfds);
                     bit_mask_w &= ~1U;
                 }
-                if (dev_info[1].video_used && FD_ISSET(camera[1].fd, &rfds)) {
+                if (dev_info[1].video_used && FD_ISSET(camera[1].fd, &rrfds)) {
                     if (readframe(camera[1].fd, &vbuf[1]) < 0) {
                         // error
                         flag = 1;
                         break;
                     }
+#if AE
                     if(isp_ae_status == 1 || isp_ae_status == 3) {
                         mediactl_set_ae(ISP_R2K_PIPELINE);
                     }
+#endif
+                    FD_CLR(camera[1].fd, &rfds);
                     bit_mask_w &= ~2U;
                 }
             } else if (r < 0) {
@@ -1244,6 +1253,9 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
         if (flag) {
             break;
         }
+        // fps stat
+#define FPS 1
+#if FPS
         static int frames = 0;
         static uint32_t tm = 0;
         static int last_tm_frame = 0;
@@ -1254,12 +1266,13 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
             last_tm_frame = frames;
             tm = time(NULL);
         }
-        fprintf(stderr, "\rdisplay #%d, fps: %d", frames, fps);
+        fprintf(stderr, "display #%d, fps: %d\r", frames, fps);
+#endif
         // display
         if(dev_info[0].video_used && dev_info[1].video_used) {
             if (drm_dmabuf_set_2plane(
-                &drm_dev.drm_bufs[vbuf[0].index],
-                &drm_dev.drm_bufs[vbuf[1].index + BUFFERS_COUNT])) {
+                    &drm_dev.drm_bufs[vbuf[0].index],
+                    &drm_dev.drm_bufs[vbuf[1].index + BUFFERS_COUNT])) {
                 printf("Flush fail\n");
                 break;
             }
