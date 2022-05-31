@@ -1059,6 +1059,21 @@ int mediactl_set_ae_single(enum isp_pipeline_e pipeline)
 				return ret;
 
 			struct v4l2_control  control_s;
+			
+			if (ae_stats.ae_expl != ET_sensor0)
+			{
+				control_s.id = V4L2_CID_EXPOSURE;
+				control_s.value = ae_stats.ae_expl;
+				ret = ioctl(sensor0->fd,VIDIOC_S_CTRL,&control_s);
+				if (ret < 0)
+				{
+					printf("%s: ioctl(VIDIOC_S_CTRL-V4L2_CID_EXPOSURE)failed ret(%d)\n", __func__,
+						  ret);
+					v4l2_subdev_close(sensor0);
+					return ret;
+				}
+				ET_sensor0 = control_s.value;
+			}
 
 			if(ae_stats.ae_agco != Gain_sensor0)
 			{
@@ -1073,21 +1088,6 @@ int mediactl_set_ae_single(enum isp_pipeline_e pipeline)
 					return ret;
 				}
 				Gain_sensor0 = control_s.value;
-			}
-
-			if (ae_stats.ae_expl != ET_sensor0)
-			{
-				control_s.id = V4L2_CID_EXPOSURE;
-				control_s.value = ae_stats.ae_expl;
-				ret = ioctl(sensor0->fd,VIDIOC_S_CTRL,&control_s);
-				if (ret < 0)
-				{
-					printf("%s: ioctl(VIDIOC_S_CTRL-V4L2_CID_EXPOSURE)failed ret(%d)\n", __func__,
-						  ret);
-					v4l2_subdev_close(sensor0);	  
-					return ret;
-				}
-				ET_sensor0 = control_s.value;
 			}
 			v4l2_subdev_close(sensor0);
 		}
@@ -1120,24 +1120,8 @@ int mediactl_set_ae_single(enum isp_pipeline_e pipeline)
 				return ret;
 
 			struct v4l2_control  control_s;
-			
-			if(ae_stats.ae_agco != Gain_sensor0)
-			{
-				control_s.id = V4L2_CID_GAIN;
-				control_s.value = ae_stats.ae_agco;
-				ret = ioctl(sensor1->fd,VIDIOC_S_CTRL,&control_s);
-				if (ret < 0)
-				{
-					printf("%s: ioctl(VIDIOC_S_CTRL-V4L2_CID_GAIN)failed ret(%d)\n", __func__,
-						  ret);
-					v4l2_subdev_close(sensor1);
-					return ret;
-				} 		
-				Gain_sensor1 = control_s.value;
-			}
 
-
-			if (ae_stats.ae_expl != ET_sensor0)
+			if (ae_stats.ae_expl != ET_sensor1)
 			{
 			
 				control_s.id = V4L2_CID_EXPOSURE;
@@ -1151,6 +1135,21 @@ int mediactl_set_ae_single(enum isp_pipeline_e pipeline)
 					return ret;
 				}
 				ET_sensor1 = control_s.value;
+			}
+			
+			if(ae_stats.ae_agco != Gain_sensor1)
+			{
+				control_s.id = V4L2_CID_GAIN;
+				control_s.value = ae_stats.ae_agco;
+				ret = ioctl(sensor1->fd,VIDIOC_S_CTRL,&control_s);
+				if (ret < 0)
+				{
+					printf("%s: ioctl(VIDIOC_S_CTRL-V4L2_CID_GAIN)failed ret(%d)\n", __func__,
+						  ret);
+					v4l2_subdev_close(sensor1);
+					return ret;
+				} 		
+				Gain_sensor1 = control_s.value;
 			}
 			v4l2_subdev_close(sensor1);
 		}
@@ -1201,7 +1200,7 @@ int mediactl_set_ae_sync(enum isp_pipeline_e pipeline)
 
 			struct v4l2_control  control_s;
 			
-			//Set ET			
+			//Set ET		
 			if(ae_stats.ae_expl != ET_current)
 			{
 				control_s.id = V4L2_CID_EXPOSURE;
