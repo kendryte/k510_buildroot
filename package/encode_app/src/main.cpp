@@ -189,6 +189,7 @@ typedef struct
   uint32_t *drop;
   unsigned char *out_framerate;
   int video_enabled;
+  int ae_enable;
 
   /* audio */
   snd_pcm_t *pcmp;
@@ -456,6 +457,19 @@ static void enqueue_buf(unsigned char index, int channel)
     }
 }
 
+static void set_ae(char* dev_name, int ae_enable)
+{
+  if((dev_name[10] >= '2') && (dev_name[10] <= '5') && (ae_enable & 0x1))
+  {
+    mediactl_set_ae(ISP_F2K_PIPELINE);
+  }
+  else if((dev_name[10] >= '6') && (dev_name[10] <= '9') && (ae_enable & 0x1))
+  {
+    mediactl_set_ae(ISP_R2K_PIPELINE);
+  }
+  return;
+}
+
 static void *v4l2_output(void *arg)
 {
   printf("%s\n", __FUNCTION__);
@@ -487,6 +501,7 @@ static void *v4l2_output(void *arg)
     buf.memory = V4L2_MEMORY_USERPTR;
         
     res = ioctl(pCtx->fd_v4l2[channel], VIDIOC_DQBUF, &buf);
+    set_ae(pCtx->dev_name[channel], pCtx->ae_enable);
     
     if (res < 0 || errno == EINTR)
     {
@@ -1814,6 +1829,7 @@ int parse_cmd(int argc, char *argv[])
       printf("-GDRMode: GDR mode 0:GDR_VERTICAL 1:GDR_HORIZONTAL\n");
       printf("-enableLTR: enbale long term reference picture and specifies LTR refresh frequency in number of frames,0 to disable use refresh frequency\n");
       printf("-roi: roi config file\n");
+      printf("-ae: enable ae\n");
       printf("-conf: v4l2 config file\n");
       /* audio */
       printf("-alsa: enable audio\n");
@@ -2069,6 +2085,10 @@ int parse_cmd(int argc, char *argv[])
       {
         printf("roi_parse_conf ok\n");
       }
+    }
+    else if(strcmp(argv[i], "-ae") == 0)
+    {
+      pCtx->ae_enable = atoi(argv[i+1]);
     }
     else if(strcmp(argv[i], "-conf") == 0)
     {
