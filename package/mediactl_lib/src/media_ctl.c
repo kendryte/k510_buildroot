@@ -84,6 +84,9 @@ int fd_mem_map = -1;
 #define SHARE_MEMORY_DEV    "/dev/k510-share-memory"
 #define MAP_MEMORY_DEV      "/dev/mem"
 int *virtual_addr[MEMORY_TEST_BLOCK_NUM]= {0};
+bool DualCamera_Sync = TRUE;
+bool Sensor1_Sync = FALSE;
+
 
 struct share_memory_alloc_align_args    allocAlignMem[MEMORY_TEST_BLOCK_NUM] = {0};
 //
@@ -711,6 +714,13 @@ static int isp_pipeline_setup(struct v4l_isp_device *isp)
 		//
 		isp_r2k_set_format(isp);
 	}
+
+	
+	if((isp->isp_pipeline[ISP_F2K].pipeline_en == 1)&&(isp->isp_pipeline[ISP_R2K].pipeline_en == 1)&&(DualCamera_Sync == TRUE))
+	{
+		Sensor1_Sync = TRUE;
+	}
+
 	return 0;
 }
 /**
@@ -997,19 +1007,37 @@ int mediactl_init(char *video_cfg_file,struct video_info *dev_info)
  * @brief 
  * 
  */
-int mediactl_set_ae(enum isp_pipeline_e pipeline)
+ int mediactl_set_ae(enum isp_pipeline_e pipeline)
 {
 	int ret;
+	
+	if(Sensor1_Sync == FALSE)
+	{
+		ret = mediactl_set_ae_single(pipeline);
+	}
+	else
+	{
+	  	ret = mediactl_set_ae_sync(pipeline);
+	}
+	return ret;
+}
+int mediactl_set_ae_single(enum isp_pipeline_e pipeline)
+{
+	int ret, i;
 	struct k510isp_ae_stats ae_stats;
 	struct media_entity *pipe;
-	 
+	static unsigned int ET_sensor0 = 0;
+	static unsigned int ET_sensor1 = 0;
+	static unsigned int Gain_sensor0 = 0;
+	static unsigned int Gain_sensor1 = 0;
+	
 	if(ISP_F2K_PIPELINE == pipeline)
 	{
+	
 		pipe = v4l_isp.f2k;
 		ret = v4l2_subdev_open(pipe);
 		if (ret < 0)
 			return ret;
-
 
 		ret = ioctl(pipe->fd,VIDIOC_K510ISP_F2K_AE_STAT_REQ,&ae_stats);
 		if (ret < 0)
@@ -1019,6 +1047,7 @@ int mediactl_set_ae(enum isp_pipeline_e pipeline)
 			v4l2_subdev_close(pipe);
 			return ret;
 		}
+		
 		//printf("%s:ae_wren(%d),ae_expl(%d),ae_agco(%d)\n",__func__,ae_stats.ae_wren,ae_stats.ae_expl,ae_stats.ae_agco);
 		v4l2_subdev_close(pipe);
 		//
@@ -1030,38 +1059,47 @@ int mediactl_set_ae(enum isp_pipeline_e pipeline)
 				return ret;
 
 			struct v4l2_control  control_s;
-			control_s.id = V4L2_CID_EXPOSURE;
-			control_s.value = ae_stats.ae_expl;
-			ret = ioctl(sensor0->fd,VIDIOC_S_CTRL,&control_s);
-			if (ret < 0)
-			{
-				printf("%s: ioctl(VIDIOC_S_CTRL-V4L2_CID_GAIN)failed ret(%d)\n", __func__,
-					  ret);
-				v4l2_subdev_close(sensor0);	  
-				return ret;
-			} 
 
-			control_s.id = V4L2_CID_GAIN;
-			control_s.value = ae_stats.ae_agco;
-			ret = ioctl(sensor0->fd,VIDIOC_S_CTRL,&control_s);
-			if (ret < 0)
+			if(ae_stats.ae_agco != Gain_sensor0)
 			{
-				printf("%s: ioctl(VIDIOC_S_CTRL-V4L2_CID_EXPOSURE)failed ret(%d)\n", __func__,
-					  ret);
-				v4l2_subdev_close(sensor0);
-				return ret;
-			} 		
+				control_s.id = V4L2_CID_GAIN;
+				control_s.value = ae_stats.ae_agco;
+				ret = ioctl(sensor0->fd,VIDIOC_S_CTRL,&control_s);
+				if (ret < 0)
+				{
+					printf("%s: ioctl(VIDIOC_S_CTRL-V4L2_CID_GAIN)failed ret(%d)\n", __func__,
+						  ret);
+					v4l2_subdev_close(sensor0);
+					return ret;
+				}
+				Gain_sensor0 = control_s.value;
+			}
+
+			if (ae_stats.ae_expl != ET_sensor0)
+			{
+				control_s.id = V4L2_CID_EXPOSURE;
+				control_s.value = ae_stats.ae_expl;
+				ret = ioctl(sensor0->fd,VIDIOC_S_CTRL,&control_s);
+				if (ret < 0)
+				{
+					printf("%s: ioctl(VIDIOC_S_CTRL-V4L2_CID_EXPOSURE)failed ret(%d)\n", __func__,
+						  ret);
+					v4l2_subdev_close(sensor0);	  
+					return ret;
+				}
+				ET_sensor0 = control_s.value;
+			}
 			v4l2_subdev_close(sensor0);
 		}
 	}
 
-	if(ISP_F2K_PIPELINE == pipeline)
+	if(ISP_R2K_PIPELINE == pipeline)
 	{
+
 		pipe = v4l_isp.r2k;
 		ret = v4l2_subdev_open(pipe);
 		if (ret < 0)
 			return ret;
-
 
 		ret = ioctl(pipe->fd,VIDIOC_K510ISP_R2K_AE_STAT_REQ,&ae_stats);
 		if (ret < 0)
@@ -1082,33 +1120,142 @@ int mediactl_set_ae(enum isp_pipeline_e pipeline)
 				return ret;
 
 			struct v4l2_control  control_s;
-			control_s.id = V4L2_CID_EXPOSURE;
-			control_s.value = ae_stats.ae_expl;
-			ret = ioctl(sensor1->fd,VIDIOC_S_CTRL,&control_s);
-			if (ret < 0)
+			
+			if(ae_stats.ae_agco != Gain_sensor0)
 			{
-				printf("%s: ioctl(VIDIOC_S_CTRL-V4L2_CID_GAIN)failed ret(%d)\n", __func__,
-					  ret);
-				v4l2_subdev_close(sensor1);
-				return ret;
-			} 
+				control_s.id = V4L2_CID_GAIN;
+				control_s.value = ae_stats.ae_agco;
+				ret = ioctl(sensor1->fd,VIDIOC_S_CTRL,&control_s);
+				if (ret < 0)
+				{
+					printf("%s: ioctl(VIDIOC_S_CTRL-V4L2_CID_GAIN)failed ret(%d)\n", __func__,
+						  ret);
+					v4l2_subdev_close(sensor1);
+					return ret;
+				} 		
+				Gain_sensor1 = control_s.value;
+			}
 
-			control_s.id = V4L2_CID_GAIN;
-			control_s.value = ae_stats.ae_agco;
-			ret = ioctl(sensor1->fd,VIDIOC_S_CTRL,&control_s);
-			if (ret < 0)
+
+			if (ae_stats.ae_expl != ET_sensor0)
 			{
-				printf("%s: ioctl(VIDIOC_S_CTRL-V4L2_CID_EXPOSURE)failed ret(%d)\n", __func__,
-					  ret);
-				v4l2_subdev_close(sensor1);
-				return ret;
-			} 		
+			
+				control_s.id = V4L2_CID_EXPOSURE;
+				control_s.value = ae_stats.ae_expl;
+				ret = ioctl(sensor1->fd,VIDIOC_S_CTRL,&control_s);
+				if (ret < 0)
+				{
+					printf("%s: ioctl(VIDIOC_S_CTRL-V4L2_CID_EXPOSURE)failed ret(%d)\n", __func__,
+						  ret);
+					v4l2_subdev_close(sensor1);
+					return ret;
+				}
+				ET_sensor1 = control_s.value;
+			}
 			v4l2_subdev_close(sensor1);
 		}
 	}
 	
 	return 0;
 }
+
+int mediactl_set_ae_sync(enum isp_pipeline_e pipeline)
+{
+	int ret;
+	struct k510isp_ae_stats ae_stats;
+	struct media_entity *pipe;
+	static unsigned int ET_current = 0;
+	static unsigned int Gain_current = 0;
+
+	if(ISP_F2K_PIPELINE == pipeline)
+	{
+		pipe = v4l_isp.f2k;
+		ret = v4l2_subdev_open(pipe);
+		if (ret < 0)
+			return ret;
+
+		ret = ioctl(pipe->fd,VIDIOC_K510ISP_F2K_AE_STAT_REQ,&ae_stats);
+		if (ret < 0)
+		{
+			printf("%s: ioctl(VIDIOC_K510ISP_F2K_AE_STAT_REQ) failed ret(%d)\n", __func__,
+				  ret);
+			v4l2_subdev_close(pipe);
+			return ret;
+		}
+		//printf("%s:ae_wren(%d),ae_expl(%d),ae_agco(%d)\n",__func__,ae_stats.ae_wren,ae_stats.ae_expl,ae_stats.ae_agco);
+		v4l2_subdev_close(pipe);
+		//
+		if( ae_stats.ae_wren == 1)
+		{
+			//sensor0
+			struct media_entity *sensor0 = v4l_isp.sensor0;
+			ret = v4l2_subdev_open(sensor0);
+			if (ret < 0)
+				return ret;
+			
+			//sensor1
+			struct media_entity *sensor1 = v4l_isp.sensor1;
+			ret = v4l2_subdev_open(sensor1);
+			if (ret < 0)
+				return ret;
+
+			struct v4l2_control  control_s;
+			
+			//Set ET			
+			if(ae_stats.ae_expl != ET_current)
+			{
+				control_s.id = V4L2_CID_EXPOSURE;
+				control_s.value = ae_stats.ae_expl;
+				ret = ioctl(sensor1->fd,VIDIOC_S_CTRL,&control_s);
+				if (ret < 0)
+				{
+					printf("%s: ioctl(VIDIOC_S_CTRL-V4L2_CID_EXPOSURE)failed ret(%d)\n", __func__,
+						  ret);
+					v4l2_subdev_close(sensor1);
+					return ret;
+				} 
+				
+				ret = ioctl(sensor0->fd,VIDIOC_S_CTRL,&control_s);
+				if (ret < 0)
+				{
+					printf("%s: ioctl(VIDIOC_S_CTRL-V4L2_CID_EXPOSURE)failed ret(%d)\n", __func__,
+						  ret);
+					v4l2_subdev_close(sensor0);
+					return ret;
+				}
+				ET_current = control_s.value;
+			}
+			//Set gain
+			if(ae_stats.ae_agco != Gain_current)
+			{
+				control_s.id = V4L2_CID_GAIN;
+				control_s.value = ae_stats.ae_agco;
+				ret = ioctl(sensor1->fd,VIDIOC_S_CTRL,&control_s);
+				if (ret < 0)
+				{
+					printf("%s: ioctl(VIDIOC_S_CTRL-V4L2_CID_GAIN)failed ret(%d)\n", __func__,
+						  ret);
+					v4l2_subdev_close(sensor1);
+					return ret;
+				}
+				ret = ioctl(sensor0->fd,VIDIOC_S_CTRL,&control_s);
+				if (ret < 0)
+				{
+					printf("%s: ioctl(VIDIOC_S_CTRL-V4L2_CID_GAIN)failed ret(%d)\n", __func__,
+						  ret);
+					v4l2_subdev_close(sensor0);
+					return ret;
+				} 
+				Gain_current = control_s.value;
+			}
+			v4l2_subdev_close(sensor1);
+			v4l2_subdev_close(sensor0);	
+		}
+	}
+	
+	return 0;
+}
+
 /**
  * @brief 
  * 
@@ -1128,3 +1275,54 @@ void mediactl_exit(void)
     system("echo 2 > /proc/sys/vm/drop_caches");
     system("echo 3 > /proc/sys/vm/drop_caches");
 }
+/**
+ * @brief 
+ * 
+ * @param addr 
+ * @return unsigned int 
+ */
+
+unsigned int ISPRegRead(unsigned int addr)
+{
+    char result[64] = {0};
+	char buf[64] = {0};
+    char cmd[64] = {0};
+    unsigned ret;
+    FILE *fp = NULL;
+
+    sprintf(cmd, "devmem 0x%08X\n", addr);
+
+    if( (fp = popen(cmd, "r")) == NULL ) {
+        printf("popen error!\n");
+        return -1;
+    }
+
+    while (fgets(buf, sizeof(buf), fp)) {
+        strcat(result, buf);
+    }
+    pclose(fp);
+    // printf("result: %s\n", result);
+
+    ret = strtol(result, NULL, 16);
+    return ret;
+
+}
+
+unsigned int ISPRegWrite(unsigned int addr, unsigned int value)
+{
+    char cmd[64] = {0};
+    unsigned ret;
+    FILE *fp = NULL;
+
+    sprintf(cmd, "devmem 0x%08X 32 0x%08X\n", addr, value);
+
+    if( (fp = popen(cmd, "w")) == NULL ) {
+        printf("popen error!\n");
+        return -1;
+    }
+    pclose(fp);
+    return 1;
+}
+
+
+
