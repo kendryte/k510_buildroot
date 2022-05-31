@@ -1121,6 +1121,9 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
     {
         camera[1].buffer_start = 0;//BUFFERS_COUNT;
     }
+    // don't know why
+    camera[0].size.width = 1080;
+    camera[0].size.height = 1920;
 
     printf("%s:size[0].width is %d size[0].height is %d,size[1].width is %d size[1].height is %d,camera_num(%d)\n",__func__,camera[0].size.width,camera[0].size.height,camera[1].size.width,camera[1].size.height,camera_num);
     struct drm_size size[2];
@@ -1171,10 +1174,10 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
     struct drm_buffer *fbuf1 = &drm_dev.drm_bufs[0];
     struct drm_buffer *fbuf2 = &drm_dev.drm_bufs[BUFFERS_COUNT];
     for (int i = 0; i < BUFFERS_COUNT; i++) {
-        fbuf1[i].width = camera->size.width;
-        fbuf1[i].height = camera->size.height;
-        fbuf2[i].width = camera->size.width;
-        fbuf2[i].height = camera->size.height; 
+        fbuf1[i].width = camera[0].size.width;
+        fbuf1[i].height = camera[0].size.height;
+        fbuf2[i].width = camera[1].size.width;
+        fbuf2[i].height = camera[1].size.height; 
     }
 	fprintf(stderr, "start\n");
     
