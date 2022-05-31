@@ -883,9 +883,9 @@ r2k_cleanup:
 int init_isp(struct camera_info *camera) {
     int ret = 0;
     open_device(camera);
-    ret = init_device(camera,&drm_dev.drm_bufs[camera->buffer_start]); //BUFFERS_COUNT
+    ret = init_device(camera, &drm_dev.drm_bufs[camera->buffer_start]); //BUFFERS_COUNT
     if(ret < 0) {
-        uninit_device(camera,&drm_dev.drm_bufs[camera->buffer_start]);//BUFFERS_COUNT
+        uninit_device(camera, &drm_dev.drm_bufs[camera->buffer_start]);//BUFFERS_COUNT
         close_device(camera);
         return ret;
     }
@@ -1122,8 +1122,8 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
         camera[1].buffer_start = 0;//BUFFERS_COUNT;
     }
     // don't know why
-    camera[0].size.width = 1080;
-    camera[0].size.height = 1920;
+    // camera[0].size.width = 1080;
+    // camera[0].size.height = 1920;
 
     printf("%s:size[0].width is %d size[0].height is %d,size[1].width is %d size[1].height is %d,camera_num(%d)\n",__func__,camera[0].size.width,camera[0].size.height,camera[1].size.width,camera[1].size.height,camera_num);
     struct drm_size size[2];
@@ -1160,27 +1160,38 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
     drm_init(&size[0]); //drm init
 
     drm_dev.camera_num = camera_num;
+    struct camera_info* used_cam;
 	if(dev_info[0].video_used) {
 		if (init_isp(&camera[0]) < 0) {
 			goto cleanup;
 		}
+        used_cam = &camera[0];
 	}
-	if( dev_info[1].video_used) {
+	if(dev_info[1].video_used) {
 		if (init_isp(&camera[1]) < 0) {
             goto cleanup;
 		}
+        used_cam = &camera[1];
 	}
-    
-    struct drm_buffer *fbuf1 = &drm_dev.drm_bufs[0];
-    struct drm_buffer *fbuf2 = &drm_dev.drm_bufs[BUFFERS_COUNT];
-    for (int i = 0; i < BUFFERS_COUNT; i++) {
-        fbuf1[i].width = camera[0].size.width;
-        fbuf1[i].height = camera[0].size.height;
-        fbuf2[i].width = camera[1].size.width;
-        fbuf2[i].height = camera[1].size.height; 
+    // FIXME
+    if (dev_info[0].video_used && dev_info[1].video_used) {
+        struct drm_buffer *fbuf1 = &drm_dev.drm_bufs[0];
+        struct drm_buffer *fbuf2 = &drm_dev.drm_bufs[BUFFERS_COUNT];
+        for (int i = 0; i < BUFFERS_COUNT; i++) {
+            fbuf1[i].width = camera[0].size.width;
+            fbuf1[i].height = camera[0].size.height;
+            fbuf2[i].width = camera[1].size.width;
+            fbuf2[i].height = camera[1].size.height; 
+        }
+    } else {
+        struct drm_buffer *fbuf = &drm_dev.drm_bufs[0];
+        for (int i = 0; i < BUFFERS_COUNT; i++) {
+            fbuf[i].width = used_cam->size.width;
+            fbuf[i].height = used_cam->size.height;
+        }
     }
 	fprintf(stderr, "start\n");
-    
+
     fd_set fds;
     int max_fd = -1;
     unsigned bit_mask = 0, bit_mask_w;
