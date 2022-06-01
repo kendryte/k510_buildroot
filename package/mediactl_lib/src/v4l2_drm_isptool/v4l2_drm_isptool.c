@@ -1083,7 +1083,7 @@ static pid_t spawn_isp_tuningd (int* pipe_fd_ptr) {
         // dup to stdin
         dup2(pipe_fd[0], 0);
         // exec isp-tuningd
-        if(execl("./isp-tuningd", "./isp-tuningd", NULL) < 0) {
+        if(execl("./isp-tuningd", "./isp-tuningd", "-j", NULL) < 0) {
             exit(-1);
         }
         return 0;
