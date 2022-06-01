@@ -1173,7 +1173,7 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
 		}
         used_cam = &camera[1];
 	}
-    // FIXME
+
     if (dev_info[0].video_used && dev_info[1].video_used) {
         struct drm_buffer *fbuf1 = &drm_dev.drm_bufs[0];
         struct drm_buffer *fbuf2 = &drm_dev.drm_bufs[BUFFERS_COUNT];
@@ -1257,7 +1257,7 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
             }
 #define AE 1
 #if AE
-            if(isp_ae_status == 1 || isp_ae_status == 3) {
+            if(isp_ae_status & 1) {
                 mediactl_set_ae(ISP_F2K_PIPELINE);
             }
 #endif
@@ -1269,7 +1269,7 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
                 break;
             }
 #if AE
-            if(isp_ae_status == 1 || isp_ae_status == 3) {
+            if(isp_ae_status & 2) {
                 mediactl_set_ae(ISP_R2K_PIPELINE);
             }
 #endif
@@ -1317,28 +1317,28 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
             drm_wait_vsync();
         }
 
+        // flip
+        vbuf_ptr ^= 1;
+
         // qbuf
-        // skip first frame
+        // FIXME: skip first frame
         static char ff = 0;
         if (!ff) {
             ff = 1;
         } else {
             if(dev_info[0].video_used) {
-                if (xioctl(camera[0].fd, VIDIOC_QBUF, &vbuf[vbuf_ptr ^ 1][0]) < 0) {
+                if (xioctl(camera[0].fd, VIDIOC_QBUF, &vbuf[vbuf_ptr][0]) < 0) {
                     perror("cam0 VIDIOC_QBUF");
                     break;
                 }
             }
             if(dev_info[1].video_used) {
-                if (xioctl(camera[1].fd, VIDIOC_QBUF, &vbuf[vbuf_ptr ^ 1][1]) < 0) {
+                if (xioctl(camera[1].fd, VIDIOC_QBUF, &vbuf[vbuf_ptr][1]) < 0) {
                     perror("cam1 VIDIOC_QBUF");
                     break;
                 }
             }
         }
-
-        // flip
-        vbuf_ptr ^= 1;
     }
 
 cleanup:
