@@ -133,7 +133,6 @@ static int read_frame(struct camera_info *camera,unsigned int camera_seq)
     struct v4l2_buffer buf;
     unsigned int i;
     int fd = camera->fd;
-    cam_fd[0] = fd;
     unsigned int n_buffers = camera->n_buffers;
 
     //printf("%s: called!\n", __func__);
@@ -167,10 +166,15 @@ static int read_frame(struct camera_info *camera,unsigned int camera_seq)
     //printf("%s:buf.index(%d)\n",__func__,buf.index);
     // EnQueue(f2k_queue,buf.index);
     static struct v4l2_buffer old_buffer;
+#define DEBUG_OUT 0
+#if DEBUG_OUT
     fprintf(stderr, "cam0: p %d\n", buf.index);
+#endif
     pthread_mutex_lock(&frame_mutex[0]);
     if (sem_trywait(&frame_sem[0]) == 0) {
+#if DEBUG_OUT
         fprintf(stderr, "cam0: d %d\n", old_buffer.index);
+#endif
         if (xioctl(fd, VIDIOC_QBUF, &old_buffer) < 0) {
             // pthread_mutex_unlock(&mutex);
             perror("readframe: QBUF");
@@ -227,7 +231,6 @@ static int read_frame1(struct camera_info *camera,unsigned int camera_seq)
     struct v4l2_buffer buf;
     unsigned int i;
     int fd = camera->fd;
-    cam_fd[1] = fd;
     unsigned int n_buffers = camera->n_buffers;
 
     //printf("%s: called!\n", __func__); 
@@ -263,10 +266,14 @@ static int read_frame1(struct camera_info *camera,unsigned int camera_seq)
     //printf("%s:buf.index1(%d)\n",__func__,buf.index);
     // EnQueue(r2k_queue,buf.index);
     static struct v4l2_buffer old_buffer;
+#if DEBUG_OUT
     fprintf(stderr, "cam1: p %d\n", buf.index);
+#endif
     pthread_mutex_lock(&frame_mutex[1]);
     if (sem_trywait(&frame_sem[1]) == 0) {
+#if DEBUG_OUT
         fprintf(stderr, "cam1: d %d\n", old_buffer.index);
+#endif
         if (xioctl(fd, VIDIOC_QBUF, &old_buffer) < 0) {
             // pthread_mutex_unlock(&mutex);
             perror("readframe: QBUF");
@@ -829,7 +836,7 @@ void *run_f2k_video(void *info)
         goto f2k_cleanup;
     } 
     pthread_mutex_unlock(&mutex);  
-//
+    cam_fd[0] = camera->fd;
     ret = mainloop(camera,0);
     if(ret <0 )
     {
@@ -872,7 +879,7 @@ void *run_r2k_video(void *info)
         goto r2k_cleanup;
     } 
     pthread_mutex_unlock(&mutex);  
-//
+    cam_fd[1] = camera->fd;
     ret = mainloop1(camera,1);
     if(ret <0 )
     {
@@ -943,7 +950,9 @@ void *drm_show(void *info)
             vbuf[0] = out_buffer[0];
             pthread_mutex_unlock(&frame_mutex[0]);
             index = vbuf[0].index;
+#if DEBUG_OUT
             fprintf(stderr, "cam0: g %d\n", index);
+#endif
         }
         if(dev_info[1].video_used) {
             sem_wait(&frame_sem[1]);
@@ -956,7 +965,9 @@ void *drm_show(void *info)
             vbuf[1] = out_buffer[1];
             pthread_mutex_unlock(&frame_mutex[1]);
             index1 = vbuf[1].index;
+#if DEBUG_OUT
             fprintf(stderr, "cam1: g %d\n", index1);
+#endif
         }
         if((dev_info[0].video_used == 1)&& (dev_info[1].video_used == 1))
         {
