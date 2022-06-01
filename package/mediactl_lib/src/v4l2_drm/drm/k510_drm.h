@@ -45,7 +45,7 @@
 #include <drm_fourcc.h>
 #include <sys/ioctl.h>
 
-#define BUFFERS_COUNT		10//10//4//6/3
+#define BUFFERS_COUNT		4//10//4//6/3
 #define BUFFERS_NUM			2
 
 struct drm_size {
