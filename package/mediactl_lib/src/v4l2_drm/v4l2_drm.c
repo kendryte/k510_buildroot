@@ -188,36 +188,9 @@ static int read_frame(struct camera_info *camera,unsigned int camera_seq)
     pthread_mutex_unlock(&frame_mutex[0]);
     old_buffer = buf;
 
-    if(isp_ae_status == 1 || isp_ae_status == 3)
-    {
+    if(isp_ae_status & 1) {
         mediactl_set_ae(ISP_F2K_PIPELINE);
     }
-    
-
-    struct drm_buffer *fbuf;
-    static int screen_init_flag = 0;
-#if 0
-    pthread_mutex_lock(&mutex);
-    if(screen_init_flag && !flag) // inited  //drm
-    {
-        /* Requeue the buffer */
-        if (-1 == xioctl(fd, VIDIOC_QBUF, &old_buffer))
-        {
-            pthread_mutex_unlock(&mutex);
-            perror("readframe: QBUF");
-            //errno_exit("VIDIOC_QBUF");
-            return -1;
-        }            
-    }
-    pthread_mutex_unlock(&mutex);
-
-    old_buffer = buf;
-#endif
-    if(screen_init_flag == 0) // not init
-    {
-        screen_init_flag = 1;
-    }
-
     return 0;
 }
 /**
@@ -287,32 +260,9 @@ static int read_frame1(struct camera_info *camera,unsigned int camera_seq)
     pthread_mutex_unlock(&frame_mutex[1]);
     old_buffer = buf;
 
-    struct drm_buffer *fbuf;
-    static int screen_init_flag = 0;
-#if 0
-   //printf("%s: show!\n", __func__);
-    pthread_mutex_lock(&mutex);
-    if(screen_init_flag && !flag) // inited  //drm
-    {
-        /* Requeue the buffer */
-        if (-1 == xioctl(fd, VIDIOC_QBUF, &old_buffer))
-        {
-            pthread_mutex_unlock(&mutex);
-            perror("readframe1: QBUF");
-            // printf("%s:camera (%d) VIDIOC_QBUF failed!\n",__func__,camera_seq);
-            //errno_exit("VIDIOC_QBUF");
-            return -1;
-        }            
+    if(isp_ae_status & 2) {
+        mediactl_set_ae(ISP_F2K_PIPELINE);
     }
-    pthread_mutex_unlock(&mutex);
-
-    old_buffer = buf;
-#endif
-    if(screen_init_flag == 0) // not init
-    {
-        screen_init_flag = 1;
-    }
-
     return 0;
 }
 /**
@@ -919,37 +869,31 @@ void *drm_show(void *info)
 {
     struct video_info *dev_info = (struct video_info *)info;
     struct drm_buffer *fbuf,*fbuf2;
-    static struct v4l2_buffer vbuf[2];
+    static struct v4l2_buffer vbuf[2][2];
+    static unsigned vbuf_ptr = 0;
     unsigned int index = 0,index1 = 0;
     printf("%s:start!\n",__func__);
     if(dev_info[0].video_used) {
         sem_wait(&frame_sem[0]);
         pthread_mutex_lock(&frame_mutex[0]);
-        vbuf[0] = out_buffer[0];
+        vbuf[vbuf_ptr][0] = out_buffer[0];
         pthread_mutex_unlock(&frame_mutex[0]);
     }
     if(dev_info[1].video_used) {
         sem_wait(&frame_sem[1]);
         pthread_mutex_lock(&frame_mutex[1]);
-        vbuf[1] = out_buffer[1];
+        vbuf[vbuf_ptr][1] = out_buffer[1];
         pthread_mutex_unlock(&frame_mutex[1]);
     }
-    while(!done)
-    {
+    vbuf_ptr ^= 1;
+    while(!done) {
         /* drm show */
-        if (drm_dev.req)
-            drm_wait_vsync();
         if(dev_info[0].video_used) {
             sem_wait(&frame_sem[0]);
             pthread_mutex_lock(&frame_mutex[0]);
-            if (xioctl(cam_fd[0], VIDIOC_QBUF, &vbuf[0]) < 0) {
-                // printf("%s:camera (0) VIDIOC_QBUF failed!\n",__func__);
-                perror("drm_show: camera (0) VIDIOC_QBUF failed");
-                break;
-            }
-            vbuf[0] = out_buffer[0];
+            vbuf[vbuf_ptr][0] = out_buffer[0];
             pthread_mutex_unlock(&frame_mutex[0]);
-            index = vbuf[0].index;
+            index = vbuf[vbuf_ptr][0].index;
 #if DEBUG_OUT
             fprintf(stderr, "cam0: g %d\n", index);
 #endif
@@ -957,18 +901,29 @@ void *drm_show(void *info)
         if(dev_info[1].video_used) {
             sem_wait(&frame_sem[1]);
             pthread_mutex_lock(&frame_mutex[1]);
-            if (xioctl(cam_fd[1], VIDIOC_QBUF, &vbuf[1]) < 0) {
-                // printf("%s:camera (1) VIDIOC_QBUF failed!\n",__func__);
-                perror("drm_show: camera (1) VIDIOC_QBUF failed");
-                break;
-            }
-            vbuf[1] = out_buffer[1];
+            vbuf[vbuf_ptr][1] = out_buffer[1];
             pthread_mutex_unlock(&frame_mutex[1]);
-            index1 = vbuf[1].index;
+            index1 = vbuf[vbuf_ptr][1].index;
 #if DEBUG_OUT
             fprintf(stderr, "cam1: g %d\n", index1);
 #endif
         }
+
+#define FPS 1
+#if FPS
+        static int frames = 0;
+        static uint32_t tm = 0;
+        static int last_tm_frame = 0;
+        static int fps = 0;
+        frames += 1;
+        if (time(NULL) - tm) {
+            fps = frames - last_tm_frame;
+            last_tm_frame = frames;
+            tm = time(NULL);
+        }
+        fprintf(stderr, "display #%d, fps: %d\r", frames, fps);
+#endif
+
         if((dev_info[0].video_used == 1)&& (dev_info[1].video_used == 1))
         {
             //printf("%s:index(%d) index1(%d)\n",__func__,index,index1);  
@@ -996,7 +951,28 @@ void *drm_show(void *info)
                 printf("Flush fail\n");
                 break;
             }
-        }    
+        }
+        if (drm_dev.req)
+            drm_wait_vsync();
+
+        // flip
+        vbuf_ptr ^= 1;
+
+        // QBUF
+        if(dev_info[0].video_used) {
+            if (xioctl(cam_fd[0], VIDIOC_QBUF, &vbuf[vbuf_ptr][0]) < 0) {
+                // printf("%s:camera (1) VIDIOC_QBUF failed!\n",__func__);
+                perror("drm_show: camera (1) VIDIOC_QBUF failed");
+                break;
+            }
+        }
+        if(dev_info[1].video_used) {
+            if (xioctl(cam_fd[1], VIDIOC_QBUF, &vbuf[vbuf_ptr][1]) < 0) {
+                // printf("%s:camera (1) VIDIOC_QBUF failed!\n",__func__);
+                perror("drm_show: camera (1) VIDIOC_QBUF failed");
+                break;
+            }
+        }
     }
     done = true;
     //
