@@ -1141,31 +1141,7 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
         cam_fd[1] = camera[1].fd;
 		pthread_create(&r2k_pid,NULL,run_r2k_video,(void *)&camera[1]);
 	}
-
-    pthread_create(&drm_pid,NULL,drm_show,(void *)&dev_info[0]);
-    //
-	if( dev_info[0].video_used == 1)
-	{
-		pthread_kill(f2k_pid, SIGALRM);
-	}
-
-	if( dev_info[1].video_used == 1)
-	{
-		pthread_kill(r2k_pid, SIGALRM);
-	}
-    pthread_kill(drm_pid, SIGALRM);
-
-    printf("Wait for masked and unmasked threads to complete\n"); 
-	if( dev_info[0].video_used == 1)
-    {
-		pthread_join(f2k_pid, NULL);
-	} 
-
-	if( dev_info[1].video_used == 1)
-	{
-    	pthread_join(r2k_pid, NULL);
-	}
-    pthread_join(drm_pid, NULL);
+    drm_show(&dev_info[0]);
 
     pthread_mutex_destroy(&mutex);
     pthread_mutex_destroy(&frame_mutex[0]);
