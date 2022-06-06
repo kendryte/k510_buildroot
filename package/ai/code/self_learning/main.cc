@@ -133,17 +133,17 @@ void ai_worker(ai_worker_args ai_args)
     int train_cnt = 0;
     while(quit.load()) 
     {
-    	bool ret = false;
+        bool ret = false;
         bool is_show = false;
         ScopedTiming st("total", 0);
         mtx.lock();
         ret = capture.read(rgb24_img_for_ai);
         mtx.unlock();
-		if(ret == false)
-		{
-			quit.store(false);
-			continue; // 
-		}
+        if(ret == false)
+        {
+            quit.store(false);
+            continue; // 
+        }
         if(enable_dump_image)
         {
             std::vector<cv::Mat>ori_imgparts(3);
@@ -367,16 +367,16 @@ void display_worker(int enable_profile)
         fbuf_yuv = &drm_dev.drm_bufs[drm_bufs_index];
         cv::Mat org_img(DRM_INPUT_HEIGHT * 3 / 2, (DRM_INPUT_WIDTH + 15) / 16 * 16, CV_8UC1, fbuf_yuv->map);
         {
-        	bool ret = false;
+            bool ret = false;
             ScopedTiming st("capture read",enable_profile);
             mtx.lock();
             ret = capture.read(org_img);
             mtx.unlock();
-			if(ret == false)
-			{
-				quit.store(false);
-				continue; // 
-			}
+            if(ret == false)
+            {
+                quit.store(false);
+                continue; // 
+            }
         }
 
         if (drm_dev.req)

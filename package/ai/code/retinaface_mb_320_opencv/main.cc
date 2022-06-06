@@ -104,16 +104,16 @@ void ai_worker()
 
     while(quit.load()) 
     {
-    	bool ret = false;
+        bool ret = false;
         ScopedTiming st("total");
         mtx.lock();
         ret = capture.read(osd_img);
         mtx.unlock();
-		if(ret == false)
-		{
-			quit.store(false);
-			continue; // 
-		}
+        if(ret == false)
+        {
+            quit.store(false);
+            continue; // 
+        }
 
         for (int r = 0; r < valid_height; r++)
         {
@@ -247,18 +247,18 @@ void display_worker()
         fbuf_yuv = &drm_dev.drm_bufs[drm_bufs_index];
         cv::Mat org_img(DRM_INPUT_HEIGHT*3/2, (DRM_INPUT_WIDTH+15)/16*16, CV_8UC1, fbuf_yuv->map);
         {
-        	bool ret = false;
+            bool ret = false;
 #if PROFILING
             ScopedTiming st("capture read");
 #endif
             mtx.lock();
             ret = capture.read(org_img);
             mtx.unlock();
-			if(ret == false)
-			{
-				quit.store(false);
-				continue; // 
-			}
+            if(ret == false)
+            {
+                quit.store(false);
+                continue; // 
+            }
         }
 
         if (drm_dev.req)
