@@ -112,10 +112,17 @@ void ai_worker(ai_worker_args ai_args)
     cv::Mat rgb24_img_for_ai(net_len, net_len, CV_8UC3, od.virtual_addr_input[0] + (valid_width - valid_height) / 2 * valid_width);
     while(quit.load()) 
     {
+    	bool ret = false;
         ScopedTiming st("total", 1);
         mtx.lock();
-        capture.read(rgb24_img_for_ai);
+        ret = capture.read(rgb24_img_for_ai);
         mtx.unlock();
+		if(ret == false)
+		{
+			quit.store(false);
+			continue; // 
+		}
+		
         //拷贝图像的同时修改padding方式，默认读出的图像是最后做padding，修改为前后做padding
         if(is_rgb)
         {
@@ -273,10 +280,17 @@ void display_worker(int enable_profile)
         fbuf_yuv = &drm_dev.drm_bufs[drm_bufs_index];
         cv::Mat org_img(DRM_INPUT_HEIGHT * 3 / 2, (DRM_INPUT_WIDTH + 15) / 16 * 16, CV_8UC1, fbuf_yuv->map);
         {
+        	bool ret = false;
             ScopedTiming st("capture read",enable_profile);
             mtx.lock();
-            capture.read(org_img);
+            ret = capture.read(org_img);
             mtx.unlock();
+			if(ret == false)
+			{
+				quit.store(false);
+				continue; // 
+			}
+			
         }
 
         if (drm_dev.req)
