@@ -332,11 +332,13 @@ int main(int argc, char *argv[])
 
 
     /****fixed operation for drm init****/
-    drm_init();
+    if(drm_init())
+        return -1;
 
 
     /****fixed operation for mediactl init****/
-    mediactl_init(video_cfg_file, &dev_info[0]);
+    if(mediactl_init(video_cfg_file, &dev_info[0]))
+        return -1;
 
 
     // create thread for display

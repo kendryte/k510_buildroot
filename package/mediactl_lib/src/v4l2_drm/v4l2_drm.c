@@ -1037,7 +1037,8 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
     //
     cfg_noc_prior();
     //media
-    mediactl_init(video_cfg_file,&dev_info[0]);
+    if(mediactl_init(video_cfg_file,&dev_info[0]))
+		return -1;
     //drm
     printf("%s:dev_info[0].video_used(%d)\n",__func__,dev_info[0].video_used);
     if( 1 == dev_info[0].video_used )
@@ -1108,7 +1109,10 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
     }    
 
     drm_reset();
-    drm_init(&size[0]); //drm init
+    if(drm_init(&size[0])){
+        mediactl_exit();
+        return -1;
+    }
 
     drm_dev.camera_num = camera_num;
     //

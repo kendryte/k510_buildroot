@@ -105,7 +105,7 @@ extern "C" {
 int draw_frame(struct vo_draw_frame *frame);
 int drm_dmabuf_set_plane(struct drm_buffer *buf, struct drm_buffer *buf1);
 void drm_wait_vsync(void);
-void drm_init(void);
+int  drm_init(void);
 void drm_destory_dumb(struct drm_buffer *buf);
 void drm_exit(void);
 #if defined(__cplusplus)
