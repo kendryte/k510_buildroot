@@ -427,6 +427,6 @@ int main(int argc, char *argv[])
     {
         drm_destory_dumb(&drm_dev.drm_bufs_argb[i]);
     }
-    
+	mediactl_exit();     
     return 0;
 }
