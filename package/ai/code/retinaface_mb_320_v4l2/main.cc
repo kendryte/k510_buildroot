@@ -60,7 +60,7 @@
 
 struct video_info dev_info[2];
 static char *video_cfg_file = "video.conf";
-#define SELECT_TIMEOUT		2000
+#define SELECT_TIMEOUT        2000
 
 std::mutex mtx;
 
@@ -85,46 +85,46 @@ void fun_sig(int sig)
 
 static int video_stop(struct v4l2_device *vdev)
 {
-	int ret;
+    int ret;
 
-	ret = v4l2_stream_off(vdev);
-	if (ret < 0) {
-		printf("error: failed to stop video stream: %s (%d)\n",
-			strerror(-ret), ret);
-		return ret;
-	}
+    ret = v4l2_stream_off(vdev);
+    if (ret < 0) {
+        printf("error: failed to stop video stream: %s (%d)\n",
+            strerror(-ret), ret);
+        return ret;
+    }
 
-	return 0;
+    return 0;
 }
 
 static void video_cleanup(struct v4l2_device *vdev)
 {
-	if (vdev) {
-		v4l2_free_buffers(vdev);
-		v4l2_close(vdev);
-	}
+    if (vdev) {
+        v4l2_free_buffers(vdev);
+        v4l2_close(vdev);
+    }
 }
 
 static int process_ds2_image(struct v4l2_device *vdev, struct v4l2_pix_format *format)
 {
-	struct v4l2_video_buffer buffer;
-	int ret;
+    struct v4l2_video_buffer buffer;
+    int ret;
     uint32_t valid_width = dev_info[0].video_width[3];
     uint32_t valid_height = dev_info[0].video_height[3];
 
     mtx.lock();
-	ret = v4l2_dequeue_buffer(vdev, &buffer);
-	if (ret < 0) {
-		printf("error: unable to dequeue buffer: %s (%d)\n",
-			strerror(-ret), ret);
+    ret = v4l2_dequeue_buffer(vdev, &buffer);
+    if (ret < 0) {
+        printf("error: unable to dequeue buffer: %s (%d)\n",
+            strerror(-ret), ret);
         mtx.unlock();
-		return ret;
-	}
+        return ret;
+    }
     mtx.unlock();
-	if (buffer.error) {
-		printf("warning: error in dequeued buffer, skipping\n");
-		return 0;
-	}
+    if (buffer.error) {
+        printf("warning: error in dequeued buffer, skipping\n");
+        return 0;
+    }
 
     for (int r = 0; r < valid_height; r++)
     {
@@ -240,7 +240,7 @@ static int process_ds2_image(struct v4l2_device *vdev, struct v4l2_pix_format *f
     }
     mtx.unlock();
 
-	return 0;
+    return 0;
 }
 
 void ai_worker()
@@ -252,62 +252,62 @@ void ai_worker()
 
     rf.load_model(kmodel_name);
 
-	rf.prepare_memory();
+    rf.prepare_memory();
 
     mtx.lock();
     vdev = v4l2_open(dev_info[0].video_name[3]);
     if (vdev == NULL) {
-		printf("error: unable to open video capture device %s\n",
-			dev_info[0].video_name[3]);
+        printf("error: unable to open video capture device %s\n",
+            dev_info[0].video_name[3]);
         mtx.unlock();
-		goto ai_cleanup;
-	}
+        goto ai_cleanup;
+    }
 
-	memset(&format, 0, sizeof format);
-	format.pixelformat = dev_info[0].video_out_format[3] ? V4L2_PIX_FMT_ARGB32 : V4L2_PIX_FMT_RGB24;
-	format.width = dev_info[0].video_width[3];
-	format.height = dev_info[0].video_height[3];
+    memset(&format, 0, sizeof format);
+    format.pixelformat = dev_info[0].video_out_format[3] ? V4L2_PIX_FMT_ARGB32 : V4L2_PIX_FMT_RGB24;
+    format.width = dev_info[0].video_width[3];
+    format.height = dev_info[0].video_height[3];
     printf("format.width=%d %d \n",format.height, format.width);
 
-	ret = v4l2_set_format(vdev, &format);
-	if (ret < 0)
-	{
-		printf("%s:v4l2_set_format error\n",__func__);
+    ret = v4l2_set_format(vdev, &format);
+    if (ret < 0)
+    {
+        printf("%s:v4l2_set_format error\n",__func__);
         mtx.unlock();
-		goto ai_cleanup;
-	}
+        goto ai_cleanup;
+    }
 
     ret = v4l2_alloc_buffers(vdev, V4L2_MEMORY_MMAP, 3);
-	if (ret < 0)
-	{
-		printf("%s:v4l2_alloc_buffers error\n",__func__);
+    if (ret < 0)
+    {
+        printf("%s:v4l2_alloc_buffers error\n",__func__);
         mtx.unlock();
-		goto ai_cleanup;
-	}
+        goto ai_cleanup;
+    }
 
-	FD_ZERO(&fds);
-	FD_SET(vdev->fd, &fds);
+    FD_ZERO(&fds);
+    FD_SET(vdev->fd, &fds);
 
     struct v4l2_video_buffer buffer;
-	unsigned int i;
+    unsigned int i;
 
-	for (i = 0; i < vdev->nbufs; ++i) {
-		buffer.index = i;
-		ret = v4l2_queue_buffer(vdev, &buffer);
-		if (ret < 0) {
-			printf("error: unable to queue buffer %u\n", i);
+    for (i = 0; i < vdev->nbufs; ++i) {
+        buffer.index = i;
+        ret = v4l2_queue_buffer(vdev, &buffer);
+        if (ret < 0) {
+            printf("error: unable to queue buffer %u\n", i);
             mtx.unlock();
-			goto ai_cleanup;
-		}	
-	}
+            goto ai_cleanup;
+        }    
+    }
 
-	ret = v4l2_stream_on(vdev);
-	if (ret < 0) {
-		printf("%s error: failed to start video stream: %s (%d)\n", __func__,
-			strerror(-ret), ret);
+    ret = v4l2_stream_on(vdev);
+    if (ret < 0) {
+        printf("%s error: failed to start video stream: %s (%d)\n", __func__,
+            strerror(-ret), ret);
         mtx.unlock();
-		goto ai_cleanup;
-	}
+        goto ai_cleanup;
+    }
     mtx.unlock();
 
     while(quit.load()) 
@@ -315,24 +315,24 @@ void ai_worker()
         ScopedTiming st("total");
 
         struct timeval timeout;
-		fd_set rfds;
+        fd_set rfds;
 
-		timeout.tv_sec = SELECT_TIMEOUT / 1000;
-		timeout.tv_usec = (SELECT_TIMEOUT % 1000) * 1000;
-		rfds = fds;
+        timeout.tv_sec = SELECT_TIMEOUT / 1000;
+        timeout.tv_usec = (SELECT_TIMEOUT % 1000) * 1000;
+        rfds = fds;
 
-		ret = select(vdev->fd + 1, &rfds, NULL, NULL, &timeout);
-		if (ret < 0) {
-			if (errno == EINTR)
-				continue;
+        ret = select(vdev->fd + 1, &rfds, NULL, NULL, &timeout);
+        if (ret < 0) {
+            if (errno == EINTR)
+                continue;
 
-			printf("error: select failed with %d\n", errno);
-			goto ai_cleanup;
-		}
-		if (ret == 0) {
-			printf("error: select timeout\n");
-			goto ai_cleanup;
-		}
+            printf("error: select failed with %d\n", errno);
+            goto ai_cleanup;
+        }
+        if (ret == 0) {
+            printf("error: select timeout\n");
+            goto ai_cleanup;
+        }
 
         process_ds2_image(vdev, &format);
     }
@@ -340,7 +340,7 @@ void ai_worker()
 ai_cleanup:
     mtx.lock();
     video_stop(vdev);
-	video_cleanup(vdev);
+    video_cleanup(vdev);
     mtx.unlock();
 
     for(int i=0; i<obj_cnt; i++)
@@ -355,24 +355,24 @@ ai_cleanup:
 
 static int process_ds0_image(struct v4l2_device *vdev,unsigned int width,unsigned int height)
 {
-	struct v4l2_video_buffer buffer;
-	int ret;
+    struct v4l2_video_buffer buffer;
+    int ret;
     static struct v4l2_video_buffer old_buffer;
     static int screen_init_flag = 0;
 
     mtx.lock();
-	ret = v4l2_dequeue_buffer(vdev, &buffer);
-	if (ret < 0) {
-		printf("error: unable to dequeue buffer: %s (%d)\n",
-			strerror(-ret), ret);
+    ret = v4l2_dequeue_buffer(vdev, &buffer);
+    if (ret < 0) {
+        printf("error: unable to dequeue buffer: %s (%d)\n",
+            strerror(-ret), ret);
         mtx.unlock();
-		return ret;
-	}
+        return ret;
+    }
     mtx.unlock();
-	if (buffer.error) {
-		printf("warning: error in dequeued buffer, skipping\n");
-		return 0;
-	}
+    if (buffer.error) {
+        printf("warning: error in dequeued buffer, skipping\n");
+        return 0;
+    }
 
     fbuf_yuv = &drm_dev.drm_bufs[buffer.index];
 
@@ -404,7 +404,7 @@ static int process_ds0_image(struct v4l2_device *vdev,unsigned int width,unsigne
 
     old_buffer = buffer;
 
-	return 0;
+    return 0;
 }
 
 void display_worker()
@@ -414,96 +414,97 @@ void display_worker()
     struct v4l2_pix_format format;
     fd_set fds;
     struct v4l2_video_buffer buffer;
-	unsigned int i;
+    unsigned int i;
 
     mtx.lock();
     vdev = v4l2_open(dev_info[0].video_name[1]);
     if (vdev == NULL) {
-		printf("error: unable to open video capture device %s\n",
-			dev_info[0].video_name[1]);
+        printf("error: unable to open video capture device %s\n",
+            dev_info[0].video_name[1]);
         mtx.unlock();
-		goto display_cleanup;
-	}
+        goto display_cleanup;
+    }
 
-	memset(&format, 0, sizeof format);
-	format.pixelformat = dev_info[0].video_out_format[1] ? V4L2_PIX_FMT_NV12 : V4L2_PIX_FMT_NV16;
-	format.width = dev_info[0].video_width[1];
-	format.height = dev_info[0].video_height[1];
+    memset(&format, 0, sizeof format);
+    format.pixelformat = dev_info[0].video_out_format[1] ? V4L2_PIX_FMT_NV12 : V4L2_PIX_FMT_NV16;
+    format.width = dev_info[0].video_width[1];
+    format.height = dev_info[0].video_height[1];
 
-	ret = v4l2_set_format(vdev, &format);
-	if (ret < 0)
-	{
-		printf("%s:v4l2_set_format error\n",__func__);
+    ret = v4l2_set_format(vdev, &format);
+    if (ret < 0)
+    {
+        printf("%s:v4l2_set_format error\n",__func__);
         mtx.unlock();
-		goto display_cleanup;
-	}
+        goto display_cleanup;
+    }
 
-	ret = v4l2_alloc_buffers(vdev, V4L2_MEMORY_USERPTR, DRM_BUFFERS_COUNT);
-	if (ret < 0)
-	{
-		printf("%s:v4l2_alloc_buffers error\n",__func__);
+    ret = v4l2_alloc_buffers(vdev, V4L2_MEMORY_USERPTR, DRM_BUFFERS_COUNT);
+    if (ret < 0)
+    {
+        printf("%s:v4l2_alloc_buffers error\n",__func__);
         mtx.unlock();
-		goto display_cleanup;
-	}
+        goto display_cleanup;
+    }
 
-	FD_ZERO(&fds);
-	FD_SET(vdev->fd, &fds);
+    FD_ZERO(&fds);
+    FD_SET(vdev->fd, &fds);
 
-	for (i = 0; i < vdev->nbufs; ++i) {
-		buffer.index = i;
+    for (i = 0; i < vdev->nbufs; ++i) {
+        buffer.index = i;
         fbuf_yuv = &drm_dev.drm_bufs[buffer.index];
         buffer.mem = fbuf_yuv->map;
         buffer.size = fbuf_yuv->size;
 
-		ret = v4l2_queue_buffer(vdev, &buffer);
-		if (ret < 0) {
-			printf("error: unable to queue buffer %u\n", i);
+        ret = v4l2_queue_buffer(vdev, &buffer);
+        if (ret < 0) {
+            printf("error: unable to queue buffer %u\n", i);
             mtx.unlock();
-			goto display_cleanup;
-		}	
-	}
+            goto display_cleanup;
+        }    
+    }
 
-	ret = v4l2_stream_on(vdev);
-	if (ret < 0) {
-		printf("%s error: failed to start video stream: %s (%d)\n", __func__,
-			strerror(-ret), ret);
+    ret = v4l2_stream_on(vdev);
+    if (ret < 0) {
+        printf("%s error: failed to start video stream: %s (%d)\n", __func__,
+            strerror(-ret), ret);
         mtx.unlock();
-		goto display_cleanup;
-	}
+        goto display_cleanup;
+    }
     mtx.unlock();
 
     while(quit.load()) {
-		struct timeval timeout;
-		fd_set rfds;
+        struct timeval timeout;
+        fd_set rfds;
 
-		timeout.tv_sec = SELECT_TIMEOUT / 1000;
-		timeout.tv_usec = (SELECT_TIMEOUT % 1000) * 1000;
-		rfds = fds;
+        timeout.tv_sec = SELECT_TIMEOUT / 1000;
+        timeout.tv_usec = (SELECT_TIMEOUT % 1000) * 1000;
+        rfds = fds;
 
-		ret = select(vdev->fd + 1, &rfds, NULL, NULL, &timeout);
-		if (ret < 0) {
-			if (errno == EINTR)
-				continue;
+        ret = select(vdev->fd + 1, &rfds, NULL, NULL, &timeout);
+        if (ret < 0) {
+            if (errno == EINTR)
+                continue;
 
-			printf("error: select failed with %d\n", errno);
-			goto display_cleanup;
-		}
-		if (ret == 0) {
-			printf("error: select timeout\n");
-			goto display_cleanup;
-		}
+            printf("error: select failed with %d\n", errno);
+            goto display_cleanup;
+        }
+        if (ret == 0) {
+            printf("error: select timeout\n");
+            goto display_cleanup;
+        }
         process_ds0_image(vdev, format.width, format.height);
     }
 
 display_cleanup:
     mtx.lock();
     video_stop(vdev);
-	video_cleanup(vdev);
+    video_cleanup(vdev);
     mtx.unlock();
 }
 
 int main(int argc, char *argv[])
 {
+    int ret = 0;
     std::cout << "case2 " << argv[0] << " build " << __DATE__ << " " << __TIME__ << std::endl;
     if (argc != 2)
     {
@@ -519,9 +520,11 @@ int main(int argc, char *argv[])
     sigfillset(&sa.sa_mask);
     sigaction(SIGINT, &sa, NULL);
 
-    drm_init();
+    ret = drm_init();
+   if(ret){printf("f=%s l=%d wjwwjxwjxwjxwjxxx %x\n",__func__,__LINE__,ret);exit(1);} 
 
-    mediactl_init(video_cfg_file, &dev_info[0]);
+    ret = mediactl_init(video_cfg_file, &dev_info[0]);
+   if(ret){printf("f=%s l=%d wjwwjxwjxwjxwjxxx %x\n",__func__,__LINE__,ret);exit(1);} 
 
     std::thread thread_ds0(display_worker);
     std::thread thread_ds2(ai_worker);
@@ -535,6 +538,6 @@ int main(int argc, char *argv[])
     for(int i = 0; i < DRM_BUFFERS_COUNT; i++) {
         drm_destory_dumb(&drm_dev.drm_bufs_argb[i]);
     }
-
+    mediactl_exit(); 
     return 0;
 }
