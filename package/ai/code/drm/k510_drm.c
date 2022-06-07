@@ -895,7 +895,7 @@ void drm_get_sizes(int16_t *width, int16_t *height, uint32_t *dpi)
 		*dpi = DIV_ROUND_UP(drm_dev.width * 25400, drm_dev.mmWidth * 1000);
 }
 
-void drm_init(void)
+int  drm_init(void)
 {
 	int ret;
 
@@ -903,7 +903,7 @@ void drm_init(void)
 	if (ret) {
 		close(drm_dev.fd);
 		drm_dev.fd = -1;
-		return;
+		return ret;
 	}
 
 	ret = drm_setup_buffers();
@@ -911,8 +911,9 @@ void drm_init(void)
 		err("DRM buffer allocation failed");
 		close(drm_dev.fd);
 		drm_dev.fd = -1;
-		return;
+		return ret;
 	}
+	return 0;
 }
 
 void drm_exit(void)
