@@ -1063,7 +1063,8 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
 	 * CTRL-C. This will allow the main loop to be interrupted, and resources
 	 * to be freed cleanly.
 	 */
-	signal(SIGINT,sigint_handler);
+	signal(SIGINT, sigint_handler);
+    signal(SIGTERM, sigint_handler);
     //
     memset(&actions, 0, sizeof(actions)); 
     sigemptyset(&actions.sa_mask); /* 将参数set信号集初始化并清空 */ 
@@ -1218,53 +1219,29 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
         do {
             fd_set rrfds = rfds;
             tv.tv_sec = 5; // ???? if not, select will timeout
-            int r = select(max_fd, &rfds, NULL, NULL, &tv);
+            int r = select(max_fd, &rrfds, NULL, NULL, &tv);
             if (r > 0) {
-                // cam0
-                if (dev_info[0].video_used && FD_ISSET(camera[0].fd, &rrfds)) {
-                    /*
-                    if (require_re_qbuf[0]) {
-                        if (xioctl(camera[0].fd, VIDIOC_QBUF, &vbuf[vbuf_ptr][0]) < 0) {
-                            perror("cam0 VIDIOC_QBUF");
-                            flag = 1;
-                            break;
+                for (unsigned i = 0; i < 2; i++) {
+                    if (dev_info[i].video_used && FD_ISSET(camera[i].fd, &rrfds)) {
+                        /*
+                        if (require_re_qbuf[i]) {
+                            if (xioctl(camera[i].fd, VIDIOC_QBUF, &vbuf[vbuf_ptr][i]) < 0) {
+                                perror("VIDIOC_QBUF");
+                                flag = 1;
+                                break;
+                            }
                         }
-                    }
-                    require_re_qbuf[0] = 1; */
-                    FD_CLR(camera[0].fd, &rfds);
-                    if (readframe(camera[0].fd, &vbuf[vbuf_ptr][0]) == 0) {
-                        if(isp_ae_status & 1) {
-                            mediactl_set_ae(ISP_F2K_PIPELINE);
+                        require_re_qbuf[i] = 1; */
+                        if (readframe(camera[i].fd, &vbuf[vbuf_ptr][i]) == 0) {
+                            if(isp_ae_status & (i + 1)) {
+                                mediactl_set_ae(ISP_F2K_PIPELINE + i);
+                            }
+                            FD_CLR(camera[i].fd, &rfds);
+                            bit_mask_w &= ~(1 << i);
+                        } else if (errno != EAGAIN) {
+                            perror("DQBUF error");
+                            goto cleanup;
                         }
-                        bit_mask_w &= ~1U;
-                    } else if (errno != EAGAIN) {
-                        perror("cam0 DQBUF");
-                        flag = 1;
-                        break;
-                    }
-                }
-
-                // cam1
-                if (dev_info[1].video_used && FD_ISSET(camera[1].fd, &rrfds)) {
-                    /*
-                    if (require_re_qbuf[1]) {
-                        if (xioctl(camera[1].fd, VIDIOC_QBUF, &vbuf[vbuf_ptr][1]) < 0) {
-                            perror("cam0 VIDIOC_QBUF");
-                            flag = 1;
-                            break;
-                        }
-                    }
-                    require_re_qbuf[1] = 1; */
-                    FD_CLR(camera[1].fd, &rfds);
-                    if (readframe(camera[1].fd, &vbuf[vbuf_ptr][1]) == 0) {
-                        if(isp_ae_status & 2) {
-                            mediactl_set_ae(ISP_R2K_PIPELINE);
-                        }
-                        bit_mask_w &= ~2U;
-                    } else if (errno != EAGAIN) {
-                        perror("cam0 DQBUF");
-                        flag = 1;
-                        break;
                     }
                 }
             } else if (r < 0) {
@@ -1272,17 +1249,12 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
                     continue;
                 }
                 perror("select() error");
-                flag = 1;
-                break;
+                goto cleanup;
             } else {
-                fprintf(stderr, "select() timeout, exit\n");
-                flag = 1;
-                break;
+                fprintf(stderr, "select() timeout, bit_mask_w: %u, ISSET %u %u, exit\n", bit_mask_w, FD_ISSET(camera[0].fd, &rfds), FD_ISSET(camera[1].fd, &rfds));
+                goto cleanup;
             }
         } while (bit_mask_w);
-        if (flag) {
-            break;
-        }
 
         // fps stat
 #define FPS 1
@@ -1329,43 +1301,24 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
                 fd_set rfds = fds_with_drm;
                 int r = select(max_fd_with_drm, &rfds, NULL, NULL, &tv);
                 if (r > 0) {
-                    // cam0
-                    if (dev_info[0].video_used && FD_ISSET(camera[0].fd, &rfds)) {
-                        // read to tmp_vbuf
-                        if (readframe(camera[0].fd, &tmp_vbuf) == 0) {
-                            if(isp_ae_status & 1) {
-                                mediactl_set_ae(ISP_F2K_PIPELINE);
-                            }
-                            // QBUF
-                            if (xioctl(camera[0].fd, VIDIOC_QBUF, &tmp_vbuf) < 0) {
-                                perror("cam0 VIDIOC_QBUF");
+                    for (int i = 0; i < 2; i++) {
+                        if (dev_info[i].video_used && FD_ISSET(camera[i].fd, &rfds)) {
+                            // read to tmp_vbuf
+                            if (readframe(camera[i].fd, &tmp_vbuf) == 0) {
+                                if(isp_ae_status & (i + 1)) {
+                                    mediactl_set_ae(ISP_F2K_PIPELINE + i);
+                                }
+                                // QBUF
+                                if (xioctl(camera[i].fd, VIDIOC_QBUF, &tmp_vbuf) < 0) {
+                                    perror("QBUF error");
+                                    flag = 1;
+                                    break;
+                                }
+                            } else if (errno != EAGAIN) {
+                                perror("DQBUF error");
                                 flag = 1;
                                 break;
                             }
-                        } else if (errno != EAGAIN) {
-                            perror("cam0 VIDIOC_DQBUF");
-                            flag = 1;
-                            break;
-                        }
-                    }
-
-                    // cam1
-                    if (dev_info[1].video_used && FD_ISSET(camera[1].fd, &rfds)) {
-                        // read to tmp_vbuf
-                        if (readframe(camera[1].fd, &tmp_vbuf) == 0) {
-                            if(isp_ae_status & 2) {
-                                mediactl_set_ae(ISP_R2K_PIPELINE);
-                            }
-                            // QBUF
-                            if (xioctl(camera[1].fd, VIDIOC_QBUF, &tmp_vbuf) < 0) {
-                                perror("cam1 VIDIOC_QBUF");
-                                flag = 1;
-                                break;
-                            }
-                        } else if (errno != EAGAIN) {
-                            perror("cam1 DQBUF");
-                            flag = 1;
-                            break;
                         }
                     }
 
@@ -1401,18 +1354,14 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
         // FIXME: skip first frame
         static char ff = 0;
         if (ff) {
-            if(dev_info[0].video_used) {
-                if (xioctl(camera[0].fd, VIDIOC_QBUF, &vbuf[vbuf_ptr][0]) < 0) {
-                    perror("cam0 VIDIOC_QBUF");
-                    break;
+            for (int i = 0; i < 2; i++) {
+                if(dev_info[i].video_used) {
+                    if (xioctl(camera[i].fd, VIDIOC_QBUF, &vbuf[vbuf_ptr][i]) < 0) {
+                        perror("QBUF error");
+                        break;
+                    }
                 }
-            }
-            if(dev_info[1].video_used) {
-                if (xioctl(camera[1].fd, VIDIOC_QBUF, &vbuf[vbuf_ptr][1]) < 0) {
-                    perror("cam1 VIDIOC_QBUF");
-                    break;
-                }
-            }    
+            }  
         }
         ff = 1;
     }
