@@ -1223,15 +1223,6 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
             if (r > 0) {
                 for (unsigned i = 0; i < 2; i++) {
                     if (dev_info[i].video_used && FD_ISSET(camera[i].fd, &rrfds)) {
-                        /*
-                        if (require_re_qbuf[i]) {
-                            if (xioctl(camera[i].fd, VIDIOC_QBUF, &vbuf[vbuf_ptr][i]) < 0) {
-                                perror("VIDIOC_QBUF");
-                                flag = 1;
-                                break;
-                            }
-                        }
-                        require_re_qbuf[i] = 1; */
                         if (readframe(camera[i].fd, &vbuf[vbuf_ptr][i]) == 0) {
                             if(isp_ae_status & (i + 1)) {
                                 mediactl_set_ae(ISP_F2K_PIPELINE + i);
@@ -1257,7 +1248,7 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
         } while (bit_mask_w);
 
         // fps stat
-#define FPS 1
+#define FPS 0
 #if FPS
         static int frames = 0;
         static uint32_t tm = 0;
