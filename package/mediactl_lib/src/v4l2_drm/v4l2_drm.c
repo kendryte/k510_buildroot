@@ -1187,101 +1187,136 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
     int max_fd = -1, max_fd_with_drm;
     unsigned bit_mask = 0, bit_mask_w;
     struct v4l2_buffer vbuf[2][2];
-    unsigned vbuf_ptr = 0;
+    unsigned vbuf_ptr[2] = {0, 0};
     FD_ZERO(&fds);
-    if (dev_info[0].video_used) {
-        FD_SET(camera[0].fd, &fds);
-        max_fd = max_fd > camera[0].fd ? max_fd : camera[0].fd;
-        bit_mask |= 1U;
+
+    // setup
+    for (int i = 0; i < 2; i++) {
+        if (dev_info[i].video_used) {
+            FD_SET(camera[i].fd, &fds);
+            max_fd = max_fd > camera[i].fd ? max_fd : camera[i].fd;
+            bit_mask |= (1U << i);
+        }
     }
-    if (dev_info[1].video_used) {
-        FD_SET(camera[1].fd, &fds);
-        max_fd = max_fd > camera[1].fd ? max_fd : camera[1].fd;
-        bit_mask |= 2U;
+
+    struct timeval tv = {
+        .tv_sec = 5,
+        .tv_usec = 0
+    };
+    // fill double buffer
+    for (unsigned j = 0; j < 2; j++) {
+        bit_mask_w = bit_mask;
+        do {
+            fd_set rfds = fds;
+            int r = select(max_fd + 1, &rfds, NULL, NULL, &tv);
+            if (r > 0) {
+                for (unsigned i = 0; i < 2; i++) {
+                    if (dev_info[i].video_used && FD_ISSET(camera[i].fd, &rfds)) {
+                        if (readframe(camera[i].fd, &vbuf[j][i]) == -1) {
+                            if (errno == EAGAIN) {
+                                continue;
+                            }
+                            // error
+                            perror("readframe() error");
+                            goto cleanup;
+                        }
+                        // FIXME: should be (1U << (i - 1))
+                        if(isp_ae_status & i) {
+                            mediactl_set_ae(ISP_F2K_PIPELINE + i);
+                        }
+                        bit_mask_w &= ~(1U << i);
+                    }
+                }
+            } else if (r == 0) {
+                // timeout
+                fprintf(stderr, "camera select() timeout\n");
+                goto cleanup;
+            } else {
+                // error
+                perror("camera select() error");
+                goto cleanup;
+            }
+        } while (bit_mask_w);
     }
+
+    // display vbuf[0]
+    if(dev_info[0].video_used && dev_info[1].video_used) {
+        if (drm_dmabuf_set_2plane(
+                &drm_dev.drm_bufs[vbuf[0][0].index],
+                &drm_dev.drm_bufs[vbuf[0][1].index + BUFFERS_COUNT])) {
+            printf("Flush fail\n");
+            goto cleanup;
+        }
+    } 
+    else if(dev_info[0].video_used) { 
+        if (drm_dmabuf_set_plane(&drm_dev.drm_bufs[vbuf[0][0].index])) {
+            printf("Flush fail\n");
+            goto cleanup;
+        }
+    } else if(dev_info[1].video_used) {
+        if (drm_dmabuf_set_plane(&drm_dev.drm_bufs[vbuf[0][1].index])) {
+            printf("Flush fail\n");
+            goto cleanup;
+        }
+    }
+
     fds_with_drm = fds;
     FD_SET(drm_dev.fd, &fds_with_drm);
     max_fd_with_drm = max_fd > drm_dev.fd ? max_fd : drm_dev.fd;
     max_fd += 1;
     max_fd_with_drm += 1;
-    struct timeval tv = {
-        .tv_sec = 5,
-        .tv_usec = 0
-    };
+    fprintf(stderr, "start drm\n");
     while (!done) {
-        // dqbuf
-        char flag = 0;
-        bit_mask_w = bit_mask;
-        char require_re_qbuf[2] = {0, 0};
-        fd_set rfds = fds;
+        fd_set rfds = fds_with_drm;
+        unsigned need_flip[2] = {0, 0};
         // FIXME
-        do {
+        while (1) {
+            tv.tv_sec = 5; // ???? if not, select() will timeout
+            tv.tv_usec = 0;
             fd_set rrfds = rfds;
-            tv.tv_sec = 5; // ???? if not, select will timeout
-            int r = select(max_fd, &rfds, NULL, NULL, &tv);
+            int r = select(max_fd_with_drm, &rrfds, NULL, NULL, &tv);
             if (r > 0) {
-                // cam0
-                if (dev_info[0].video_used && FD_ISSET(camera[0].fd, &rrfds)) {
-                    /*
-                    if (require_re_qbuf[0]) {
-                        if (xioctl(camera[0].fd, VIDIOC_QBUF, &vbuf[vbuf_ptr][0]) < 0) {
-                            perror("cam0 VIDIOC_QBUF");
-                            flag = 1;
-                            break;
+                // camera
+                for (unsigned i = 0; i < 2; i++) {
+                    if (dev_info[i].video_used && FD_ISSET(camera[i].fd, &rrfds)) {
+                        // QBUF last frame
+                        if (xioctl(camera[i].fd, VIDIOC_QBUF, &vbuf[vbuf_ptr[i]][i]) < 0) {
+                            perror("camera VIDIOC_QBUF");
+                            goto cleanup;
                         }
-                    }
-                    require_re_qbuf[0] = 1; */
-                    FD_CLR(camera[0].fd, &rfds);
-                    if (readframe(camera[0].fd, &vbuf[vbuf_ptr][0]) == 0) {
-                        if(isp_ae_status & 1) {
-                            mediactl_set_ae(ISP_F2K_PIPELINE);
+                        // DQBUF
+                        if (readframe(camera[i].fd, &vbuf[vbuf_ptr[i]][i]) == 0) {
+                            if(isp_ae_status & i) {
+                                mediactl_set_ae(ISP_F2K_PIPELINE + i);
+                            }
+                            need_flip[i] = 1;
+                        } else if (errno != EAGAIN) {
+                            perror("camera DQBUF");
+                            goto cleanup;
                         }
-                        bit_mask_w &= ~1U;
-                    } else if (errno != EAGAIN) {
-                        perror("cam0 DQBUF");
-                        flag = 1;
-                        break;
                     }
                 }
 
-                // cam1
-                if (dev_info[1].video_used && FD_ISSET(camera[1].fd, &rrfds)) {
-                    /*
-                    if (require_re_qbuf[1]) {
-                        if (xioctl(camera[1].fd, VIDIOC_QBUF, &vbuf[vbuf_ptr][1]) < 0) {
-                            perror("cam0 VIDIOC_QBUF");
-                            flag = 1;
-                            break;
-                        }
-                    }
-                    require_re_qbuf[1] = 1; */
-                    FD_CLR(camera[1].fd, &rfds);
-                    if (readframe(camera[1].fd, &vbuf[vbuf_ptr][1]) == 0) {
-                        if(isp_ae_status & 2) {
-                            mediactl_set_ae(ISP_R2K_PIPELINE);
-                        }
-                        bit_mask_w &= ~2U;
-                    } else if (errno != EAGAIN) {
-                        perror("cam0 DQBUF");
-                        flag = 1;
-                        break;
-                    }
+                // drm
+                if (FD_ISSET(drm_dev.fd, &rrfds)) {
+                    drmHandleEvent(drm_dev.fd, &drm_dev.drm_event_ctx);
+                    drmModeAtomicFree(drm_dev.req);
+                    drm_dev.req = NULL;
+                    break;
                 }
             } else if (r < 0) {
                 if (errno == EINTR) {
                     continue;
                 }
-                perror("select() error");
-                flag = 1;
-                break;
+                perror("drm+cam select() error");
+                goto cleanup;
             } else {
-                fprintf(stderr, "select() timeout, exit\n");
-                flag = 1;
-                break;
+                fprintf(stderr, "drm+cam select() timeout, exit\n");
+                goto cleanup;
             }
-        } while (bit_mask_w);
-        if (flag) {
-            break;
+            if (done) {
+                goto cleanup;
+            }
         }
 
         // fps stat
@@ -1303,118 +1338,28 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
         // display
         if(dev_info[0].video_used && dev_info[1].video_used) {
             if (drm_dmabuf_set_2plane(
-                    &drm_dev.drm_bufs[vbuf[vbuf_ptr][0].index],
-                    &drm_dev.drm_bufs[vbuf[vbuf_ptr][1].index + BUFFERS_COUNT])) {
+                    &drm_dev.drm_bufs[vbuf[vbuf_ptr[i]][0].index],
+                    &drm_dev.drm_bufs[vbuf[vbuf_ptr[i]][1].index + BUFFERS_COUNT])) {
                 printf("Flush fail\n");
                 break;
             }
         } 
         else if(dev_info[0].video_used) { 
-            if (drm_dmabuf_set_plane(&drm_dev.drm_bufs[vbuf[vbuf_ptr][0].index])) {
+            if (drm_dmabuf_set_plane(&drm_dev.drm_bufs[vbuf[vbuf_ptr[i]][0].index])) {
                 printf("Flush fail\n");
                 break;
             }
         } else if(dev_info[1].video_used) {
-            if (drm_dmabuf_set_plane(&drm_dev.drm_bufs[vbuf[vbuf_ptr][1].index])) {
+            if (drm_dmabuf_set_plane(&drm_dev.drm_bufs[vbuf[vbuf_ptr[i]][1].index])) {
                 printf("Flush fail\n");
-                break;
-            }
-        }
-
-        // vsync and set AE
-        if (drm_dev.req) {
-            struct v4l2_buffer tmp_vbuf;
-            flag = 0;
-            while (1) {
-                fd_set rfds = fds_with_drm;
-                int r = select(max_fd_with_drm, &rfds, NULL, NULL, &tv);
-                if (r > 0) {
-                    // cam0
-                    if (dev_info[0].video_used && FD_ISSET(camera[0].fd, &rfds)) {
-                        // read to tmp_vbuf
-                        if (readframe(camera[0].fd, &tmp_vbuf) == 0) {
-                            if(isp_ae_status & 1) {
-                                mediactl_set_ae(ISP_F2K_PIPELINE);
-                            }
-                            // QBUF
-                            if (xioctl(camera[0].fd, VIDIOC_QBUF, &tmp_vbuf) < 0) {
-                                perror("cam0 VIDIOC_QBUF");
-                                flag = 1;
-                                break;
-                            }
-                        } else if (errno != EAGAIN) {
-                            perror("cam0 VIDIOC_DQBUF");
-                            flag = 1;
-                            break;
-                        }
-                    }
-
-                    // cam1
-                    if (dev_info[1].video_used && FD_ISSET(camera[1].fd, &rfds)) {
-                        // read to tmp_vbuf
-                        if (readframe(camera[1].fd, &tmp_vbuf) == 0) {
-                            if(isp_ae_status & 2) {
-                                mediactl_set_ae(ISP_R2K_PIPELINE);
-                            }
-                            // QBUF
-                            if (xioctl(camera[1].fd, VIDIOC_QBUF, &tmp_vbuf) < 0) {
-                                perror("cam1 VIDIOC_QBUF");
-                                flag = 1;
-                                break;
-                            }
-                        } else if (errno != EAGAIN) {
-                            perror("cam1 DQBUF");
-                            flag = 1;
-                            break;
-                        }
-                    }
-
-                    // drm
-                    if (FD_ISSET(drm_dev.fd, &rfds)) {
-                        drmHandleEvent(drm_dev.fd, &drm_dev.drm_event_ctx);
-                        break;
-                    }
-                } else if (r < 0) {
-                    if (errno == EINTR) {
-                        continue;
-                    }
-                    perror("drm select error");
-                    flag = 1;
-                    break;
-                } else {
-                    perror("drm select timeout");
-                    flag = 1;
-                    break;
-                }
-            }
-            drmModeAtomicFree(drm_dev.req);
-            drm_dev.req = NULL;
-            if (flag) {
                 break;
             }
         }
 
         // flip
-        vbuf_ptr ^= 1;
-
-        // qbuf
-        // FIXME: skip first frame
-        static char ff = 0;
-        if (ff) {
-            if(dev_info[0].video_used) {
-                if (xioctl(camera[0].fd, VIDIOC_QBUF, &vbuf[vbuf_ptr][0]) < 0) {
-                    perror("cam0 VIDIOC_QBUF");
-                    break;
-                }
-            }
-            if(dev_info[1].video_used) {
-                if (xioctl(camera[1].fd, VIDIOC_QBUF, &vbuf[vbuf_ptr][1]) < 0) {
-                    perror("cam1 VIDIOC_QBUF");
-                    break;
-                }
-            }    
+        for (unsigned i = 0; i < 2; i++) {
+            vbuf_ptr[i] ^= need_flip[i];
         }
-        ff = 1;
     }
 
 cleanup:
