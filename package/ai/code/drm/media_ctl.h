@@ -40,6 +40,7 @@ struct video_info
 };
 
 int mediactl_init(char *video_cfg_file,struct video_info *dev_info);
+void mediactl_exit(void);
 int mediactl_set_ae(void);
 #if defined(__cplusplus)
 }
