@@ -266,7 +266,8 @@ int isp_f2k_cfg(struct media_entity *entity,struct isp_cfg_info *isp_cfg,uint32_
 	isp_wrap_info->ds1Info.ds1_uv_buf1_base = phyAddr+line_stride*height;
 	
 	//
-	width = isp_wrap_info->ds2Info.ds2_size.width;
+	//width = isp_wrap_info->ds2Info.ds2_size.width;
+	width =  isp_wrap_info->ds2Info.ds2_size.pitch;				// add pitch
 	line_stride = calc_stride(width);
 	if( OUT_ARGB == isp_wrap_info->ds2Info.ds2_out_img_out_format)
 	{
@@ -421,7 +422,8 @@ int isp_r2k_cfg(struct media_entity *entity,struct isp_cfg_info *isp_cfg,uint32_
 	isp_wrap_info->ds1Info.ds1_uv_buf1_base = phyAddr+line_stride*height;
 	
 	//
-	width = isp_wrap_info->ds2Info.ds2_size.width;
+	//width = isp_wrap_info->ds2Info.ds2_size.width;
+	width = isp_wrap_info->ds2Info.ds2_size.pitch;
 	line_stride = calc_stride(width);
 	if( OUT_ARGB == isp_wrap_info->ds2Info.ds2_out_img_out_format)
 	{
