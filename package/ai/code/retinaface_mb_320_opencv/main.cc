@@ -104,10 +104,16 @@ void ai_worker()
 
     while(quit.load()) 
     {
+        bool ret = false;
         ScopedTiming st("total");
         mtx.lock();
-        capture.read(osd_img); //ARGB
+        ret = capture.read(osd_img);
         mtx.unlock();
+        if(ret == false)
+        {
+            quit.store(false);
+            continue; // 
+        }
 
         for (int r = 0; r < valid_height; r++)
         {
@@ -241,12 +247,18 @@ void display_worker()
         fbuf_yuv = &drm_dev.drm_bufs[drm_bufs_index];
         cv::Mat org_img(DRM_INPUT_HEIGHT*3/2, (DRM_INPUT_WIDTH+15)/16*16, CV_8UC1, fbuf_yuv->map);
         {
+            bool ret = false;
 #if PROFILING
             ScopedTiming st("capture read");
 #endif
             mtx.lock();
-            capture.read(org_img);
+            ret = capture.read(org_img);
             mtx.unlock();
+            if(ret == false)
+            {
+                quit.store(false);
+                continue; // 
+            }
         }
 
         if (drm_dev.req)
@@ -280,9 +292,11 @@ int main(int argc, char *argv[])
     sa.sa_handler = fun_sig;
     sigfillset(&sa.sa_mask);
     sigaction(SIGINT, &sa, NULL);
-    drm_init();
+    if(drm_init())
+        return -1;
 
-    mediactl_init(video_cfg_file, &dev_info[0]);
+    if(mediactl_init(video_cfg_file, &dev_info[0]))
+        return -1;
 
     std::thread thread_ds0(display_worker);
     std::thread thread_ds2(ai_worker);
@@ -296,6 +310,6 @@ int main(int argc, char *argv[])
     for(int i = 0; i < DRM_BUFFERS_COUNT; i++) {
         drm_destory_dumb(&drm_dev.drm_bufs_argb[i]);
     }
-    
+    mediactl_exit();  
     return 0;
 }

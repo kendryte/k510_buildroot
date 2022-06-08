@@ -932,7 +932,7 @@ void drm_init(uint32_t width, uint32_t height)
 #else
 
 
-void drm_init(struct drm_size *size)
+int  drm_init(struct drm_size *size)
 {
 	int ret, i, j;
 
@@ -953,7 +953,7 @@ void drm_init(struct drm_size *size)
 	if (ret) {
 		close(drm_dev.fd);
 		drm_dev.fd = -1;
-		return;
+		return ret;
 	}
 
 	ret = drm_setup_buffers( );
@@ -961,7 +961,7 @@ void drm_init(struct drm_size *size)
 		err("DRM buffer allocation failed");
 		close(drm_dev.fd);
 		drm_dev.fd = -1;
-		return;
+		return ret;
 	}
 }
 

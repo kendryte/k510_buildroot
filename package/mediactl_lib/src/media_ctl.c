@@ -776,7 +776,7 @@ void pipline_cfg(struct isp_pipeline_s *isp_pipeline,struct sensor_info *sensor)
  * @brief 
  * 
  */
-static void isp_share_memory_alloc(void)
+static int  isp_share_memory_alloc(void)
 {
     fd_share_memory = open(SHARE_MEMORY_DEV,O_RDWR);
     if(fd_share_memory < 0) {
@@ -801,12 +801,14 @@ static void isp_share_memory_alloc(void)
     allocAlignMem[1].phyAddr   = 0;
 
     if(ioctl(fd_share_memory, SHARE_MEMORY_ALIGN_ALLOC, &allocAlignMem[1]) < 0) {
+        ioctl(fd_share_memory, SHARE_MEMORY_FREE, &allocAlignMem[0].phyAddr);
         printf("main share memory  SHARE_MEMORY_ALIGN_ALLOC error!\r\n");
         return 1;
     }
     else {
         printf("main block alloc:0x%08x,size:%d,align %d\r\n",allocAlignMem[1].phyAddr,allocAlignMem[1].size,allocAlignMem[1].alignment);
     }
+    return 0;
 }
 /**
  * @brief 
@@ -967,7 +969,8 @@ int mediactl_init(char *video_cfg_file,struct video_info *dev_info)
 	}
 #endif
 	//
-	isp_share_memory_alloc();
+	if(isp_share_memory_alloc())
+		return -1;
 	//
 	if( v4l_isp.isp_pipeline[ISP_F2K].pipeline_en == 1 )
 	{

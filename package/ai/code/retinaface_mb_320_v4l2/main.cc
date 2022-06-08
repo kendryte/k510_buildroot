@@ -519,9 +519,11 @@ int main(int argc, char *argv[])
     sigfillset(&sa.sa_mask);
     sigaction(SIGINT, &sa, NULL);
 
-    drm_init();
+    if(drm_init())
+        return -1;
 
-    mediactl_init(video_cfg_file, &dev_info[0]);
+    if(mediactl_init(video_cfg_file, &dev_info[0]))
+        return -1;
 
     std::thread thread_ds0(display_worker);
     std::thread thread_ds2(ai_worker);
@@ -535,6 +537,6 @@ int main(int argc, char *argv[])
     for(int i = 0; i < DRM_BUFFERS_COUNT; i++) {
         drm_destory_dumb(&drm_dev.drm_bufs_argb[i]);
     }
-
+    mediactl_exit(); 
     return 0;
 }
