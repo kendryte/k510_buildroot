@@ -205,12 +205,7 @@ void ai_worker(ai_worker_args ai_args)
             fbuf_argb = &drm_dev.drm_bufs_argb[drm_bufs_argb_index];
             img_argb = cv::Mat(DRM_INPUT_HEIGHT, DRM_INPUT_WIDTH, CV_8UC4, (uint8_t *)fbuf_argb->map);
 
-            if(obj_cnt == 0)
-            {
-                img_argb.setTo(cv::Scalar(0, 0, 0, 0));
-            }
-
-            for(uint32_t i = 0; i < obj_cnt; i++)
+            for(uint32_t i = 0; i < 32; i++)
             {
                 if(i == 0)
                 {
@@ -279,8 +274,8 @@ void ai_worker(ai_worker_args ai_args)
                     std::string perspective_image_out_path = dump_img_dir + "/perspective_" + std::to_string(frame_cnt) + "_" + std::to_string(obj_cnt) + ".jpg";
                     cv::imwrite(perspective_image_out_path, perspective_img); 
                 }
-            }
-            obj_cnt += 1;     
+                obj_cnt += 1;  
+            }   
         }
         frame_cnt += 1;
         drm_bufs_argb_index = !drm_bufs_argb_index;
@@ -290,7 +285,7 @@ void ai_worker(ai_worker_args ai_args)
     mtx.lock();
     capture.release();
     mtx.unlock();
-    for(uint32_t i = 0; i < obj_cnt; i++)
+    for(uint32_t i = 0; i < 32; i++)
     {
         struct vo_draw_frame frame;
         frame.crtc_id = drm_dev.crtc_id;
