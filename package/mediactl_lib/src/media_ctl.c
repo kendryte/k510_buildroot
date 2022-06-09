@@ -764,6 +764,7 @@ void pipline_cfg(struct isp_pipeline_s *isp_pipeline,struct sensor_info *sensor)
     isp_pipeline->video_entity_info[3].used = isp_wrap_cfg->ds2Info.ds2_out_en;
     isp_pipeline->video_entity_info[3].video_size.width = isp_wrap_cfg->ds2Info.ds2_size.width;
     isp_pipeline->video_entity_info[3].video_size.height = isp_wrap_cfg->ds2Info.ds2_video_height;//isp_wrap_cfg->ds2Info.ds2_size.height;
+	isp_pipeline->video_entity_info[3].video_size.pitch = isp_wrap_cfg->ds2Info.ds2_size.pitch;//isp_wrap_cfg->ds2Info.ds2_size.height;
 	isp_pipeline->video_entity_info[3].video_out_format = isp_wrap_cfg->ds2Info.ds2_out_img_out_format;
 	//
 	isp_pipeline->pipeline_en = 0;

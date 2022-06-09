@@ -1,0 +1,24 @@
+Index: b/libavdevice/video_sample.conf
+===================================================================
+--- a/libavdevice/video_sample.conf
++++ b/libavdevice/video_sample.conf
+@@ -33,7 +33,8 @@
+             "video5_width":320,
+             "video5_height":320,
+ 			"video5_height_r":240,
+-			"video5_out_format":1
++			"video5_out_format":1,
++			"video5_pitch":320
+         }
+ 	},	
+ 	"sensor1":{
+@@ -70,7 +71,8 @@
+             "video9_width":320,
+             "video9_height":240,
+ 			"video9_height_r":240,
+-			"video9_out_format":1
++			"video9_out_format":1,
++			"video9_pitch":320
+         }
+     },
+ 	"mipi_csi2":{
