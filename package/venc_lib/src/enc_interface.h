@@ -93,7 +93,7 @@ typedef struct
 typedef enum
 {
     ROI_QP_TABLE_NONE,
-    ROI_QP_TABLE_RELATIVE,//[-32,31],6 LSBs effective
+    ROI_QP_TABLE_RELATIVE,//[-31,31],6 LSBs effective
     ROI_QP_TABLE_ABSOLUTE,//[0,51],6 LSBs effective
 } ROICtrlMode;
 
@@ -213,9 +213,12 @@ EncStatus VideoEncoder_Destroy(EncoderHandle *hEnc);
 
 EncStatus VideoEncoder_EncodeOneFrame(EncoderHandle *hEnc, EncInputFrame *input);
 
+
 EncStatus VideoEncoder_EncodeOneFrame_Async(EncoderHandle *hEnc, EncInputFrame *input, void (*callback)());
 
 EncStatus VideoEncoder_GetStream(EncoderHandle *hEnc, EncOutputStream *output);
+EncStatus VideoEncoder_GetStream_ByExtBuf(EncoderHandle *hEnc,EncOutputStream *output);
+
 
 EncStatus VideoEncoder_GetStreamSection(EncoderHandle *hEnc, EncOutputStreamSection *output);
 
