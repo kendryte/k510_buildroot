@@ -3,6 +3,8 @@ set(bin retinaface_mb_320_v4l2)
 set(script data/bf16.sh data/uint8.sh)
 set(input data/imx219_0.conf data/imx219_1.conf data/video.conf)
 
+add_definitions(-DFULL_SCREEN)
+
 include_directories ("../drm")
 #include_directories(${DEMO_ROOT}/riscv64/nncase_linux_runtime/include)
 #include_directories(${DEMO_ROOT}/riscv64/include)
