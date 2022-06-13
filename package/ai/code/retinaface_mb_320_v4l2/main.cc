@@ -126,19 +126,33 @@ static int process_ds2_image(struct v4l2_device *vdev, struct v4l2_pix_format *f
 		return 0;
 	}
 
-    for (int r = 0; r < valid_height; r++)
-    {
-        for (int c = 0; c < valid_width; c++)
-        {
-            int index = (r * valid_width + c) * 4;
+    fbuf_argb = &drm_dev.drm_bufs_argb[drm_bufs_argb_index];
+    cv::Mat img_argb = cv::Mat(DRM_INPUT_HEIGHT, DRM_INPUT_WIDTH, CV_8UC4, (uint8_t *)fbuf_argb->map);
 
-            *(rf.virtual_addr_input[0] + valid_width*r + c) = *((uint8_t *)buffer.mem + index + 3); //blue
-            *(rf.virtual_addr_input[0] + valid_width*valid_width + valid_width*r + c) = *((uint8_t *)buffer.mem + index + 2); //green
-            *(rf.virtual_addr_input[0] + valid_width*valid_width*2 + valid_width*r + c) = *((uint8_t *)buffer.mem + index + 1); //red
-        }
-    }    
+#if 1
+    cv::Mat ds2_bgra(RETINAFACE_FIX_SIZE, RETINAFACE_FIX_SIZE, CV_8UC4);
 
-    rf.set_input(0);
+    cv::Mat channel[3];
+    channel[2] = cv::Mat(RETINAFACE_FIX_SIZE, RETINAFACE_FIX_SIZE, CV_8UC1, rf.virtual_addr_input[buffer.index]); //R
+    channel[1] = cv::Mat(RETINAFACE_FIX_SIZE, RETINAFACE_FIX_SIZE, CV_8UC1, rf.virtual_addr_input[buffer.index] + RETINAFACE_FIX_SIZE*RETINAFACE_FIX_SIZE); //G
+    channel[0] = cv::Mat(RETINAFACE_FIX_SIZE, RETINAFACE_FIX_SIZE, CV_8UC1, rf.virtual_addr_input[buffer.index] + RETINAFACE_FIX_SIZE*RETINAFACE_FIX_SIZE*2);  //B
+
+    cv::Mat ds2_img = cv::Mat(RETINAFACE_FIX_SIZE, RETINAFACE_FIX_SIZE, CV_8UC3);
+    merge(channel, 3, ds2_img);
+    
+    cv::cvtColor(ds2_img, ds2_bgra, cv::COLOR_BGR2BGRA); 
+
+    // static int frame_cnt = 0;
+	// if(frame_cnt++ % 10 == 1){
+	// 	std::string img_out_path = "./img_" + std::to_string(frame_cnt) + ".bmp";
+	// 	cv::imwrite(img_out_path, ds2_bgra);
+	// }
+
+	cv::Mat ds2_roi=img_argb(cv::Rect(0,0,ds2_bgra.cols,ds2_bgra.rows));
+	ds2_bgra.copyTo(ds2_roi);
+#endif
+
+    rf.set_input(buffer.index);
 
     rf.set_output();
 
@@ -150,8 +164,7 @@ static int process_ds2_image(struct v4l2_device *vdev, struct v4l2_pix_format *f
     }
 
     rf.post_process();
-    
-    cv::Mat img_argb;
+
     std::vector<box_t> valid_box;
     std::vector<landmarks_t> valid_landmarks;
     rf.get_final_box(valid_box, valid_landmarks);
@@ -160,8 +173,6 @@ static int process_ds2_image(struct v4l2_device *vdev, struct v4l2_pix_format *f
 #if PROFILING
         ScopedTiming st("display clear");
 #endif
-        fbuf_argb = &drm_dev.drm_bufs_argb[drm_bufs_argb_index];
-        img_argb = cv::Mat(DRM_INPUT_HEIGHT, DRM_INPUT_WIDTH, CV_8UC4, (uint8_t *)fbuf_argb->map);
 
         for(int i=0; i<obj_point[drm_bufs_argb_index]; i++)
         {
@@ -169,7 +180,7 @@ static int process_ds2_image(struct v4l2_device *vdev, struct v4l2_pix_format *f
             {
                 //对上一帧写的数据设置透明，也就是清空之前的显示。
                 //直接memset清空整个OSD层太花时间。
-                cv::circle(img_argb, point[drm_bufs_argb_index][i][ll], 4, cv::Scalar(0, 0, 255, 0), -1);
+                cv::circle(img_argb, point[drm_bufs_argb_index][i][ll], 4, cv::Scalar(0, 0, 0, 0), -1);
             }
         }
         for(int i=0; i<obj_cnt; i++)
@@ -231,6 +242,8 @@ static int process_ds2_image(struct v4l2_device *vdev, struct v4l2_pix_format *f
     drm_bufs_argb_index = !drm_bufs_argb_index;
 
     mtx.lock();
+    buffer.mem = rf.virtual_addr_input[buffer.index];
+    buffer.size = rf.allocAlignMemFdInput[buffer.index].size;
     ret = v4l2_queue_buffer(vdev, &buffer);
     if (ret < 0) {
         printf("error: unable to requeue buffer: %s (%d)\n",
@@ -277,7 +290,7 @@ void ai_worker()
 		goto ai_cleanup;
 	}
 
-    ret = v4l2_alloc_buffers(vdev, V4L2_MEMORY_MMAP, 3);
+    ret = v4l2_alloc_buffers(vdev, V4L2_MEMORY_USERPTR, 3);
 	if (ret < 0)
 	{
 		printf("%s:v4l2_alloc_buffers error\n",__func__);
@@ -293,6 +306,9 @@ void ai_worker()
 
 	for (i = 0; i < vdev->nbufs; ++i) {
 		buffer.index = i;
+        buffer.mem = rf.virtual_addr_input[buffer.index];
+        buffer.size = rf.allocAlignMemFdInput[buffer.index].size;
+
 		ret = v4l2_queue_buffer(vdev, &buffer);
 		if (ret < 0) {
 			printf("error: unable to queue buffer %u\n", i);

@@ -67,7 +67,7 @@ void objectDetect::prepare_memory()
     }
 
     for(int i=0; i<GNNE_BUFFERS_COUNT; i++) {
-        allocAlignMemFdInput[i].size = INPUT_SIZE;
+        allocAlignMemFdInput[i].size = INPUT_SIZE + 4096;
         allocAlignMemFdInput[i].alignment = 4096;
         allocAlignMemFdInput[i].phyAddr = 0;
 
@@ -94,8 +94,8 @@ void objectDetect::set_input(uint32_t index)
     auto in_shape = interp_od.input_shape(0);
 
     auto input_tensor = host_runtime_tensor::create(dt_uint8, in_shape,
-        { (gsl::byte *)virtual_addr_input[index], YOLOV5_FIX_SIZE * YOLOV5_FIX_SIZE * INTPUT_CHANNELS },
-        false, hrt::pool_shared, allocAlignMemFdInput[index].phyAddr)
+        { (gsl::byte *)virtual_addr_input[index]+4096-64, YOLOV5_FIX_SIZE * YOLOV5_FIX_SIZE * INTPUT_CHANNELS },
+        false, hrt::pool_shared, allocAlignMemFdInput[index].phyAddr+4096-64)
                             .expect("cannot create input tensor");
     interp_od.input_tensor(0, input_tensor).expect("cannot set input tensor");
 }
