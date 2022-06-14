@@ -30,10 +30,6 @@
 
 extern float anchors320[4200][4];
 
-#define B_MEAN 104
-#define G_MEAN 117
-#define R_MEAN 123
-
 int nms_comparator(void *pa, void *pb)
 {
     sortable_obj_t a = *(sortable_obj_t *)pa;
