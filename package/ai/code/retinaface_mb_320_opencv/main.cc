@@ -109,6 +109,9 @@ void ai_worker()
     float nms_thresh = 0.2;
     uint32_t valid_width = dev_info[0].video_width[3];
     uint32_t valid_height = dev_info[0].video_height[3];
+    int offset_channel = valid_width * valid_width;  // ds2 channel offset
+    int padding_r = valid_width-GNNE_INPUT_WIDTH;
+
     retinaface rf(obj_thresh, nms_thresh);
 
     rf.load_model(kmodel_name);
@@ -140,13 +143,21 @@ void ai_worker()
 
         fbuf_argb = &drm_dev.drm_bufs_argb[drm_bufs_argb_index];
         cv::Mat img_argb = cv::Mat(DRM_INPUT_HEIGHT, DRM_INPUT_WIDTH, CV_8UC4, (uint8_t *)fbuf_argb->map);
+
+        //padding
+        for(int h=0; h<valid_height; h++)
+        {
+            memset(rf.virtual_addr_input[0] + GNNE_INPUT_WIDTH + h*valid_width, R_MEAN, padding_r);
+            memset(rf.virtual_addr_input[0] + offset_channel + GNNE_INPUT_WIDTH + h*valid_width, G_MEAN, padding_r);
+            memset(rf.virtual_addr_input[0] + offset_channel*2 + GNNE_INPUT_WIDTH + h*valid_width, B_MEAN, padding_r);
+        }
 #if 1
         cv::Mat ds2_bgra(RETINAFACE_FIX_SIZE, RETINAFACE_FIX_SIZE, CV_8UC4);
 
         cv::Mat channel[3];
         channel[2] = cv::Mat(RETINAFACE_FIX_SIZE, RETINAFACE_FIX_SIZE, CV_8UC1, rf.virtual_addr_input[0]); //R
-        channel[1] = cv::Mat(RETINAFACE_FIX_SIZE, RETINAFACE_FIX_SIZE, CV_8UC1, rf.virtual_addr_input[0] + RETINAFACE_FIX_SIZE*RETINAFACE_FIX_SIZE); //G
-        channel[0] = cv::Mat(RETINAFACE_FIX_SIZE, RETINAFACE_FIX_SIZE, CV_8UC1, rf.virtual_addr_input[0] + RETINAFACE_FIX_SIZE*RETINAFACE_FIX_SIZE*2);  //B
+        channel[1] = cv::Mat(RETINAFACE_FIX_SIZE, RETINAFACE_FIX_SIZE, CV_8UC1, rf.virtual_addr_input[0] + offset_channel); //G
+        channel[0] = cv::Mat(RETINAFACE_FIX_SIZE, RETINAFACE_FIX_SIZE, CV_8UC1, rf.virtual_addr_input[0] + offset_channel*2);  //B
 
         cv::Mat ds2_img = cv::Mat(RETINAFACE_FIX_SIZE, RETINAFACE_FIX_SIZE, CV_8UC3);
         merge(channel, 3, ds2_img);
