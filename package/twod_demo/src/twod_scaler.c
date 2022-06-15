@@ -276,7 +276,7 @@ int main(void)
 	twod_flashdateCache(fd_share_memory, buf[0].yrgb_addr, buf[0].vaddr,
 			    buf[0].size);
 
-	twod_set_scaler(fd, src, des, 1);
+	twod_set_scaler(fd, src, des, 0);
 
 	twod_wait_vsync(fd);
 

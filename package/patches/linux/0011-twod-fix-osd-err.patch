@@ -1,0 +1,54 @@
+From 2ef726a7d405318c762c048a9c6eb52783fcb0fe Mon Sep 17 00:00:00 2001
+From: zhaoshuaiadada <zhaoshuai@canaan-creative.com>
+Date: Wed, 15 Jun 2022 18:05:39 +0800
+Subject: [PATCH] twod-fix-osd-err
+
+---
+ drivers/video/canaan/twod/kendryte_td.c     |  4 ++--
+ drivers/video/canaan/twod/kendryte_td_reg.c | 15 +++++++++++++--
+ 2 files changed, 15 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/video/canaan/twod/kendryte_td.c b/drivers/video/canaan/twod/kendryte_td.c
+index 72222123..c6361cd0 100755
+--- a/drivers/video/canaan/twod/kendryte_td.c
++++ b/drivers/video/canaan/twod/kendryte_td.c
+@@ -159,8 +159,8 @@ static long kendryte_td_ioctl(struct file *filp, unsigned int cmd, unsigned long
+                         kendryte_scaler_start_frame(kendryte_td, 1);
+                         kendryte_scaler_start_frame(kendryte_td, 0);
+ 
+-                        //kendrty_2d_get_reg_val(kendryte_td);
+-                        //kendryte_scaler_get_reg_val(kendryte_td);
++                      //  kendrty_2d_get_reg_val(kendryte_td);
++                      //  kendryte_scaler_get_reg_val(kendryte_td);
+ 
+                         break;
+ 
+diff --git a/drivers/video/canaan/twod/kendryte_td_reg.c b/drivers/video/canaan/twod/kendryte_td_reg.c
+index 9d2979c4..176f56f6 100755
+--- a/drivers/video/canaan/twod/kendryte_td_reg.c
++++ b/drivers/video/canaan/twod/kendryte_td_reg.c
+@@ -887,8 +887,19 @@ void kendryte_set_osd_enable(struct kendryte_td *kendryte_td, int status)
+     uint32_t reg;
+ 
+     reg = readl(kendryte_td->base + TD_SCALER_DISP_ENABLE);
+-    reg = (reg & ~(BIT_MASK(4))) | (status << 4);
+-    writel(reg, kendryte_td->base + TD_SCALER_DISP_ENABLE);
++    //reg = (reg & ~(BIT_MASK(4))) | (status << 4);
++
++    if(status == 0)
++    {
++        reg = (reg & ~(GENMASK(6, 4))) | ( 0 << 4);
++        writel(reg, kendryte_td->base + TD_SCALER_DISP_ENABLE);
++        writel(0x0, kendryte_td->base + TD_OSD_RGB2YUV_CTL);
++    }
++    else
++    {
++        reg = (reg & ~(GENMASK(6, 4))) | ( 7 << 4);
++        writel(reg, kendryte_td->base + TD_SCALER_DISP_ENABLE);
++    }
+ }
+ 
+ 
+-- 
+2.36.1
+
