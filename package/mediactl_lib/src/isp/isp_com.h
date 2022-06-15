@@ -35,6 +35,7 @@ struct image_size_s
 {
     unsigned int width;
     unsigned int height;
+    unsigned int pitch;
 };
 
 typedef enum _VI_PIPE_ID

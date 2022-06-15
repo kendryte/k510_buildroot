@@ -116,6 +116,7 @@ void twod_config_rotation_image(struct td_image_info *td_info,
 {
 	td_info->act_w = buf->width;
 	td_info->act_h = buf->height;
+	td_info->pitch =  buf->pitch;
 	td_info->format = buf->format;
 	td_info->yrgb_addr = buf->yrgb_addr;
 	td_info->uv_addr = buf->yrgb_addr + (buf->pitch * buf->height);

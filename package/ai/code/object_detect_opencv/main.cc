@@ -102,26 +102,45 @@ void ai_worker()
     capture.set(cv::CAP_PROP_FRAME_HEIGHT, valid_height);
     capture.set(cv::CAP_PROP_FOURCC, dev_info[0].video_out_format[3] ? V4L2_PIX_FMT_ARGB32 : V4L2_PIX_FMT_RGB24);
     mtx.unlock();
-    cv::Mat osd_img;
+    cv::Mat rgb24_img_for_ai(YOLOV5_FIX_SIZE, YOLOV5_FIX_SIZE, CV_8UC3, od.virtual_addr_input[0] + 4096);
 
     while(quit.load()) 
     {
+        bool ret = false;
         ScopedTiming st("total");
         mtx.lock();
-        capture.read(osd_img); //ARGB
+        ret = capture.read(rgb24_img_for_ai);
         mtx.unlock();
-
-        for (int r = 0; r < valid_height; r++)
+        if(ret == false)
         {
-            for (int c = 0; c < valid_width; c++)
-            {
-                int index = (r * valid_width + c) * 4;
+            quit.store(false);
+            continue; // 
+        }
 
-                *(od.virtual_addr_input[0] +valid_width*40 + valid_width*r + c) = *((uint8_t *)osd_img.data + index + 3); //blue
-                *(od.virtual_addr_input[0] +valid_width*40 + valid_width*valid_width + valid_width*r + c) = *((uint8_t *)osd_img.data + index + 2); //green
-                *(od.virtual_addr_input[0] +valid_width*40 + valid_width*valid_width*2 + valid_width*r + c) = *((uint8_t *)osd_img.data + index + 1); //red
-            }
-        } 
+        fbuf_argb = &drm_dev.drm_bufs_argb[drm_bufs_argb_index];
+        cv::Mat img_argb = cv::Mat(DRM_INPUT_HEIGHT, DRM_INPUT_WIDTH, CV_8UC4, (uint8_t *)fbuf_argb->map);
+#if 1
+        cv::Mat ds2_bgra(YOLOV5_FIX_SIZE, YOLOV5_FIX_SIZE, CV_8UC4);
+
+        cv::Mat channel[3];
+        channel[2] = cv::Mat(YOLOV5_FIX_SIZE, YOLOV5_FIX_SIZE, CV_8UC1, od.virtual_addr_input[0]+4096-64); //R
+        channel[1] = cv::Mat(YOLOV5_FIX_SIZE, YOLOV5_FIX_SIZE, CV_8UC1, od.virtual_addr_input[0]+4096-64 + YOLOV5_FIX_SIZE*YOLOV5_FIX_SIZE); //G
+        channel[0] = cv::Mat(YOLOV5_FIX_SIZE, YOLOV5_FIX_SIZE, CV_8UC1, od.virtual_addr_input[0]+4096-64 + YOLOV5_FIX_SIZE*YOLOV5_FIX_SIZE*2);  //B
+
+        cv::Mat ds2_img = cv::Mat(YOLOV5_FIX_SIZE, YOLOV5_FIX_SIZE, CV_8UC3);
+        merge(channel, 3, ds2_img);
+
+        cv::cvtColor(ds2_img, ds2_bgra, cv::COLOR_BGR2BGRA); 
+
+        // static int frame_cnt = 0;
+        // if(frame_cnt++ % 10 == 1){
+        // 	std::string img_out_path = "./img_" + std::to_string(frame_cnt) + ".bmp";
+        // 	cv::imwrite(img_out_path, ds2_bgra);
+        // }
+
+        cv::Mat ds2_roi=img_argb(cv::Rect(0,0,ds2_bgra.cols,ds2_bgra.rows));
+        ds2_bgra.copyTo(ds2_roi);
+#endif
 
         od.set_input(0);
         od.set_output();
@@ -147,13 +166,10 @@ void ai_worker()
             od.post_process(result);
         }
 
-        cv::Mat img_argb;
         {
 #if PROFILING
             ScopedTiming st("display clear");
 #endif
-            fbuf_argb = &drm_dev.drm_bufs_argb[drm_bufs_argb_index];
-            img_argb = cv::Mat(DRM_INPUT_HEIGHT, DRM_INPUT_WIDTH, CV_8UC4, (uint8_t *)fbuf_argb->map);
 
             for (auto r : drm_bufs_argb_index?result1:result0)
             {
@@ -229,8 +245,8 @@ void display_worker()
     cv::VideoCapture capture;
 	capture.open(3);
     capture.set(cv::CAP_PROP_CONVERT_RGB, 0);
-    capture.set(cv::CAP_PROP_FRAME_WIDTH, (DRM_INPUT_WIDTH+15)/16*16);
-    capture.set(cv::CAP_PROP_FRAME_HEIGHT, DRM_INPUT_HEIGHT);
+    capture.set(cv::CAP_PROP_FRAME_WIDTH, dev_info[0].video_width[1]);
+    capture.set(cv::CAP_PROP_FRAME_HEIGHT, dev_info[0].video_height[1]);
     capture.set(cv::CAP_PROP_FOURCC, V4L2_PIX_FMT_NV12);
     mtx.unlock();
     while(quit.load()) {
@@ -238,12 +254,18 @@ void display_worker()
         fbuf_yuv = &drm_dev.drm_bufs[drm_bufs_index];
         cv::Mat org_img(DRM_INPUT_HEIGHT*3/2, (DRM_INPUT_WIDTH+15)/16*16, CV_8UC1, fbuf_yuv->map);
         {
+            bool ret = false;
 #if PROFILING
             ScopedTiming st("capture read");
 #endif
             mtx.lock();
-            capture.read(org_img);
+            ret = capture.read(org_img);
             mtx.unlock();
+            if(ret == false)
+            {
+                quit.store(false);
+                continue; // 
+            }
         }
 
         if (drm_dev.req)
@@ -277,9 +299,11 @@ int main(int argc, char *argv[])
     sa.sa_handler = fun_sig;
     sigfillset(&sa.sa_mask);
     sigaction(SIGINT, &sa, NULL);
-    drm_init();
+    if(drm_init())
+        return -1;
 
-    mediactl_init(video_cfg_file, &dev_info[0]);
+    if(mediactl_init(video_cfg_file, &dev_info[0]))
+        return -1;
 
     std::thread thread_ds0(display_worker);
     std::thread thread_ds2(ai_worker);
@@ -293,6 +317,6 @@ int main(int argc, char *argv[])
     for(int i = 0; i < DRM_BUFFERS_COUNT; i++) {
         drm_destory_dumb(&drm_dev.drm_bufs_argb[i]);
     }
-    
+    mediactl_exit(); 
     return 0;
 }

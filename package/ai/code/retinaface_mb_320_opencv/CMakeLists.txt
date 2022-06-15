@@ -1,7 +1,9 @@
-set(SRC main.cc cv2_utils.cc anchors_320.cc retinaface.cc ../drm/k510_drm.c)
+set(SRC main.cc cv2_utils.cc v4l2.c anchors_320.cc retinaface.cc ../drm/k510_drm.c)
 set(bin retinaface_mb_320_opencv)
 set(script data/bf16.sh data/uint8.sh)
 set(input data/imx219_0.conf data/imx219_1.conf data/video.conf)
+
+add_definitions(-DFULL_SCREEN)
 
 include_directories ("../drm")
 #include_directories(${DEMO_ROOT}/riscv64/nncase_linux_runtime/include)

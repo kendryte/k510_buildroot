@@ -45,10 +45,15 @@
 #include <sys/ioctl.h>
 
 #define DRM_BUFFERS_COUNT		3
+#ifdef FULL_SCREEN
+#define DRM_INPUT_WIDTH	1080
+#define DRM_INPUT_HEIGHT 1920
+#define DRM_OFFSET_HEIGHT 0
+#else
 #define DRM_INPUT_WIDTH	1080
 #define DRM_INPUT_HEIGHT 720
 #define DRM_OFFSET_HEIGHT ((1920-DRM_INPUT_HEIGHT)/2)
-
+#endif
 struct drm_buffer {
 	uint32_t handle;
 	uint32_t pitch;
@@ -105,7 +110,7 @@ extern "C" {
 int draw_frame(struct vo_draw_frame *frame);
 int drm_dmabuf_set_plane(struct drm_buffer *buf, struct drm_buffer *buf1);
 void drm_wait_vsync(void);
-void drm_init(void);
+int  drm_init(void);
 void drm_destory_dumb(struct drm_buffer *buf);
 void drm_exit(void);
 #if defined(__cplusplus)

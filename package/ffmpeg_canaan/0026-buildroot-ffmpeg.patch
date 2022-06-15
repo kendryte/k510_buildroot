@@ -1,0 +1,16 @@
+Index: b/libavcodec/libk510_h264.c
+===================================================================
+--- a/libavcodec/libk510_h264.c
++++ b/libavcodec/libk510_h264.c
+@@ -339,6 +339,11 @@ static int k510_h264_encode_frame(AVCode
+             pkt->pts = pCtx->pts;
+             pkt->dts = pCtx->pts;
+             pkt->size = output.bufSize;
++            if (EM_VIDEO_PACKET_IDR == output.packetType)
++            {
++              pkt->flags |=  AV_PKT_FLAG_KEY;
++            }
++            
+             
+ #ifdef H264_DUMP
+             static FILE *dump_file=NULL;

@@ -400,21 +400,25 @@ void exec_cmd(void) {
     printf("save file to %s, length: %d\n", path, file->file_len);
     uv_fs_open(uv_default_loop(), &req->open_req, path, O_CREAT | O_WRONLY | O_TRUNC, 0, on_open);
   } else if (cmd == CMD_JPEG) {
-    // encode JPEG
-    uint8_t *pic_nv12_buffer =
-        pic_write_buffer[pic_write_buffer_select ^ 1] + 6;
-    memcpy(mem_yuv_logic_addr, pic_nv12_buffer, PIC_YUV_SIZE);
-    EncInputFrame frame = {
-      .width = PIC_YUV_WIDTH,
-      .height = PIC_YUV_HEIGHT,
-      .stride = (PIC_YUV_WIDTH + 0x1F) & (~0x1F),
-      .data = (unsigned char *)mem_yuv_phy_addr
-    };
-    // FIXME: async
-    printf("encode jpeg start...\n");
-    // VideoEncoder_EncodeOneFrame_Async(henc, &frame, on_encode_jpeg_done);
-    VideoEncoder_EncodeOneFrame(henc, &frame);
-    on_encode_jpeg_done();
+    if (henc != NULL) {
+      // encode JPEG
+      uint8_t *pic_nv12_buffer =
+          pic_write_buffer[pic_write_buffer_select ^ 1] + 6;
+      memcpy(mem_yuv_logic_addr, pic_nv12_buffer, PIC_YUV_SIZE);
+      EncInputFrame frame = {
+        .width = PIC_YUV_WIDTH,
+        .height = PIC_YUV_HEIGHT,
+        .stride = (PIC_YUV_WIDTH + 0x1F) & (~0x1F),
+        .data = (unsigned char *)mem_yuv_phy_addr
+      };
+      // FIXME: async
+      printf("encode jpeg start...\n");
+      // VideoEncoder_EncodeOneFrame_Async(henc, &frame, on_encode_jpeg_done);
+      VideoEncoder_EncodeOneFrame(henc, &frame);
+      on_encode_jpeg_done();
+    } else {
+      fprintf(stderr, "JPEG codec is disabled, enable by -j\n");
+    }
   } else {
     // unknown cmd
     fprintf(stderr, "Unknown command: 0x%02X\n", cmd);
@@ -612,29 +616,31 @@ int main(int argc, char *argv[]) {
                             mem_fd, (uint64_t)mem_yuv_phy_addr | 0x100000000);
   assert(mem_yuv_logic_addr != MAP_FAILED);
 
-  // open encoder
-  EncSettings encoder_settings = {
-      .channel = 0, // TODO
-      .width = PIC_YUV_WIDTH,
-      .height = PIC_YUV_HEIGHT,
-      .FrameRate = 30,
-      .BitRate = 4000000, // TODO
-      .MaxBitRate = 4000000,
-      .level = 42,
-      .profile = JPEG,
-      .rcMode = CONST_QP,
-      .SliceQP = 25,
-      .FreqIDR = 25,
-      .gopLen = 25,
-      .AspectRatio = ASPECT_RATIO_AUTO,
-      .MinQP = 0,
-      .MaxQP = 51,
-      .bEnableGDR = 0,
-      .gdrMode = GDR_VERTICAL,
-      .bEnableLTR = 0,
-      .roiCtrlMode = ROI_QP_TABLE_NONE,
-  };
-  henc = VideoEncoder_Create(&encoder_settings);
+  if (argc > 1 && strcmp(argv[1], "-j") == 0) {
+    // open encoder
+    EncSettings encoder_settings = {
+        .channel = 0, // TODO
+        .width = PIC_YUV_WIDTH,
+        .height = PIC_YUV_HEIGHT,
+        .FrameRate = 30,
+        .BitRate = 4000000, // TODO
+        .MaxBitRate = 4000000,
+        .level = 42,
+        .profile = JPEG,
+        .rcMode = CONST_QP,
+        .SliceQP = 25,
+        .FreqIDR = 25,
+        .gopLen = 25,
+        .AspectRatio = ASPECT_RATIO_AUTO,
+        .MinQP = 0,
+        .MaxQP = 51,
+        .bEnableGDR = 0,
+        .gdrMode = GDR_VERTICAL,
+        .bEnableLTR = 0,
+        .roiCtrlMode = ROI_QP_TABLE_NONE,
+    };
+    henc = VideoEncoder_Create(&encoder_settings);
+  }
 #endif
 
   // init
