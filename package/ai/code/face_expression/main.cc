@@ -48,7 +48,7 @@
 #include <atomic>
 #include<vector>
 
-#include "../drm/k510_drm.h"
+#include "k510_drm.h"
 #include "media_ctl.h"
 #include <linux/videodev2.h>
 
