@@ -22,31 +22,29 @@
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-#include <sys/types.h>
-#include <sys/stat.h>
 #include <fcntl.h>
 #include <sys/ioctl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <unistd.h>
 
-#include <stdio.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <sys/ioctl.h>
-#include <sys/mman.h>
-#include <stdlib.h>
-#include <string.h>
 #include <assert.h>
 #include <errno.h>
+#include <fcntl.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/ioctl.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 
 #include "lib_twod.h"
 
 #define KENDRYTE_TD "/dev/twod"
 
 #define IMAGE_NAME1 "./input.yuv"
-
 #define IMAGE_NAME2 "./output.yuv"
-
 
 struct buffer_object {
 	uint32_t width;
@@ -59,9 +57,12 @@ struct buffer_object {
 
 	uint32_t yrgb_addr; /* yrgb    mem addr         */
 	uint32_t uv_addr; /* cb/cr   mem addr         */
-	uint32_t v_addr; /* cr      mem addr         */
-
 	uint32_t *vaddr;
+
+	uint32_t v_step;
+	uint32_t v_st_pstep;
+	uint32_t h_step;
+	uint32_t h_st_pstep;
 };
 
 struct buffer_object buf[2]; // 定义两个buff
@@ -75,53 +76,131 @@ static int twod_create_fb(struct buffer_object *bo)
 	size = bo->size;
 
 	bo->yrgb_addr = twod_creat_dump(fd_share_memory, size);
-
+	bo->uv_addr = bo->yrgb_addr + (bo->pitch * bo->height);
 	bo->vaddr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED,
 			 fd_mem_map, bo->yrgb_addr);
-	return 0;
 }
 
-static void twod_set_src_picture(struct buffer_object *bo)
+#if 0
+static void twod_set_src_picture(struct buffer_object *bo, uint32_t v_step, uint32_t h_step, uint32_t v_st_pstep, uint32_t h_st_pstep)
 {
 #if 1
-	bo->width = 1920;
-	bo->height = 1080;
+	bo->width = 320 ;// 1080;
+	bo->height = 352;//1920;
 #else
 	bo->width = 320;
 	bo->height = 240;
 #endif
 	bo->pitch = bo->width;
-	bo->bpp = 8;
+	bo->bpp = 0;
+	bo->size = bo->width * bo->height * 3 / 2 ;			// yuv420
+	bo->format = TWOD_FORMAT_YUV420SP;
+    bo->v_step = v_step;
+    bo->h_step = h_step;
+    bo->v_st_pstep = v_st_pstep;
+    bo->h_st_pstep = h_st_pstep;
+}
+#else
+static void twod_set_src_picture(struct buffer_object *bo)
+{
+#if 1
+	bo->width = 1920; // 320 ;// 1080;
+	bo->height = 1080; // 352;//1920;
+#else
+	bo->width = 320;
+	bo->height = 240;
+#endif
+	bo->pitch = bo->width;
+	bo->bpp = 0;
 	bo->size = bo->width * bo->height * 3 / 2; // yuv420
 	bo->format = TWOD_FORMAT_YUV420SP;
+}
+
+#endif
+
+void twod_set_scaler_step(struct buffer_object *src, struct buffer_object *des)
+{
+	float v_st_pstep, h_st_pstep;
+	float src_width, src_height, des_width, des_height;
+	uint32_t v_step, h_step;
+
+	/*
+	src_width = (float)src->width;
+	des_width = (float)des->width;
+	*/
+	src_height = (float)src->height;
+	des_height = (float)des->height;
+
+	if (src->width >= des->width) {
+		h_step = src->width / des->width;
+		h_st_pstep =
+			(((float)src->width / (float)des->width) - h_step) *
+			65536;
+		src->h_step = h_step + ((uint32_t)h_st_pstep << 16);
+
+	} else {
+		h_st_pstep = ((float)src->width / (float)des->width) * 65536;
+		src->h_step = 0 + ((uint32_t)h_st_pstep << 16);
+	}
+
+	if (src->height >= des->height) {
+		v_step = src->height / des->height;
+		v_st_pstep =
+			(((float)src->height / (float)des->height) - v_step) *
+			65536;
+		src->v_step = v_step + ((uint32_t)v_st_pstep << 16);
+
+	} else {
+		v_st_pstep = ((float)src->height / (float)des->height) * 65536;
+		src->v_step = ((uint32_t)v_st_pstep << 16);
+	}
+
+	src->v_st_pstep = 0;
+	src->h_st_pstep = 0;
 }
 
 static void twod_set_des_picture(struct buffer_object *bo)
 {
 #if 1
-	bo->width = 1080;
-	bo->height = 1920;
+	bo->width = 640; // 800;//1280;//640;//720;//176;//640;
+	bo->height = 480; // 600;//960  ;//480;//480;//144;//480;
 #else
 	bo->width = 240;
 	bo->height = 320;
 #endif
+#if 0
 	bo->pitch = bo->width;
 	bo->bpp = 8;
-	bo->size = bo->width * bo->height * 3 / 2; // yuv420
+	bo->size = bo->pitch * bo->height * 3 / 2 ;			// yuv422
 	bo->format = TWOD_FORMAT_YUV420SP;
+#else
+	bo->pitch = bo->width * 3;
+	bo->bpp = 8;
+	bo->size = bo->pitch * bo->height * 3;			// yuv422
+	bo->format = TWOD_FORMAT_RGB888;
+#endif
 }
 
-void twod_config_rotation_image(struct td_image_info *td_info,
-				struct buffer_object *buf)
+void twod_config_scaler_image(struct td_image_info *td_info,
+			      struct buffer_object *buf)
 {
 	td_info->act_w = buf->width;
 	td_info->act_h = buf->height;
-	td_info->pitch =  buf->pitch;
+	td_info->pitch = buf->pitch;
 	td_info->format = buf->format;
 	td_info->yrgb_addr = buf->yrgb_addr;
-	td_info->uv_addr = buf->yrgb_addr + (buf->pitch * buf->height);
+	td_info->uv_addr = buf->uv_addr; // buf->yrgb_addr + (buf->pitch * buf->height);
 	td_info->v_addr = 0;
 	td_info->bpp = buf->bpp;
+	td_info->v_step = buf->v_step;
+	td_info->h_step = buf->h_step;
+	td_info->v_st_pstep = buf->v_st_pstep;
+	td_info->h_st_pstep = buf->h_st_pstep;
+	td_info->x_offset = 0;
+	td_info->y_offset = 0;
+
+	printf("td_info->v_step is %x  td_info->h_step is %x \n",
+	       td_info->v_step, td_info->h_step);
 }
 
 int main(void)
@@ -152,18 +231,21 @@ int main(void)
 	}
 
 	// set picture
+	// twod_set_src_picture(&buf[0], 0xbbbb0000, 0x80000000, 0, 0);
 	twod_set_src_picture(&buf[0]);
 	twod_set_des_picture(&buf[1]);
+
+	twod_set_scaler_step(&buf[0], &buf[1]);
 
 	// creat fb
 	twod_create_fb(&buf[0]); // src picture
 	twod_create_fb(&buf[1]); // des picture
 
-	twod_config_rotation_image(src, &buf[0]);
-	twod_config_rotation_image(des, &buf[1]);
+	twod_config_scaler_image(src, &buf[0]);
+	twod_config_scaler_image(des, &buf[1]);
 
 	// write image
-	//read image
+	// read image
 	fd2 = fopen(IMAGE_NAME1, "rb");
 	if (fd2 == NULL) {
 		fd2 = fopen(IMAGE_NAME1, "wb");
@@ -201,7 +283,7 @@ int main(void)
 	twod_flashdateCache(fd_share_memory, buf[0].yrgb_addr, buf[0].vaddr,
 			    buf[0].size);
 
-	twod_set_rot(fd, src, des);
+	twod_set_scaler(fd, src, des, 0);
 
 	twod_wait_vsync(fd);
 
@@ -215,7 +297,7 @@ int main(void)
 	}
 	printf("open %s success \n", IMAGE_NAME2);
 
-	ret = fwrite(buf[1].vaddr, (buf[1].width * buf[1].height) * 3 / 2, 1,
+	ret = fwrite(buf[1].vaddr, (buf[1].width * buf[1].height) * 3, 1,
 		     fd1); // 3110400 = 1080 * 1920 * 1.5
 	if (ret <= 0) {
 		printf("fwrite  picture_addr is failed ret is %d \n", ret);
@@ -225,12 +307,12 @@ int main(void)
 	printf("fwrite %s success \n", IMAGE_NAME2);
 
 	close(fd);
+	fclose(fd1);
+	fclose(fd2);
 
 	free(src);
 	free(des);
 
 	twod_free_mem(fd_share_memory, buf[0].yrgb_addr);
 	twod_free_mem(fd_share_memory, buf[1].yrgb_addr);
-
-	// release mem
 }

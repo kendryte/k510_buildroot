@@ -99,14 +99,37 @@ int twod_set_rot(int fd, struct td_image_info *src, struct td_image_info *des)
     return ret;
 }
 
-int twod_set_scaler(int fd, struct td_image_info *src, struct td_image_info *des)
+int twod_set_scaler(int fd, struct td_image_info *src, struct td_image_info *des, int use_osd)
 {
     struct td_info td_info;
     int ret = 0;
     memcpy(&td_info.src, src, sizeof(struct td_image_info));
     memcpy(&td_info.dsc, des, sizeof(struct td_image_info));
 
-    td_info.mode = TWOD_SCALE;
+    if(use_osd == 0)
+    {
+        td_info.mode = TWOD_SCALE;
+        printf("1111111111111111111111 \n");
+    }
+    else
+    {
+        td_info.mode = TWOD_SCALE_OSD;
+    }
+    
+    if(ioctl(fd, KENDRYTE_TWOD_SET_DATA, &td_info) < 0) {
+        printf("ERR: Gnne set pc err\n");
+        ret = -1;
+    }
+    return ret;
+}
+
+int twod_set_osd(int fd, struct td_image_info *osd)
+{
+    struct td_info td_info;
+    int ret = 0;
+    memcpy(&td_info.src, osd, sizeof(struct td_image_info));
+ 
+    td_info.mode = TWOD_SET_OSD;
 
     if(ioctl(fd, KENDRYTE_TWOD_SET_DATA, &td_info) < 0) {
         printf("ERR: Gnne set pc err\n");
@@ -114,6 +137,25 @@ int twod_set_scaler(int fd, struct td_image_info *src, struct td_image_info *des
     }
     return ret;
 }
+
+
+int twod_rgb2yuv(int fd, struct td_image_info *src, struct td_image_info *des)
+{
+    struct td_info td_info;
+    int ret = 0;
+
+    memcpy(&td_info.src, src, sizeof(struct td_image_info));
+    memcpy(&td_info.dsc, des, sizeof(struct td_image_info));
+ 
+    td_info.mode = TWOD_ONLY_OSD;
+
+    if(ioctl(fd, KENDRYTE_TWOD_SET_DATA, &td_info) < 0) {
+        printf("ERR: Gnne set pc err\n");
+        ret = -1;
+    }
+    return ret;
+}
+
 
 int twod_InvalidateCache(int fd, uint64_t phyAddr, void* vAddr, unsigned int size)
 {
