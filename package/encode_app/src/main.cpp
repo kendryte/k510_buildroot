@@ -56,6 +56,7 @@ using namespace std;
 #include "alsa/asoundlib.h"
 #include "G711Codec.h"
 
+#define SET_AE_WORKARROUND   1   //in the future, set AE in seperated thread for r2k/f2k
 //#define ISP_OUTPUT_DUMP 1
 #define TEST_ISP        1
 
@@ -187,6 +188,7 @@ typedef struct
   int v4l2_enabled;
   uint32_t *repeat;
   uint32_t *drop;
+  int *set_ae;
   unsigned char *out_framerate;
   int video_enabled;
   int ae_enable;
@@ -501,7 +503,12 @@ static void *v4l2_output(void *arg)
     buf.memory = V4L2_MEMORY_USERPTR;
         
     res = ioctl(pCtx->fd_v4l2[channel], VIDIOC_DQBUF, &buf);
-    set_ae(pCtx->dev_name[channel], pCtx->ae_enable);
+#ifdef SET_AE_WORKARROUND    
+    if(pCtx->set_ae[channel])
+#endif
+    {
+      set_ae(pCtx->dev_name[channel], pCtx->ae_enable);
+    }
     
     if (res < 0 || errno == EINTR)
     {
@@ -861,6 +868,7 @@ int free_context(void *arg)
   free(pCtx->repeat          );
   free(pCtx->drop            );
   free(pCtx->out_framerate   );
+  free(pCtx->set_ae   );
 
   return 0;
 }
@@ -1166,6 +1174,7 @@ int init_v4l2()
     struct v4l2_requestbuffers req;
     struct v4l2_format fmt;
     int i;
+    int f2k=0, r2k=0;
 
     for(int j = 0; j < pCtx->ch_cnt; j++)
     {
@@ -1180,7 +1189,51 @@ int init_v4l2()
     {
       sem_init(&pCtx->pSemGetData[i],0,0);
     }
-    
+
+#ifdef SET_AE_WORKARROUND
+    for(int i = 0; i < pCtx->ch_cnt; i++)
+    {
+      if(pCtx->ae_enable)
+      { 
+        char* dev_name;
+
+        dev_name = pCtx->dev_name[i];
+      
+        if(i == 0)
+        {
+          pCtx->set_ae[i] = 1;
+          
+          if((dev_name[10] >= '2') && (dev_name[10] <= '5'))
+          {
+            f2k = 1;
+          }
+          else
+          {
+            r2k = 1;
+          }
+        }
+        else
+        {
+          if(f2k == 1)
+          {
+            if((dev_name[10] >= '6') && (dev_name[10] <= '9'))
+            {
+              pCtx->set_ae[i] = 1;
+            }
+          }
+          
+          if(r2k == 1)
+          {
+            if((dev_name[10] >= '2') && (dev_name[10] <= '5'))
+            {
+              pCtx->set_ae[i] = 1;
+            }
+          }
+          break;
+        }
+      }
+    }
+#endif
     if(mediactl_init(REAL_CONF_FILENAME, &(pCtx->dev_info[0])) < 0)
     {
         printf("mediactl_init error!\n");
@@ -1308,7 +1361,7 @@ int init_v4l2()
           printf("ioctl(VIDIOC_STREAMON): fail\n");
           close(pCtx->fd_v4l2[j]);
           return 0;
-      }
+      }      
       
       pthread_create(&pCtx->v4l2_thread[j], NULL, v4l2_output, &pCtx->ch[j]);
 
@@ -1786,6 +1839,7 @@ int alloc_context(void *arg)
   pCtx->repeat          = (uint32_t*)malloc(sizeof(uint32_t) * pCtx->ch_cnt);
   pCtx->drop            = (uint32_t*)malloc(sizeof(uint32_t) * pCtx->ch_cnt);
   pCtx->out_framerate   = (unsigned char*)malloc(sizeof(unsigned char) * pCtx->ch_cnt);
+  pCtx->set_ae          = (int*)malloc(sizeof(int) * pCtx->ch_cnt);
 
   memset(pCtx->Cfg,0,sizeof(EncSettings));
 
