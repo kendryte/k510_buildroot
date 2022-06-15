@@ -63,11 +63,20 @@ enum TWOD_FORMAT {
     TWOD_FORMAT_YUV422SP = 2,
     TWOD_FORMAT_RGB888 = 3,
     TWOD_FORMAT_ARGB8888 = 4,
+    TWOD_FORMAT_RGB565 = 5,
+    TWOD_FORMAT_RGB4444 = 6,
+    TWOD_FORMAT_RGB1555 = 7,
+    TWOD_FORMAT_MONOCNROME_8 = 8,
 };
 enum TWOD_MODE {
     TWOD_ROT_90 = 1,
     TWOD_ROT_270 = 2,
     TWOD_SCALE = 3,
+    TWOD_SET_OSD = 4,
+    TWOD_ROT_OSD_90 = 5,
+    TWOD_ROT_OSD_270 = 6,
+    TWOD_SCALE_OSD = 7,
+    TWOD_ONLY_OSD = 8,
 };
 
 
@@ -120,7 +129,11 @@ uint32_t twod_creat_dump(int fd, uint32_t size);
 void twod_free_mem(int fd, uint64_t phyaddr);
 void twod_wait_vsync(int fd);
 int twod_set_rot(int fd, struct td_image_info *src, struct td_image_info *des);
-int twod_set_scaler(int fd, struct td_image_info *src, struct td_image_info *des);
+int twod_set_scaler(int fd, struct td_image_info *src, struct td_image_info *des, int use_osd);
+int twod_set_osd(int fd, struct td_image_info *osd);
+int twod_rgb2yuv(int fd, struct td_image_info *src, struct td_image_info *des);
+
+
 int twod_InvalidateCache(int fd, uint64_t phyAddr, void* vAddr, unsigned int size);
 int twod_flashdateCache(int fd, uint64_t phyAddr, void* vAddr, unsigned int size);
 
