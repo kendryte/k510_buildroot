@@ -231,8 +231,21 @@ int isp_f2k_cfg(struct media_entity *entity,struct isp_cfg_info *isp_cfg,uint32_
 	isp_wrap_info->mainInfo.main_y_buf1_base = phyAddr;
 	isp_wrap_info->mainInfo.main_uv_buf0_base = phyAddr + line_stride*height;
 	isp_wrap_info->mainInfo.main_uv_buf1_base = phyAddr + line_stride*height;
+
+	// 3dnr
+	isp_wrap_info->nr3dInfo.nr3d_y_line_stride = line_stride;
+	isp_wrap_info->nr3dInfo.nr3d_uv_line_stride = line_stride;
+	isp_wrap_info->nr3dInfo.nr3d_y_buf_base = phyAddr + 4096 * 1024;
+	isp_wrap_info->nr3dInfo.nr3d_uv_buf_base = phyAddr + 4096 * 1024 + line_stride * height;
+
+	// ldc
+	isp_wrap_info->ldcInfo.ldc_line_stride = line_stride;
+	isp_wrap_info->ldcInfo.ldc_y_buf_base = phyAddr + 4096 * 1024 * 2;
+	isp_wrap_info->ldcInfo.ldc_uv_buf_base = phyAddr + 4096 * 1024 * 2 + line_stride * height;
+
 	//
 	width = isp_wrap_info->ds0Info.ds0_size.width;
+	height = isp_wrap_info->mainInfo.main_size.height;
 	line_stride = calc_stride(width);
 	//isp_wrap_info->ds0Info.ds0_out_en = 1;//must enable
     //isp_ds_info->dsInfo[0].scale_en = 1;
@@ -253,7 +266,8 @@ int isp_f2k_cfg(struct media_entity *entity,struct isp_cfg_info *isp_cfg,uint32_
 	isp_wrap_info->ds1Info.ds1_uv_buf1_base = phyAddr+line_stride*height;
 	
 	//
-	width = isp_wrap_info->ds2Info.ds2_size.width;
+	//width = isp_wrap_info->ds2Info.ds2_size.width;
+	width =  isp_wrap_info->ds2Info.ds2_size.pitch;				// add pitch
 	line_stride = calc_stride(width);
 	if( OUT_ARGB == isp_wrap_info->ds2Info.ds2_out_img_out_format)
 	{
@@ -365,12 +379,27 @@ int isp_r2k_cfg(struct media_entity *entity,struct isp_cfg_info *isp_cfg,uint32_
 		return ret;
 	//
 	width = isp_wrap_info->mainInfo.main_size.width;
+	height = isp_wrap_info->mainInfo.main_size.height;
 	line_stride = calc_stride(width);
 	isp_wrap_info->mainInfo.main_line_stride = line_stride;
 	isp_wrap_info->mainInfo.main_y_buf0_base = phyAddr;
 	isp_wrap_info->mainInfo.main_y_buf1_base = phyAddr;
 	isp_wrap_info->mainInfo.main_uv_buf0_base = phyAddr + line_stride*height;
 	isp_wrap_info->mainInfo.main_uv_buf1_base = phyAddr + line_stride*height;
+
+	/*
+	// 3dnr
+	isp_wrap_info->nr3dInfo.nr3d_y_line_stride = line_stride;
+	isp_wrap_info->nr3dInfo.nr3d_uv_line_stride = line_stride;
+	isp_wrap_info->nr3dInfo.nr3d_y_buf_base = phyAddr + 4096 * 1024;
+	isp_wrap_info->nr3dInfo.nr3d_uv_buf_base = phyAddr + 4096 * 1024 + line_stride * height;
+
+	// ldc
+	isp_wrap_info->ldcInfo.ldc_line_stride = line_stride;
+	isp_wrap_info->ldcInfo.ldc_y_buf_base = phyAddr + 4096 * 1024 * 2;
+	isp_wrap_info->ldcInfo.ldc_uv_buf_base = phyAddr + 4096 * 1024 * 2 + line_stride * height;
+	*/
+
 	//
 	width = isp_wrap_info->ds0Info.ds0_size.width;
 	line_stride = calc_stride(width);
@@ -393,7 +422,8 @@ int isp_r2k_cfg(struct media_entity *entity,struct isp_cfg_info *isp_cfg,uint32_
 	isp_wrap_info->ds1Info.ds1_uv_buf1_base = phyAddr+line_stride*height;
 	
 	//
-	width = isp_wrap_info->ds2Info.ds2_size.width;
+	//width = isp_wrap_info->ds2Info.ds2_size.width;
+	width = isp_wrap_info->ds2Info.ds2_size.pitch;
 	line_stride = calc_stride(width);
 	if( OUT_ARGB == isp_wrap_info->ds2Info.ds2_out_img_out_format)
 	{

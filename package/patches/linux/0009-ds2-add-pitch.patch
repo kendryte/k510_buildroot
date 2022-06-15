@@ -1,0 +1,58 @@
+From 26d6a4251d6f56b83103d231db531a2a11fa157a Mon Sep 17 00:00:00 2001
+From: zhaoshuaiadada <zhaoshuai@canaan-creative.com>
+Date: Wed, 8 Jun 2022 19:20:41 +0800
+Subject: [PATCH] ds2 add pitch
+
+---
+ drivers/media/platform/canaan-isp/isp_2k/isp_f2k.c | 1 +
+ drivers/media/platform/canaan-isp/k510isp_com.h    | 3 ++-
+ drivers/media/platform/canaan-isp/vi/vi_com.h      | 2 ++
+ 3 files changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/media/platform/canaan-isp/isp_2k/isp_f2k.c b/drivers/media/platform/canaan-isp/isp_2k/isp_f2k.c
+index 906443b2..6085ed61 100755
+--- a/drivers/media/platform/canaan-isp/isp_2k/isp_f2k.c
++++ b/drivers/media/platform/canaan-isp/isp_2k/isp_f2k.c
+@@ -3040,6 +3040,7 @@ static long f2k_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
+ 		mutex_lock(&f2k->ioctl_lock);
+ 		//ret = isp_f2k_ds_config(f2k, arg);
+ 		memcpy((void*)isp_ds_cfg,arg,sizeof(struct isp_ds_cfg_info));
++
+ 		mutex_unlock(&f2k->ioctl_lock);
+ 		break;
+ 	case VIDIOC_K510ISP_F2K_REMAP_MAIN_CFG:
+diff --git a/drivers/media/platform/canaan-isp/k510isp_com.h b/drivers/media/platform/canaan-isp/k510isp_com.h
+index 6ecec4c6..8927b06f 100755
+--- a/drivers/media/platform/canaan-isp/k510isp_com.h
++++ b/drivers/media/platform/canaan-isp/k510isp_com.h
+@@ -33,7 +33,8 @@
+ 
+ typedef struct _IMAGE_SIZE{
+ 	unsigned int Width;
+-	unsigned int Height;	
++	unsigned int Height;
++    unsigned int pitch;
+ }IMAGE_SIZE;
+ 
+ typedef enum _VI_PIPE_ID
+diff --git a/drivers/media/platform/canaan-isp/vi/vi_com.h b/drivers/media/platform/canaan-isp/vi/vi_com.h
+index 01ad1caf..5faf8895 100755
+--- a/drivers/media/platform/canaan-isp/vi/vi_com.h
++++ b/drivers/media/platform/canaan-isp/vi/vi_com.h
+@@ -127,11 +127,13 @@ typedef enum _MIPI_CSI_DMOE_E
+ typedef struct _IMAGE_SIZE_INFO{
+ 	unsigned int Width;
+ 	unsigned int Height;	
++    unsigned int pitch;
+ }IMAGE_SIZE_INFO;
+ //
+ typedef struct _IMAGE_SIZE_ST{
+ 	unsigned int Width_st;
+ 	unsigned int Height_st;	
++    unsigned int pitch;
+ }IMAGE_SIZE_ST;
+ 
+ typedef enum _VI_PIPE_WDR_MODE_E
+-- 
+2.36.1
+

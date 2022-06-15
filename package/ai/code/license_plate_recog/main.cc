@@ -134,10 +134,16 @@ void ai_worker(ai_worker_args ai_args)
     frame_coordinate_info frame_coordinate;
     while(quit.load()) 
     {
+        bool ret = false;
         ScopedTiming st("total", 1);
         mtx.lock();
-        capture.read(rgb24_img_for_ai);
+        ret = capture.read(rgb24_img_for_ai);
         mtx.unlock();
+        if(ret == false)
+        {
+            quit.store(false);
+            continue; // 
+        }
         //拷贝图像的同时修改padding方式，默认读出的图像是最后做padding，修改为前后做padding
         if(is_rgb)
         {
@@ -199,7 +205,7 @@ void ai_worker(ai_worker_args ai_args)
             fbuf_argb = &drm_dev.drm_bufs_argb[drm_bufs_argb_index];
             img_argb = cv::Mat(DRM_INPUT_HEIGHT, DRM_INPUT_WIDTH, CV_8UC4, (uint8_t *)fbuf_argb->map);
 
-            for(uint32_t i = 0; i < obj_cnt; i++)
+            for(uint32_t i = 0; i < 32; i++)
             {
                 if(i == 0)
                 {
@@ -268,8 +274,8 @@ void ai_worker(ai_worker_args ai_args)
                     std::string perspective_image_out_path = dump_img_dir + "/perspective_" + std::to_string(frame_cnt) + "_" + std::to_string(obj_cnt) + ".jpg";
                     cv::imwrite(perspective_image_out_path, perspective_img); 
                 }
-            }
-            obj_cnt += 1;     
+                obj_cnt += 1;  
+            }   
         }
         frame_cnt += 1;
         drm_bufs_argb_index = !drm_bufs_argb_index;
@@ -279,7 +285,7 @@ void ai_worker(ai_worker_args ai_args)
     mtx.lock();
     capture.release();
     mtx.unlock();
-    for(uint32_t i = 0; i < obj_cnt; i++)
+    for(uint32_t i = 0; i < 32; i++)
     {
         struct vo_draw_frame frame;
         frame.crtc_id = drm_dev.crtc_id;
@@ -306,10 +312,16 @@ void display_worker(int enable_profile)
         fbuf_yuv = &drm_dev.drm_bufs[drm_bufs_index];
         cv::Mat org_img(DRM_INPUT_HEIGHT * 3 / 2, (DRM_INPUT_WIDTH + 15) / 16 * 16, CV_8UC1, fbuf_yuv->map);
         {
+            bool ret = false;
             ScopedTiming st("capture read",enable_profile);
             mtx.lock();
-            capture.read(org_img);
+            ret = capture.read(org_img);
             mtx.unlock();
+            if(ret == false)
+            {
+                quit.store(false);
+                continue; // 
+            }
         }
 
         if (drm_dev.req)
@@ -374,11 +386,13 @@ int main(int argc, char *argv[])
 
 
     /****fixed operation for drm init****/
-    drm_init();
+    if(drm_init())
+        return -1;
 
 
     /****fixed operation for mediactl init****/
-    mediactl_init(video_cfg_file, &dev_info[0]);
+    if(mediactl_init(video_cfg_file, &dev_info[0]))
+        return -1;
 
 
     // create thread for display
@@ -399,5 +413,6 @@ int main(int argc, char *argv[])
         drm_destory_dumb(&drm_dev.drm_bufs_argb[i]);
     }
     
+	mediactl_exit();
     return 0;
 }

@@ -322,6 +322,17 @@ void doit_video_cfg(char *text,struct vi_cfg_info *vi_cfg,struct sensor_info *se
              //printf("cJSON_GetObjectItem: type=%d, string is %s, valueint is %d\n",item->type,item->string,item->valueint);
          } 
 
+         item=cJSON_GetObjectItem(object,"video5_pitch");
+         printf("%s:video5_pitch %p\n",__func__,item);
+         if(item != NULL)
+         {
+            dev_info[0].video_width[3] = item->valueint;
+            wds2Info->ds2_size.pitch = item->valueint;
+            ds2Info->ds_out_size.pitch = wds2Info->ds2_size.pitch;
+             printf("cJSON_GetObjectItem: type=%d, string is %s, valueint is %d pitch is %d \n",item->type,item->string,item->valueint,ds2Info->ds_out_size.pitch);
+         } 
+
+
 		   dev_info[0].video_used = 0;
 		   if((dev_info[0].enable[0] == 1)||(dev_info[0].enable[1] == 1)||(dev_info[0].enable[2] == 1)||(dev_info[0].enable[3] == 1)) 
 		   {
@@ -580,6 +591,18 @@ void doit_video_cfg(char *text,struct vi_cfg_info *vi_cfg,struct sensor_info *se
 	         dev_info[1].video_out_format[3] = item->valueint;
              //printf("cJSON_GetObjectItem: type=%d, string is %s, valueint is %d\n",item->type,item->string,item->valueint);
          }  
+
+         item=cJSON_GetObjectItem(object,"video9_pitch");
+         //printf("%s:active_height %p\n",__func__,item);
+         if(item != NULL)
+         {
+            //dev_info[1].video_height[3] = item->valueint;
+            wds2Info->ds2_size.pitch = item->valueint;
+            ds2Info->ds_out_size.pitch = wds2Info->ds2_size.pitch;
+             //printf("cJSON_GetObjectItem: type=%d, string is %s, valueint is %d\n",item->type,item->string,item->valueint);
+         }
+
+
 		   dev_info[1].video_used = 0;
 		   if((dev_info[1].enable[0] == 1)||(dev_info[1].enable[1] == 1)||(dev_info[1].enable[2] == 1)||(dev_info[1].enable[3] == 1)) 
 		   {

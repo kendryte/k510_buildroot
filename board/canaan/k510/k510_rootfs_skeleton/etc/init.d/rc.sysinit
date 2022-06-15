@@ -101,6 +101,9 @@ cd /
 ntpdate  ntp.aliyun.com >/dev/null 2>&1 &
 /app/dsp_log/dsp_log &
 
+i2ctransfer -f -y 0 w3@0x10 0x01 0x00 0x00
+
 cd /app/mediactl_lib/
-./v4l2_drm.out -f video_drm_1080x1920.conf &
+./v4l2_drm.out -f video_drm_1080x1920.conf -e 1 &
 cd /
+/usr/sbin/ifplugd   -n -p  -I -i eth0 -r /etc/network/ifplug.sh &
