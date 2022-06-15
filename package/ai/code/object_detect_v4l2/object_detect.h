@@ -57,11 +57,16 @@ using namespace std;
 #define MAP_MEMORY_DEV      "/dev/mem"
 
 #define YOLOV5_FIX_SIZE 320
-#define GNNE_BUFFERS_COUNT 1
+#define GNNE_BUFFERS_COUNT 3
+#ifdef FULL_SCREEN
+#define GNNE_INPUT_WIDTH 192
+#define GNNE_INPUT_HEIGHT 320
+#else
 #define GNNE_INPUT_WIDTH 320
 #define GNNE_INPUT_HEIGHT 240
+#endif
 
-#define INPUT_SIZE       ((YOLOV5_FIX_SIZE * YOLOV5_FIX_SIZE * 3 + 4095)&(~4095))
+#define INPUT_SIZE       (YOLOV5_FIX_SIZE * YOLOV5_FIX_SIZE * 3)
 
 #define OUTPUT_SIZE0     (255*40*40*4)
 #define OUTPUT_SIZE1     (255*20*20*4)
@@ -130,7 +135,7 @@ private:
     interpreter interp_od;
     vector<unsigned char> od_model;
 
-    int net_len = GNNE_INPUT_WIDTH;
+    int net_len = YOLOV5_FIX_SIZE;
     int anchors_num = 3;
     int classes_num = 80;
     int channels = anchors_num * (5 + classes_num);

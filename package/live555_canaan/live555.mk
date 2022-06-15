@@ -47,9 +47,6 @@ define LIVE555_CANAAN_INSTALL_STAGING_CMDS
 	$(TARGET_MAKE_ENV) $(MAKE) DESTDIR=$(STAGING_DIR) -C $(@D) install
 endef
 
-define LIVE555_CANAAN_INSTALL_TARGET_CMDS
-	$(INSTALL) -D -m 0755 $(@D)/testProgs/VideoStreamerFile $(TARGET_DIR)/app/live555_canaan/VideoStreamerFile
-endef
 
 define LIVE555_CANAAN_INSTALL_STAGING_CMDS
 	cp -rf $(@D)/liblive555.a  $(STAGING_DIR)/lib64/lp64d/liblive555.a
