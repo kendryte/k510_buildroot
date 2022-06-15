@@ -67,7 +67,7 @@ index f91af66d..d6da420c 100755
 -                        printk("td_info->v_step is %x  td_info->h_step is %x \n", info.src.v_step, info.src.h_step);
 +                      
 +                        // close osd0 
-+                        //kendryte_set_osd_enable(kendryte_td, 0);
++                        kendryte_set_osd_enable(kendryte_td, 0);
                          
                          kendryte_scaler_start_frame(kendryte_td, 1);
                          kendryte_scaler_start_frame(kendryte_td, 0);
