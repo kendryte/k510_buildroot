@@ -59,7 +59,7 @@
 #define PROFILING 0
 
 struct video_info dev_info[2];
-static char *video_cfg_file = "video.conf";
+static char *video_cfg_file = "video_192x320.conf";
 #define SELECT_TIMEOUT		2000
 
 std::mutex mtx;
