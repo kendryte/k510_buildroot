@@ -50,6 +50,9 @@ using namespace std;
 
 #define KMODEL_STACKVM_OUPUT_ERR    1
 #define RETINAFACE_FIX_SIZE 320
+#define B_MEAN 104
+#define G_MEAN 117
+#define R_MEAN 123
 
 #define GNNE_BUFFERS_COUNT 1
 #ifdef FULL_SCREEN
