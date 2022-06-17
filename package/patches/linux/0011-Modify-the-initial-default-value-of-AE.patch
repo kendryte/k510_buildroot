@@ -1,0 +1,40 @@
+From 5f9e8a26f6a50e31cb0ec3bc702cf5f765af82e9 Mon Sep 17 00:00:00 2001
+From: jiangxb <1137486478@qq.com>
+Date: Wed, 15 Jun 2022 17:13:53 +0800
+Subject: [PATCH] Modify the initial default value of AE
+
+---
+ drivers/media/i2c/soc_camera/canaanchip/imx219_0.c | 7 ++++---
+ 1 file changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/media/i2c/soc_camera/canaanchip/imx219_0.c b/drivers/media/i2c/soc_camera/canaanchip/imx219_0.c
+index f5ca8307..218ad824 100755
+--- a/drivers/media/i2c/soc_camera/canaanchip/imx219_0.c
++++ b/drivers/media/i2c/soc_camera/canaanchip/imx219_0.c
+@@ -41,11 +41,11 @@
+ /* In dB*256 */
+ #define IMX219_DIGITAL_GAIN_MIN			256
+ #define IMX219_DIGITAL_GAIN_MAX			43663
+-#define IMX219_DIGITAL_GAIN_DEFAULT		256
++#define IMX219_DIGITAL_GAIN_DEFAULT		768
+ 
+ #define IMX219_DIGITAL_EXPOSURE_MIN		0
+ #define IMX219_DIGITAL_EXPOSURE_MAX		4095
+-#define IMX219_DIGITAL_EXPOSURE_DEFAULT	1000//1575
++#define IMX219_DIGITAL_EXPOSURE_DEFAULT	1162//1575
+ 
+ #define IMX219_EXP_LINES_MARGIN			4
+ 
+@@ -397,7 +397,8 @@ static const struct imx219_reg imx219_init_tab_1080_1920_30fps[] = {
+ 	{0x4793, 0x10},
+ 	{0x4797, 0x0e},
+ 	{0x479b, 0x0e},
+-	{0x0157, 0x40},
++	// {0x0157, 0x40},
++	{0x0157, 0x9a},
+ 	{IMX219_TABLE_END, 0x00}	
+ };
+ 
+-- 
+2.17.1
+

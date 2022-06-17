@@ -59,7 +59,7 @@
 #define PROFILING 0
 
 struct video_info dev_info[2];
-static char *video_cfg_file = "video.conf";
+static char *video_cfg_file = "video_192x320.conf";
 #define SELECT_TIMEOUT		2000
 
 std::mutex mtx;
@@ -88,6 +88,9 @@ void ai_worker()
     float nms_thresh = 0.45;
     uint32_t valid_width = dev_info[0].video_width[3];
     uint32_t valid_height = dev_info[0].video_height[3];
+    int offset_channel = valid_width * valid_width;  // ds2 channel offset
+    int padding_r, padding_l;
+    
     objectDetect od(obj_thresh, nms_thresh);
 
     od.load_model(kmodel_name);
@@ -102,8 +105,9 @@ void ai_worker()
     capture.set(cv::CAP_PROP_FRAME_HEIGHT, valid_height);
     capture.set(cv::CAP_PROP_FOURCC, dev_info[0].video_out_format[3] ? V4L2_PIX_FMT_ARGB32 : V4L2_PIX_FMT_RGB24);
     mtx.unlock();
-    cv::Mat rgb24_img_for_ai(YOLOV5_FIX_SIZE, YOLOV5_FIX_SIZE, CV_8UC3, od.virtual_addr_input[0] + 4096);
-
+    padding_r = padding_l = (valid_width-GNNE_INPUT_WIDTH)/2;
+    cv::Mat rgb24_img_for_ai(YOLOV5_FIX_SIZE, YOLOV5_FIX_SIZE, CV_8UC3, od.virtual_addr_input[0] + padding_l);
+    
     while(quit.load()) 
     {
         bool ret = false;
@@ -119,13 +123,24 @@ void ai_worker()
 
         fbuf_argb = &drm_dev.drm_bufs_argb[drm_bufs_argb_index];
         cv::Mat img_argb = cv::Mat(DRM_INPUT_HEIGHT, DRM_INPUT_WIDTH, CV_8UC4, (uint8_t *)fbuf_argb->map);
+        //padding
+        for(int h=0; h<valid_height; h++)
+        {
+            memset(od.virtual_addr_input[0] + h*valid_width, 114, padding_l);
+            memset(od.virtual_addr_input[0] + offset_channel + h*valid_width, 114, padding_l);
+            memset(od.virtual_addr_input[0] + offset_channel*2 + h*valid_width, 114, padding_l);
+
+            memset(od.virtual_addr_input[0] + padding_l + GNNE_INPUT_WIDTH + h*valid_width, 114, padding_r);
+            memset(od.virtual_addr_input[0] + offset_channel + padding_l+GNNE_INPUT_WIDTH + h*valid_width, 114, padding_r);
+            memset(od.virtual_addr_input[0] + offset_channel*2 + padding_l+GNNE_INPUT_WIDTH + h*valid_width, 114, padding_r);
+        }
 #if 1
         cv::Mat ds2_bgra(YOLOV5_FIX_SIZE, YOLOV5_FIX_SIZE, CV_8UC4);
 
         cv::Mat channel[3];
-        channel[2] = cv::Mat(YOLOV5_FIX_SIZE, YOLOV5_FIX_SIZE, CV_8UC1, od.virtual_addr_input[0]+4096-64); //R
-        channel[1] = cv::Mat(YOLOV5_FIX_SIZE, YOLOV5_FIX_SIZE, CV_8UC1, od.virtual_addr_input[0]+4096-64 + YOLOV5_FIX_SIZE*YOLOV5_FIX_SIZE); //G
-        channel[0] = cv::Mat(YOLOV5_FIX_SIZE, YOLOV5_FIX_SIZE, CV_8UC1, od.virtual_addr_input[0]+4096-64 + YOLOV5_FIX_SIZE*YOLOV5_FIX_SIZE*2);  //B
+        channel[2] = cv::Mat(YOLOV5_FIX_SIZE, YOLOV5_FIX_SIZE, CV_8UC1, od.virtual_addr_input[0]); //R
+        channel[1] = cv::Mat(YOLOV5_FIX_SIZE, YOLOV5_FIX_SIZE, CV_8UC1, od.virtual_addr_input[0]+offset_channel); //G
+        channel[0] = cv::Mat(YOLOV5_FIX_SIZE, YOLOV5_FIX_SIZE, CV_8UC1, od.virtual_addr_input[0]+offset_channel*2);  //B
 
         cv::Mat ds2_img = cv::Mat(YOLOV5_FIX_SIZE, YOLOV5_FIX_SIZE, CV_8UC3);
         merge(channel, 3, ds2_img);
