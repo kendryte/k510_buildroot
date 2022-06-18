@@ -322,7 +322,8 @@ int main(void)
 	twod_flashdateCache(fd_share_memory, buf[0].yrgb_addr, buf[0].vaddr,
 			    buf[0].size);
 
-	
+	twod_flashdateCache(fd_share_memory, buf[1].yrgb_addr, buf[1].vaddr,
+			    buf[1].size);
 
 	twod_set_osd(fd, osd);
 
