@@ -1,0 +1,372 @@
+From 583dbe75a82ad1647ba55cbac00f834e520f07ce Mon Sep 17 00:00:00 2001
+From: wycwyhwyq <5f20.6d9b@gmail.com>
+Date: Mon, 20 Jun 2022 15:37:49 +0800
+Subject: [PATCH] fix dsi read hang
+
+---
+ .../controler/video/mipi/dsi/cnds_dsi_test.c  | 313 +++++++++---------
+ 1 file changed, 163 insertions(+), 150 deletions(-)
+
+diff --git a/board/Canaan/dsi_logo/bsp/controler/video/mipi/dsi/cnds_dsi_test.c b/board/Canaan/dsi_logo/bsp/controler/video/mipi/dsi/cnds_dsi_test.c
+index 5587db0d..fbc4f825 100755
+--- a/board/Canaan/dsi_logo/bsp/controler/video/mipi/dsi/cnds_dsi_test.c
++++ b/board/Canaan/dsi_logo/bsp/controler/video/mipi/dsi/cnds_dsi_test.c
+@@ -1697,33 +1697,38 @@ void hx8399_c_read_data(uint32_t addr, uint32_t len)
+ 
+ int32_t hx8399_read_id(void)
+ {
+-	int32_t reg;
+-	int32_t cmd_sts;
+-	int32_t err;
+-	int32_t size;
+-	int32_t id;
++        int32_t reg;
++        int32_t cmd_sts = 0;
++        int32_t err;
++        int32_t size;
++        int32_t id;
++        int32_t retry = 5;
+ 
+-	dsc_cmd_send_37(3);
++        dsc_cmd_send_37(3);
+ 
+-        DsiRegWr(DIRECT_CMD_STS_CLR_OFFSET,0xffffffff);
++        DsiRegWr(DIRECT_CMD_STS_CLR_OFFSET, 0xffffffff);
+         DsiRegWr(DIRECT_CMD_RD_STS_CLR_OFFSET, 0xffffffff);
+-	DsiRegWr(DIRECT_CMD_FIFO_RST_OFFSET, 0xffffffff);
++        DsiRegWr(DIRECT_CMD_FIFO_RST_OFFSET, 0xffffffff);
+ 
+-	reg = 0x01000601 | (1 << 16);
+-	DsiRegWr(DIRECT_CMD_MAIN_SETTINGS_OFFSET, reg);
+-	DsiRegWr(DIRECT_CMD_WRDAT_OFFSET, 0x04);
+-	DsiRegWr(DIRECT_CMD_SEND_OFFSET, 0xffffffff);
++        reg = 0x01000601 | (1 << 16);
++        DsiRegWr(DIRECT_CMD_MAIN_SETTINGS_OFFSET, reg);
++        DsiRegWr(DIRECT_CMD_WRDAT_OFFSET, 0x04);
++        DsiRegWr(DIRECT_CMD_SEND_OFFSET, 0xffffffff);
+ 
+-	while ((cmd_sts & 0x08) != 0x08) {
++        while ((cmd_sts & 0x08) != 0x08) {
++                usleep(1000);
++                retry--;
+                 cmd_sts = DsiRegRd(DIRECT_CMD_STS_OFFSET);
+-	}
++                if (retry == 0)
++                        return -1;
++        }
+ 
+-	err = DsiRegRd(DIRECT_CMD_RD_STS_OFFSET);
+-	size = DsiRegRd(DIRECT_CMD_RD_PROPERTY_OFFSET);
+-	id = DsiRegRd(DIRECT_CMD_RDDAT_OFFSET);
+-	printf("lcd_id [%02x]\n", id);
++        err = DsiRegRd(DIRECT_CMD_RD_STS_OFFSET);
++        size = DsiRegRd(DIRECT_CMD_RD_PROPERTY_OFFSET);
++        id = DsiRegRd(DIRECT_CMD_RDDAT_OFFSET);
++        printf("lcd_id [%02x]\n", id);
+ 
+-	return id;
++        return id;
+ }
+ 
+ void hx8399_v2_init(void)
+@@ -2182,61 +2187,45 @@ void test(void)
+ //        ILI7807_lcd_init();
+ 
+ }
+-//b cnds_dsi_test.c:901
+-void dsi_init_1080x1920()
+-{
+-
+-
+-        int  HACT=1080;
+-        int  VACT=1920;
+-        int  HSA=20;
+-        int  HBP=20;
+-        int  HFP=220;
+-
+-        int  VSA=5;
+-        int  VBP=8;
+-        int  VFP=5;
+-
+-        int i = 0;
+-        uint32_t reg = 0;
+-        uint32_t val = 0;
+-
+ 
+-         DsiRegWr(DPI_IRQ_EN_OFFSET, 0); //enable dpi overflow int
+-#if 1
+-         DsiRegWr(MCTL_MAIN_PHY_CTL_OFFSET,0x3C17);    //[6]  lane1_ulp_en = 1   正常的   0x3C17 clk_continuous  
+-                                                               //[4]  clk_continuous  =1
+-                                                               //[2]  lane4_en =1
+-                                                               //[1]  lane3_en =1
+-                                                               //[0]  lane2_en =1
+-
+-                                                             //[0]  lane2_en =1                                                       
+-
+-          DsiRegWr(MCTL_DPHY_TIMEOUT1_OFFSET,0xed8afffb);
+-          DsiRegWr(MCTL_DPHY_TIMEOUT2_OFFSET,0xf30fffff);
+-          DsiRegWr(MCTL_MAIN_DATA_CTL_OFFSET,0x2e027); //[6] tvg_sel = 1  test video generator enabled   //default 0x27                         0x2e067
+-                                                             //[5] vid_en = 1   enable the video stream generator
+-                                                             //[3:2] vid_if_select =2'b00  00:sdi;01:dpi��10:DSC
+-                                                             //[1] sdi_if_vid_mode = 1  select video mode
+-                                                             //[0] link_en = 1; // enable link
+-
+-          DsiRegWr(MCTL_MAIN_EN_OFFSET,0x40f9);               //4 lan
+-                                                         //[15]   if3_en: enable dsc interface
+-                                                         //[14]   if2_en: enable dpi interface   =1
+-                                                         //[13]   if1_en: enable sdi interface
+-                                                         //[9]   lane1_ulp_req =1
+-                                                         //[7]   dat4_en
+-                                                        //[6]   dat3_en
+-                                                        //[5]   dat2_en
+-                                                        //[4]   dat1_en
+-                                                        //[3]   cklane_en   
+-
+-        //disable status detection
++void dsi_prepare(void)
++{
++        DsiRegWr(MCTL_MAIN_PHY_CTL_OFFSET,
++                0x3C17); //[6]  lane1_ulp_en = 1   正常的   0x3C17 clk_continuous
++                        //[4]  clk_continuous  =1
++                        //[2]  lane4_en =1
++                        //[1]  lane3_en =1
++                        //[0]  lane2_en =1
++
++        //[0]  lane2_en =1
++
++        DsiRegWr(MCTL_DPHY_TIMEOUT1_OFFSET, 0xed8afffb);
++        DsiRegWr(MCTL_DPHY_TIMEOUT2_OFFSET, 0xf30fffff);
++        DsiRegWr(MCTL_MAIN_DATA_CTL_OFFSET,
++                0x2e027); //[6] tvg_sel = 1  test video generator enabled   //default
++                        //0x27                         0x2e067 [5] vid_en = 1
++                        //enable the video stream generator [3:2] vid_if_select
++                        //=2'b00  00:sdi;01:dpi��10:DSC [1] sdi_if_vid_mode = 1
++                        //select video mode [0] link_en = 1; // enable link
++
++        DsiRegWr(MCTL_MAIN_EN_OFFSET,
++                0x40f9); // 4 lan
++                        //[15]   if3_en: enable dsc interface
++                        //[14]   if2_en: enable dpi interface   =1
++                        //[13]   if1_en: enable sdi interface
++                        //[9]   lane1_ulp_req =1
++                        //[7]   dat4_en
++        //[6]   dat3_en
++        //[5]   dat2_en
++        //[4]   dat1_en
++        //[3]   cklane_en
++
++        // disable status detection
+         unsigned int data = DsiRegRd(CMD_MODE_STS_CTL_OFFSET);
+-        k510_logci("CMD_MODE_STS_CTL_OFFSET data 0x%x\n",data);
+-        data &= ~ (1 << 0); 
+-        DsiRegWr(CMD_MODE_STS_CTL_OFFSET,data );
+-                                                         
++        k510_logci("CMD_MODE_STS_CTL_OFFSET data 0x%x\n", data);
++        data &= ~(1 << 0);
++        DsiRegWr(CMD_MODE_STS_CTL_OFFSET, data);
++
+         wait_phy_pll_locked();
+         k510_logci("phy pll locked ");
+ 
+@@ -2246,96 +2235,120 @@ void dsi_init_1080x1920()
+         k510_logci("dat1  is ready!!! ");
+         wait_dat2_rdy();
+         k510_logci("dat2  is ready!!! ");
+-        
++
+         wait_dat3_rdy();
+         k510_logci("dat3  is ready!!! ");
+         wait_dat4_rdy();
+         k510_logci("dat4  is ready!!! ");
+ 
+         // will init lcd
+-        DsiRegWr(MCTL_ULPOUT_TIME_OFFSET,0x0003ab05);
+-/*
+-        //fork  hs_skewcal_force_en
+-        reg = DsiRegRd(MCTL_MAIN_PHY_CTL_OFFSET);
+-        reg = reg | (1 << 29);
+-        DsiRegWr(MCTL_MAIN_PHY_CTL_OFFSET, reg);
+-        reg = DsiRegRd(MCTL_MAIN_PHY_CTL_OFFSET);
+-        k510_logci("reg is %x \n", reg);
+-*/
++        DsiRegWr(MCTL_ULPOUT_TIME_OFFSET, 0x0003ab05);
++        /*
++                //fork  hs_skewcal_force_en
++                reg = DsiRegRd(MCTL_MAIN_PHY_CTL_OFFSET);
++                reg = reg | (1 << 29);
++                DsiRegWr(MCTL_MAIN_PHY_CTL_OFFSET, reg);
++                reg = DsiRegRd(MCTL_MAIN_PHY_CTL_OFFSET);
++                k510_logci("reg is %x \n", reg);
++        */
++}
+ 
+-#ifndef _SIMU
+-//          sleep(1);
+-        msleep(100);
+-#endif
++void dsi_init_1080x1920()
++{
++        int HACT = 1080;
++        int VACT = 1920;
++        int HSA = 20;
++        int HBP = 20;
++        int HFP = 220;
+ 
+-	int32_t lcd_id = 0;
+-	lcd_id = hx8399_read_id();
+-	if (lcd_id == 0x1C9983)
+-		hx8399_v2_init();
+-	else
+-		hx8399_c_init();
+-#endif      
++        int VSA = 5;
++        int VBP = 8;
++        int VFP = 5;
+ 
+-        k510_logci("lcd init  ok!!! ");
++        int i = 0;
++        uint32_t reg = 0;
++        uint32_t val = 0;
+ 
++        dsi_prepare();
++        DsiRegWr(DPI_IRQ_EN_OFFSET, 0); // enable dpi overflow int
++        msleep(100);
++
++        int32_t lcd_id = 0;
++        lcd_id = hx8399_read_id();
++        if (lcd_id == -1) {
++                sysctl_reset(SYSCTL_RESET_DSI);
++                mipi_txdphy_init();
++                dsi_prepare();
++        } else if (lcd_id == 0x1C9983)
++                hx8399_v2_init();
++        else
++                hx8399_c_init();
+ 
+-          DsiRegWr(TVG_IMG_SIZE_OFFSET,(VACT <<16) +HACT*3);
+-          DsiRegWr(TVG_COLOR1_OFFSET,(0<<12) +255)  ;  //[23:12] col1_green
+-                                                                  //[11:0]  col1_red
+-          DsiRegWr(TVG_COLOR1_BIS_OFFSET,0)  ; //[11:0]  col1_blue
+-          DsiRegWr(TVG_COLOR2_OFFSET,(0<<12) +0) ;   //[23:12] col2_green
+-                                                                  //[11:0]  col2_red
+-          DsiRegWr(TVG_COLOR2_BIS_OFFSET,255) ;  //[11:0]  col2_blue
+-
+-
+-          DsiRegWr(VID_VSIZE1_OFFSET,(VFP<<12)+(VBP<<6)+VSA);
+-                                                //[19:12] vfp_length
+-                                                //[11:6]  vbp_length
+-                                                //[5:0]   vsa_length
+-          DsiRegWr(VID_MODE_STS_CTL_OFFSET,0);//0xffffffff);
+-          DsiRegWr(VID_VSIZE2_OFFSET,VACT); //[12:0] vact_length
+-          DsiRegWr(VID_HSIZE1_OFFSET,((HBP*3-12)<<16)+(HSA*3-14));
+-                                                 //[31:16] hbp_length  =(dpi_hbp*24/8-12)
+-                                                 //[9:0]   hsa_length  =(dpi_hsa*24/8-14)
+-
+-          DsiRegWr(VID_HSIZE2_OFFSET,((HFP*3-6)<<16)+(HACT*3));
+-                                                 //[26:16] hfp_length  =(dpi_hfp*24/8-6) >hss+hsa+hse+hbp
+-                                                 //[14:0] rgb_size
+-          DsiRegWr(VID_BLKSIZE2_OFFSET,(HSA+HBP+HFP+HACT)*3-20-(HSA*3-14));
+-                                                 //[14:0] blkline_pulse_pck = (dpi_hsa+dpi_hbp+dpi_hact+dpi_hfp)*24/8-20-((dpi_hsa*24/8)-14)=3342
+-                                                        //  (1080+20+15+72)*3-20= 3541
+-          DsiRegWr(VID_DPHY_TIME_OFFSET,(0x38<<17)+((HSA+HBP+HFP+HACT)*3/4)-((HSA*3-14)/4));
+-                                                   //[16:0] reg_line_duration =(line_total_)
+-                                                   //[27:17] reg_wakeup_time
+-          DsiRegWr(VID_VCA_SETTING1_OFFSET,(0x000000));
+-          DsiRegWr(VID_VCA_SETTING2_OFFSET,((HSA+HBP+HFP+HACT)*3-20-(HSA*3-14)-6)<<16);
+-
+-                                                     //[31:16] max_line_limit = gen_blkline_pulse_pck-6;
+-          DsiRegWr(VID_MAIN_CTL_OFFSET,(0x1<<31)+(0x1<<25)+(0x0<<21)+(1<<20)+(1<<19)+(3<<14)+(0x3e<<8)+0); //0x1 << 21
+-                                                 //[31] vid_ignore_miss_vsync =1
+-                                                 //[26:25] recovery_mode
+-                                                 //[24:23] reg_blkeol_mode : same as reg_blkline_mode but using in burst mode
+-                                                 //[22:21] reg_blkline_mode : 1x: LP
+-                                                 //                            01: blanking packet
+-                                                 //                            00: null packet
+-
+-                                                 //[20] sync_pulse_horizontal:syncs are pulse(1) or event(0)
+-                                                 //[19] sync_pulse_active :1
+-                                                 //[18] burst mode
+-                                                 //[17:14] vid_pixel_mode  0000: 16 bits RGB
+-                                                 //                        0001: 18 bits RGB
+-                                                 //                        0010: 18 bits RGB(loose)
+-                                                 //                        0011: 24 bits RGB
+-                                                 //                        0100: 30 bits RGB
+-                                                 //                        0101: 36 bits RGB
+-                                                 //                        1000: 12 bits YCbCr
+-                                                 //                        1001: 16 bits YCbCr
+-                                                 //                        1010: 20 bits YCbCr
+-                                                 //                        1011: 24 bits YCbCr
+-                                                 //                        1100: DSC Compressed
+-                                                 //[13:0] Header:  Datatype of RGB packets "0x3e  rgb24
+-                                                 //[1:0]  start mode:start_mode=0
++        k510_logci("lcd init  ok!!! ");
+ 
++        DsiRegWr(TVG_IMG_SIZE_OFFSET, (VACT << 16) + HACT * 3);
++        DsiRegWr(TVG_COLOR1_OFFSET, (0 << 12) + 255); //[23:12] col1_green
++                                                        //[11:0]  col1_red
++        DsiRegWr(TVG_COLOR1_BIS_OFFSET, 0);           //[11:0]  col1_blue
++        DsiRegWr(TVG_COLOR2_OFFSET, (0 << 12) + 0);   //[23:12] col2_green
++                                                        //[11:0]  col2_red
++        DsiRegWr(TVG_COLOR2_BIS_OFFSET, 255);         //[11:0]  col2_blue
++
++        DsiRegWr(VID_VSIZE1_OFFSET, (VFP << 12) + (VBP << 6) + VSA);
++        //[19:12] vfp_length
++        //[11:6]  vbp_length
++        //[5:0]   vsa_length
++        DsiRegWr(VID_MODE_STS_CTL_OFFSET, 0); // 0xffffffff);
++        DsiRegWr(VID_VSIZE2_OFFSET, VACT);    //[12:0] vact_length
++        DsiRegWr(VID_HSIZE1_OFFSET, ((HBP * 3 - 12) << 16) + (HSA * 3 - 14));
++        //[31:16] hbp_length  =(dpi_hbp*24/8-12)
++        //[9:0]   hsa_length  =(dpi_hsa*24/8-14)
++
++        DsiRegWr(VID_HSIZE2_OFFSET, ((HFP * 3 - 6) << 16) + (HACT * 3));
++        //[26:16] hfp_length  =(dpi_hfp*24/8-6) >hss+hsa+hse+hbp
++        //[14:0] rgb_size
++        DsiRegWr(VID_BLKSIZE2_OFFSET,
++                (HSA + HBP + HFP + HACT) * 3 - 20 - (HSA * 3 - 14));
++        //[14:0] blkline_pulse_pck =
++        //(dpi_hsa+dpi_hbp+dpi_hact+dpi_hfp)*24/8-20-((dpi_hsa*24/8)-14)=3342
++        //  (1080+20+15+72)*3-20= 3541
++        DsiRegWr(VID_DPHY_TIME_OFFSET, (0x38 << 17) +
++                                        ((HSA + HBP + HFP + HACT) * 3 / 4) -
++                                        ((HSA * 3 - 14) / 4));
++        //[16:0] reg_line_duration =(line_total_)
++        //[27:17] reg_wakeup_time
++        DsiRegWr(VID_VCA_SETTING1_OFFSET, (0x000000));
++        DsiRegWr(VID_VCA_SETTING2_OFFSET,
++                ((HSA + HBP + HFP + HACT) * 3 - 20 - (HSA * 3 - 14) - 6) << 16);
++
++        //[31:16] max_line_limit = gen_blkline_pulse_pck-6;
++        DsiRegWr(VID_MAIN_CTL_OFFSET,
++                (0x1 << 31) + (0x1 << 25) + (0x0 << 21) + (1 << 20) + (1 << 19) +
++                (3 << 14) + (0x3e << 8) +
++                0); // 0x1 << 21
++                        //[31] vid_ignore_miss_vsync =1
++                        //[26:25] recovery_mode
++                        //[24:23] reg_blkeol_mode : same as reg_blkline_mode but
++                        //using in burst mode [22:21] reg_blkline_mode : 1x: LP
++                        //                            01: blanking packet
++                        //                            00: null packet
++
++        //[20] sync_pulse_horizontal:syncs are pulse(1) or event(0)
++        //[19] sync_pulse_active :1
++        //[18] burst mode
++        //[17:14] vid_pixel_mode  0000: 16 bits RGB
++        //                        0001: 18 bits RGB
++        //                        0010: 18 bits RGB(loose)
++        //                        0011: 24 bits RGB
++        //                        0100: 30 bits RGB
++        //                        0101: 36 bits RGB
++        //                        1000: 12 bits YCbCr
++        //                        1001: 16 bits YCbCr
++        //                        1010: 20 bits YCbCr
++        //                        1011: 24 bits YCbCr
++        //                        1100: DSC Compressed
++        //[13:0] Header:  Datatype of RGB packets "0x3e  rgb24
++        //[1:0]  start mode:start_mode=0
+ }
+ 
+ 
+-- 
+2.17.1
+
