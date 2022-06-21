@@ -109,7 +109,6 @@ int twod_set_scaler(int fd, struct td_image_info *src, struct td_image_info *des
     if(use_osd == 0)
     {
         td_info.mode = TWOD_SCALE;
-        printf("1111111111111111111111 \n");
     }
     else
     {

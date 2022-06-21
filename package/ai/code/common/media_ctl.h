@@ -25,9 +25,46 @@
 #ifndef __MEDIACTL_H__
 #define __MEDIACTL_H__
 
-#if defined(__cplusplus)
-extern "C" {
+#ifdef __cplusplus  
+extern "C"{
 #endif
+
+enum  isp_pipeline_e
+{
+	ISP_F2K_PIPELINE,
+	ISP_R2K_PIPELINE,
+	ISP_TOF_PIPELINE
+};
+
+enum isp_modules
+{
+	ISP_TPG,
+	ISP_BLC,
+	ISP_LSC,
+	ISP_AE,
+	ISP_AWB,
+	ISP_AWB_D65,
+	ISP_AWB_CCM,
+	ISP_WDR,
+	ISP_RGB_GAMMA,
+	ISP_YUV_GAMMA,
+	ISP_ADA,
+	ISP_ADA_SBZ,
+	ISP_ADA_CCR,
+	ISP_RGBIR,
+	ISP_RAW_2DNR,
+	ISP_YUV_Y_2DNR,
+	ISP_YUV_UV_2DNR,
+	ISP_3DNR,
+	ISP_LTM,
+	ISP_SHARP,
+	ISP_CC,
+	ISP_CTRST,
+	ISP_LUMA,
+	ISP_SATURATION,
+	ISP_LDC,
+	ISP_AF,
+};
 
 struct video_info
 {
@@ -41,8 +78,12 @@ struct video_info
 
 int mediactl_init(char *video_cfg_file,struct video_info *dev_info);
 void mediactl_exit(void);
-int mediactl_set_ae(void);
-#if defined(__cplusplus)
-}
+int mediactl_set_ae(enum isp_pipeline_e pipeline);
+int mediactl_set_ae_single(enum isp_pipeline_e pipeline);
+int mediactl_set_ae_sync(enum isp_pipeline_e pipeline);
+
+unsigned int mediactl_get_isp_modules(enum isp_pipeline_e pipeline,enum isp_modules module);
+#ifdef __cplusplus
+} 
 #endif
 #endif /*__MEDIACTL_H__*/

@@ -326,6 +326,7 @@ void doit_video_cfg(char *text,struct vi_cfg_info *vi_cfg,struct sensor_info *se
          printf("%s:video5_pitch %p\n",__func__,item);
          if(item != NULL)
          {
+            dev_info[0].video_width[3] = item->valueint;
             wds2Info->ds2_size.pitch = item->valueint;
             ds2Info->ds_out_size.pitch = wds2Info->ds2_size.pitch;
              printf("cJSON_GetObjectItem: type=%d, string is %s, valueint is %d pitch is %d \n",item->type,item->string,item->valueint,ds2Info->ds_out_size.pitch);

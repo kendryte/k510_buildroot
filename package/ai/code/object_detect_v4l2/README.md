@@ -1,5 +1,0 @@
-# release_isp_object_detect_nncase
-
-
-最新的kmodel为od_with_focus_opt_uint8.kmodel
-
