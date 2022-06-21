@@ -143,7 +143,7 @@ jobs:
           wget -qc https://ai.b-bug.org/k510_buildroot/github/dut -O ./bin/dut
           chmod +x ./bin/dut
           echo "convert DUT args to running device args"
-          available=$(./bin/dut convert ${{ env.device }} )
+          available=$(./bin/dut convert "${{ env.device }}" )
           echo $available
           reserved=$(./bin/dut add $available --site github-actions --source $PULL_REQUEST_ID --job $GITHUB_RUN_ID )
           echo "reserved=$reserved" >> $GITHUB_ENV
@@ -165,7 +165,7 @@ jobs:
           echo $HW_VER
           echo $PULL_REQUEST_ID
           echo $GITHUB_RUN_ID
-          ./bin/ci2 --project k510_buildroot --merge_id $PULL_REQUEST_ID --pipeline_id $GITHUB_RUN_ID --device ${{ env.device }}
+          ./bin/ci2 --project k510_buildroot --merge_id $PULL_REQUEST_ID --pipeline_id $GITHUB_RUN_ID --device "${{ env.device }}"
 
       - name: Run Test
         id: run_test
@@ -190,4 +190,4 @@ jobs:
           test -f ./bin/dut && rm -rf ./bin/dut
           wget -qc https://ai.b-bug.org/k510_buildroot/github/dut -O ./bin/dut
           chmod +x ./bin/dut
-          device=$(./bin/dut delete ${{ env.device }})
+          device=$(./bin/dut delete "${{ env.device }})"
