@@ -16,6 +16,10 @@ defaults:
   run:
     shell: bash
 
+concurrency:
+  group: ${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
   build_image:
     name: Build
@@ -39,11 +43,13 @@ jobs:
           clean: false
 
       - name: Install toolchain
+        id: install_toolchain
         run: |
           test -f toolchain/nds64le-linux-glibc-v5d.txz || wget -c https://ai.b-bug.org/k510_buildroot/toolchain/nds64le-linux-glibc-v5d.txz -O toolchain/nds64le-linux-glibc-v5d.txz
           test -f toolchain/nds64le-elf-mculib-v5d.txz || wget -c https://ai.b-bug.org/k510_buildroot/toolchain/nds64le-elf-mculib-v5d.txz -O toolchain/nds64le-elf-mculib-v5d.txz          
 
       - name: Download cache package
+        id: download_cache
         run: |
           test -f pkg-download/dl.tar.gz && rm pkg-download/dl.tar.gz
           wget -qc https://ai.b-bug.org/k510_buildroot/pkg-download/dl.tar.gz -O pkg-download/dl.tar.gz
@@ -60,6 +66,7 @@ jobs:
           test -d dl_bak && rm -rf dl_bak
       
       - name: Build image
+        id: build_image
         run: |
           sed -i "s/BR2_JLEVEL=5/BR2_JLEVEL=14/g" configs/$CONF
           rm -rf $CONF
@@ -67,6 +74,7 @@ jobs:
           make CONF=$CONF
 
       - name: Save image to CI cache
+        id: save_cache
         run: |
           export HW=`echo ${{ matrix.cfg }}|awk -F '_' '{print $1"_"$3"_"$4}'`
           echo $HW
@@ -77,6 +85,7 @@ jobs:
           cp -r $CONF/target/etc/version/release_version $CI_ROOT/$VER/$HW/
 
       - name: Save image to TFTP
+        id: save_tftp
         run: |
           export FILE_SUFFIX=`echo ${{ matrix.cfg }}|awk -F '_' '{print $1"-"$3"_"$4}'`-$PULL_REQUEST_ID-$GITHUB_RUN_ID
           echo $FILE_SUFFIX
@@ -84,6 +93,7 @@ jobs:
           cp $CONF/images/k510.dtb $TFTP_ROOT/k510-$FILE_SUFFIX.dtb
       
       - name: Save image to NFS
+        id: save_nfs
         run: |
           export HW=`echo ${{ matrix.cfg }}|awk -F '_' '{print $1"_"$3"_"$4}'`
           export SAVE_DIR=$PULL_REQUEST_ID"_"$GITHUB_RUN_ID
@@ -97,6 +107,8 @@ jobs:
     needs: build_image
     timeout-minutes: 5
     runs-on: [self-hosted, k510_buildroot]
+    outputs:
+      device: ${{ steps.get_dut.outputs.device }}
     container:
       image: ai.b-bug.org:5000/k510_sdk_github
       volumes:
@@ -105,16 +117,64 @@ jobs:
       matrix:
         cfg: ["crb_lp3_v1_2"]
     steps:
-      - name: Load image
+      - name: Get DUT
+        id: get_dut
         run: |
-          test -d bin && rm -rf bin
-          mkdir ./bin
-          wget -qc https://ai.b-bug.org/k510_buildroot/github/ci -O ./bin/ci
-          chmod +x ./bin/ci
+          echo "get available DUT"
+          export HW_MODEL=`echo ${{ matrix.cfg }}|awk -F '_' '{print $1}'`
+          export HW_VER=`echo ${{ matrix.cfg }}|awk -F '_' '{print $3"."$4}'`
+          test -d bin || mkdir ./bin
+          test -f ./bin/dut && rm -rf ./bin/dut
+          wget -qc https://ai.b-bug.org/k510_buildroot/github/dut -O ./bin/dut
+          chmod +x ./bin/dut
+          device=$(./bin/dut show --dest available --hw_type k510 --hw_model $HW_MODEL --hw_ver $HW_VER )
+          echo "::set-output name=device::$device"
+
+      - name: Reserve DUT
+        id: reserve_dut
+        run: |
+          echo "reserve DUT"
+          echo ${{needs.get_dut.outputs.device}}
+          test -d bin || mkdir ./bin
+          test -f ./bin/dut && rm -rf ./bin/dut
+          wget -qc https://ai.b-bug.org/k510_buildroot/github/dut -O ./bin/dut
+          chmod +x ./bin/dut
+          available=$(./bin/dut convert ${{needs.get_dut.outputs.device}} )
+          echo $available
+          device=$(./bin/dut add $available --site github-actions --source $PULL_REQUEST_ID --job $GITHUB_RUN_ID )
+
+      - name: Load image
+        id: load_image
+        run: |
+          test -d bin || mkdir ./bin
+          test -f ./bin/ci2 && rm -rf ./bin/ci2
+          wget -qc https://ai.b-bug.org/k510_buildroot/github/ci2 -O ./bin/ci2
+          chmod +x ./bin/ci2
           export HW_MODEL=`echo ${{ matrix.cfg }}|awk -F '_' '{print $1}'`
           export HW_VER=`echo ${{ matrix.cfg }}|awk -F '_' '{print $3"_"$4}'`
           echo $HW_MODEL
           echo $HW_VER
           echo $PULL_REQUEST_ID
           echo $GITHUB_RUN_ID
-          ./bin/ci --project k510_buildroot --merge_id $PULL_REQUEST_ID --pipeline_id $GITHUB_RUN_ID --hw_ver $HW_VER --hw_model $HW_MODEL
+          ./bin/ci2 --project k510_buildroot --merge_id $PULL_REQUEST_ID --pipeline_id $GITHUB_RUN_ID --hw_ver $HW_VER --hw_model $HW_MODEL
+
+      - name: Run Test
+        id: run_test
+        run: |
+          echo "Run Test"
+          echo ${{needs.get_dut.outputs.device}}
+          test -d bin || mkdir ./bin
+          test -f ./bin/dut && rm -rf ./bin/dut
+          echo "Run test case later"
+
+      - name: Release DUT
+        id: release_dut
+        if: ${{ always() }}
+        run: |
+          echo "release DUT"
+          echo ${{needs.get_dut.outputs.device}}
+          test -d bin || mkdir ./bin
+          test -f ./bin/dut && rm -rf ./bin/dut
+          wget -qc https://ai.b-bug.org/k510_buildroot/github/dut -O ./bin/dut
+          chmod +x ./bin/dut
+          device=$(./bin/dut delete ${{needs.get_dut.outputs.device}})
