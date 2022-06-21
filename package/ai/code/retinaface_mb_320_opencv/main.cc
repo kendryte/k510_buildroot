@@ -70,6 +70,7 @@ struct drm_buffer *fbuf_yuv, *fbuf_argb;
 int obj_cnt, obj_point[2];
 cv::Point point[2][32][5];//用于清空上一帧AI计算的OSD层的显示[2个buffer交替][最多显示32个对象][5点坐标]
 char *kmodel_name;
+int display_ds2;
 
 std::atomic<bool> quit(true);
 
@@ -151,28 +152,29 @@ void ai_worker()
             memset(rf.virtual_addr_input[0] + offset_channel + GNNE_INPUT_WIDTH + h*valid_width, G_MEAN, padding_r);
             memset(rf.virtual_addr_input[0] + offset_channel*2 + GNNE_INPUT_WIDTH + h*valid_width, B_MEAN, padding_r);
         }
-#if 1
-        cv::Mat ds2_bgra(RETINAFACE_FIX_SIZE, RETINAFACE_FIX_SIZE, CV_8UC4);
+        if(display_ds2)
+        {
+            cv::Mat ds2_bgra(RETINAFACE_FIX_SIZE, RETINAFACE_FIX_SIZE, CV_8UC4);
 
-        cv::Mat channel[3];
-        channel[2] = cv::Mat(RETINAFACE_FIX_SIZE, RETINAFACE_FIX_SIZE, CV_8UC1, rf.virtual_addr_input[0]); //R
-        channel[1] = cv::Mat(RETINAFACE_FIX_SIZE, RETINAFACE_FIX_SIZE, CV_8UC1, rf.virtual_addr_input[0] + offset_channel); //G
-        channel[0] = cv::Mat(RETINAFACE_FIX_SIZE, RETINAFACE_FIX_SIZE, CV_8UC1, rf.virtual_addr_input[0] + offset_channel*2);  //B
+            cv::Mat channel[3];
+            channel[2] = cv::Mat(RETINAFACE_FIX_SIZE, RETINAFACE_FIX_SIZE, CV_8UC1, rf.virtual_addr_input[0]); //R
+            channel[1] = cv::Mat(RETINAFACE_FIX_SIZE, RETINAFACE_FIX_SIZE, CV_8UC1, rf.virtual_addr_input[0] + offset_channel); //G
+            channel[0] = cv::Mat(RETINAFACE_FIX_SIZE, RETINAFACE_FIX_SIZE, CV_8UC1, rf.virtual_addr_input[0] + offset_channel*2);  //B
 
-        cv::Mat ds2_img = cv::Mat(RETINAFACE_FIX_SIZE, RETINAFACE_FIX_SIZE, CV_8UC3);
-        merge(channel, 3, ds2_img);
+            cv::Mat ds2_img = cv::Mat(RETINAFACE_FIX_SIZE, RETINAFACE_FIX_SIZE, CV_8UC3);
+            merge(channel, 3, ds2_img);
 
-        cv::cvtColor(ds2_img, ds2_bgra, cv::COLOR_BGR2BGRA); 
+            cv::cvtColor(ds2_img, ds2_bgra, cv::COLOR_BGR2BGRA); 
 
-        // static int frame_cnt = 0;
-        // if(frame_cnt++ % 10 == 1){
-        // 	std::string img_out_path = "./img_" + std::to_string(frame_cnt) + ".bmp";
-        // 	cv::imwrite(img_out_path, ds2_bgra);
-        // }
+            // static int frame_cnt = 0;
+            // if(frame_cnt++ % 10 == 1){
+            // 	std::string img_out_path = "./img_" + std::to_string(frame_cnt) + ".bmp";
+            // 	cv::imwrite(img_out_path, ds2_bgra);
+            // }
 
-        cv::Mat ds2_roi=img_argb(cv::Rect(0,0,ds2_bgra.cols,ds2_bgra.rows));
-        ds2_bgra.copyTo(ds2_roi);
-#endif
+            cv::Mat ds2_roi=img_argb(cv::Rect(0,0,ds2_bgra.cols,ds2_bgra.rows));
+            ds2_bgra.copyTo(ds2_roi);
+        }
 
         rf.set_input(0);
 
@@ -323,13 +325,14 @@ exit:
 int main(int argc, char *argv[])
 {
     std::cout << "case " << argv[0] << " build " << __DATE__ << " " << __TIME__ << std::endl;
-    if (argc != 2)
+    if (argc != 3)
     {
-        std::cerr << "Usage: " << argv[0] << " <.kmodel>" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " <.kmodel> <display_ds2>" << std::endl;
         return -1;
     }
 
     kmodel_name = argv[1];
+    display_ds2 = atoi(argv[2]);
 
     struct sigaction sa;
     memset( &sa, 0, sizeof(sa) );
