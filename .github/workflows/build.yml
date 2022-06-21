@@ -134,18 +134,21 @@ jobs:
         id: reserve_dut
         run: |
           echo "reserve DUT"
-          echo ${{needs.get_dut.outputs.device}}
+          echo ${{ needs.get_dut.outputs.device }}
           test -d bin || mkdir ./bin
           test -f ./bin/dut && rm -rf ./bin/dut
           wget -qc https://ai.b-bug.org/k510_buildroot/github/dut -O ./bin/dut
           chmod +x ./bin/dut
-          available=$(./bin/dut convert ${{needs.get_dut.outputs.device}} )
+          echo "convert DUT args to running device args"
+          available=$(./bin/dut convert ${{ needs.get_dut.outputs.device }} )
           echo $available
           device=$(./bin/dut add $available --site github-actions --source $PULL_REQUEST_ID --job $GITHUB_RUN_ID )
 
       - name: Load image
         id: load_image
         run: |
+          echo "Load image"
+          echo ${{ needs.get_dut.outputs.device }}
           test -d bin || mkdir ./bin
           test -f ./bin/ci2 && rm -rf ./bin/ci2
           wget -qc https://ai.b-bug.org/k510_buildroot/github/ci2 -O ./bin/ci2
@@ -156,13 +159,13 @@ jobs:
           echo $HW_VER
           echo $PULL_REQUEST_ID
           echo $GITHUB_RUN_ID
-          ./bin/ci2 --project k510_buildroot --merge_id $PULL_REQUEST_ID --pipeline_id $GITHUB_RUN_ID --hw_ver $HW_VER --hw_model $HW_MODEL
+          ./bin/ci2 --project k510_buildroot --merge_id $PULL_REQUEST_ID --pipeline_id $GITHUB_RUN_ID --device ${{needs.get_dut.outputs.device}}
 
       - name: Run Test
         id: run_test
         run: |
           echo "Run Test"
-          echo ${{needs.get_dut.outputs.device}}
+          echo ${{ needs.get_dut.outputs.device }}
           test -d bin || mkdir ./bin
           test -f ./bin/dut && rm -rf ./bin/dut
           echo "Run test case later"
@@ -172,9 +175,9 @@ jobs:
         if: ${{ always() }}
         run: |
           echo "release DUT"
-          echo ${{needs.get_dut.outputs.device}}
+          echo ${{ needs.get_dut.outputs.device }}
           test -d bin || mkdir ./bin
           test -f ./bin/dut && rm -rf ./bin/dut
           wget -qc https://ai.b-bug.org/k510_buildroot/github/dut -O ./bin/dut
           chmod +x ./bin/dut
-          device=$(./bin/dut delete ${{needs.get_dut.outputs.device}})
+          device=$(./bin/dut delete ${{ needs.get_dut.outputs.device }})
