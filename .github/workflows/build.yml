@@ -109,6 +109,7 @@ jobs:
     runs-on: [self-hosted, k510_buildroot]
     outputs:
       device: ${{ steps.get_dut.outputs.device }}
+      reserved: ${{ steps.reserve_dut.outputs.reserved }}
     container:
       image: ai.b-bug.org:5000/k510_sdk_github
       volumes:
@@ -120,6 +121,7 @@ jobs:
       - name: Get DUT
         id: get_dut
         run: |
+          set -x
           echo "get available DUT"
           export HW_MODEL=`echo ${{ matrix.cfg }}|awk -F '_' '{print $1}'`
           export HW_VER=`echo ${{ matrix.cfg }}|awk -F '_' '{print $3"."$4}'`
@@ -128,27 +130,31 @@ jobs:
           wget -qc https://ai.b-bug.org/k510_buildroot/github/dut -O ./bin/dut
           chmod +x ./bin/dut
           device=$(./bin/dut show --dest available --hw_type k510 --hw_model $HW_MODEL --hw_ver $HW_VER )
-          echo "::set-output name=device::$device"
+          echo "device=$device" >> $GITHUB_ENV
 
       - name: Reserve DUT
         id: reserve_dut
         run: |
+          set -x
           echo "reserve DUT"
-          echo ${{ needs.get_dut.outputs.device }}
+          echo "${{ env.device }}"
           test -d bin || mkdir ./bin
           test -f ./bin/dut && rm -rf ./bin/dut
           wget -qc https://ai.b-bug.org/k510_buildroot/github/dut -O ./bin/dut
           chmod +x ./bin/dut
           echo "convert DUT args to running device args"
-          available=$(./bin/dut convert ${{ needs.get_dut.outputs.device }} )
+          available=$(./bin/dut convert ${{ env.device }} )
           echo $available
-          device=$(./bin/dut add $available --site github-actions --source $PULL_REQUEST_ID --job $GITHUB_RUN_ID )
+          reserved=$(./bin/dut add $available --site github-actions --source $PULL_REQUEST_ID --job $GITHUB_RUN_ID )
+          echo "reserved=$reserved" >> $GITHUB_ENV
 
       - name: Load image
         id: load_image
         run: |
+          set -x
           echo "Load image"
-          echo ${{ needs.get_dut.outputs.device }}
+          echo "${{ env.device }}"
+          echo "${{ env.reserved }}"
           test -d bin || mkdir ./bin
           test -f ./bin/ci2 && rm -rf ./bin/ci2
           wget -qc https://ai.b-bug.org/k510_buildroot/github/ci2 -O ./bin/ci2
@@ -159,13 +165,15 @@ jobs:
           echo $HW_VER
           echo $PULL_REQUEST_ID
           echo $GITHUB_RUN_ID
-          ./bin/ci2 --project k510_buildroot --merge_id $PULL_REQUEST_ID --pipeline_id $GITHUB_RUN_ID --device ${{needs.get_dut.outputs.device}}
+          ./bin/ci2 --project k510_buildroot --merge_id $PULL_REQUEST_ID --pipeline_id $GITHUB_RUN_ID --device ${{ env.device }}
 
       - name: Run Test
         id: run_test
         run: |
+          set -x
           echo "Run Test"
-          echo ${{ needs.get_dut.outputs.device }}
+          echo "${{ env.device }}"
+          echo "${{ env.reserved }}"
           test -d bin || mkdir ./bin
           test -f ./bin/dut && rm -rf ./bin/dut
           echo "Run test case later"
@@ -174,10 +182,12 @@ jobs:
         id: release_dut
         if: ${{ always() }}
         run: |
+          set -x
           echo "release DUT"
-          echo ${{ needs.get_dut.outputs.device }}
+          echo "${{ env.device }}"
+          echo "${{ env.reserved }}"
           test -d bin || mkdir ./bin
           test -f ./bin/dut && rm -rf ./bin/dut
           wget -qc https://ai.b-bug.org/k510_buildroot/github/dut -O ./bin/dut
           chmod +x ./bin/dut
-          device=$(./bin/dut delete ${{ needs.get_dut.outputs.device }})
+          device=$(./bin/dut delete ${{ env.device }})
