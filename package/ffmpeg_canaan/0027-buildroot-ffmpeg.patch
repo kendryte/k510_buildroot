@@ -1,0 +1,97 @@
+Index: b/libavdevice/v4l2.c
+===================================================================
+--- a/libavdevice/v4l2.c
++++ b/libavdevice/v4l2.c
+@@ -123,6 +123,8 @@ struct video_data {
+     unsigned long int check_time;
+     int fr;
+     int isp_pic_cnt;
++    int drop_cnt;
++    int repeat_cnt;
+     /*----------------------------------------*/
+ 
+     int buffers;
+@@ -353,7 +355,7 @@ static void isp_deinit(AVFormatContext *
+     reg=(unsigned char * )mmap(NULL, MEMORY_TEST_BLOCK_ALIGN, PROT_READ | PROT_WRITE, MAP_SHARED, s->fd_ddr, DDR_CTRL_REG_BASE);
+     *(volatile unsigned int *)(reg+0x504) = s->reg_ddr_cli;
+     munmap(reg, MEMORY_TEST_BLOCK_ALIGN);
+-    printf("QoS restore\n");
++    printf("%s>drop_cnt %d, repeat_cnt %d\n", __func__, s->drop_cnt, s->repeat_cnt);
+ 
+     close(s->fd_share_memory);
+     close(s->fd_ddr);
+@@ -372,8 +374,6 @@ static int isp_sync(AVFormatContext *ctx
+ {
+   struct video_data *s = ctx->priv_data;
+ 
+-  s->isp_pic_cnt++;
+-
+   s->time = get_time();
+   
+   if(s->start_time == 0)
+@@ -389,6 +389,7 @@ static int isp_sync(AVFormatContext *ctx
+   if(s->time - s->check_time >= 1000000000)
+   {
+     unsigned long int cap_time, elasp_time, delta=0, duration;
++    int drop=0, repeat=0;
+     
+     s->check_time = 0;
+ 
+@@ -401,7 +402,8 @@ static int isp_sync(AVFormatContext *ctx
+       if(delta > duration/2)
+       {
+         //printf("repeat: cnt %d, elasp_time %.4f ms, cap_time %.4f ms\n", s->isp_pic_cnt, elasp_time/1000.0, cap_time/1000.0);
+-        return 1;
++        repeat = 1;
++        s->repeat_cnt++;
+       }
+     }
+     else
+@@ -410,9 +412,25 @@ static int isp_sync(AVFormatContext *ctx
+       if(delta > duration/2)
+       {
+         //printf("drop: cnt %d, elasp_time %.4f ms, cap_time %.4f ms\n", s->isp_pic_cnt, elasp_time/1000.0, cap_time/1000.0);
+-        return -1;
++        drop = 1;
++        s->drop_cnt++;
+       }
+     }
++
++    if(drop == 0)
++    {
++      s->isp_pic_cnt++;
++    }
++    else
++    {
++      return -1;
++    }
++    
++    if(repeat == 1)
++    {
++      s->isp_pic_cnt++;
++      return 1;
++    }
+   }
+   
+   return 0;
+@@ -907,12 +925,6 @@ static int mmap_read_frame_usrptr(AVForm
+       ret = isp_sync(ctx);
+       if(ret == -1)
+       {
+-      /*
+-      drop video 时return 0会导致AVInputFormat::read_packet函数返回0，pkt->size为0;此操作会导致ffmpeg内部音视频同步混乱，长时间return 0 导致
+-      audio在ffmpeg内部数据缓存严重，音频延迟越来越大，进而导致alsa底层因不能及时读走数据而报错。
+-      修改方法:video帧不再drop，该帧不再增加时间戳，与上一帧共用相同时间戳来避免return 0 导致的问题。
+-      */
+-      #if 0
+         struct buff_data *buf_descriptor; 
+         pkt->size = 0;  
+         s->repeat_index = ISP_ADDR_BUFFER_CNT;
+@@ -923,7 +935,6 @@ static int mmap_read_frame_usrptr(AVForm
+         mmap_release_buffer(buf_descriptor, NULL);
+         //printf("%s>drop index %d\n", __FUNCTION__, buf.index);
+         return 0;
+-      #endif
+       }
+       else if(ret == 1)
+       {
