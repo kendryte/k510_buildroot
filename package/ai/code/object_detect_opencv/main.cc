@@ -71,6 +71,7 @@ int obj_cnt;
 std::vector<BoxInfo> result0;
 std::vector<BoxInfo> result1;
 char *kmodel_name;
+int display_ds2;
 
 std::atomic<bool> quit(true);
 
@@ -134,28 +135,29 @@ void ai_worker()
             memset(od.virtual_addr_input[0] + offset_channel + padding_l+GNNE_INPUT_WIDTH + h*valid_width, 114, padding_r);
             memset(od.virtual_addr_input[0] + offset_channel*2 + padding_l+GNNE_INPUT_WIDTH + h*valid_width, 114, padding_r);
         }
-#if 1
-        cv::Mat ds2_bgra(YOLOV5_FIX_SIZE, YOLOV5_FIX_SIZE, CV_8UC4);
+        if(display_ds2)
+        {
+            cv::Mat ds2_bgra(YOLOV5_FIX_SIZE, YOLOV5_FIX_SIZE, CV_8UC4);
 
-        cv::Mat channel[3];
-        channel[2] = cv::Mat(YOLOV5_FIX_SIZE, YOLOV5_FIX_SIZE, CV_8UC1, od.virtual_addr_input[0]); //R
-        channel[1] = cv::Mat(YOLOV5_FIX_SIZE, YOLOV5_FIX_SIZE, CV_8UC1, od.virtual_addr_input[0]+offset_channel); //G
-        channel[0] = cv::Mat(YOLOV5_FIX_SIZE, YOLOV5_FIX_SIZE, CV_8UC1, od.virtual_addr_input[0]+offset_channel*2);  //B
+            cv::Mat channel[3];
+            channel[2] = cv::Mat(YOLOV5_FIX_SIZE, YOLOV5_FIX_SIZE, CV_8UC1, od.virtual_addr_input[0]); //R
+            channel[1] = cv::Mat(YOLOV5_FIX_SIZE, YOLOV5_FIX_SIZE, CV_8UC1, od.virtual_addr_input[0]+offset_channel); //G
+            channel[0] = cv::Mat(YOLOV5_FIX_SIZE, YOLOV5_FIX_SIZE, CV_8UC1, od.virtual_addr_input[0]+offset_channel*2);  //B
 
-        cv::Mat ds2_img = cv::Mat(YOLOV5_FIX_SIZE, YOLOV5_FIX_SIZE, CV_8UC3);
-        merge(channel, 3, ds2_img);
+            cv::Mat ds2_img = cv::Mat(YOLOV5_FIX_SIZE, YOLOV5_FIX_SIZE, CV_8UC3);
+            merge(channel, 3, ds2_img);
 
-        cv::cvtColor(ds2_img, ds2_bgra, cv::COLOR_BGR2BGRA); 
+            cv::cvtColor(ds2_img, ds2_bgra, cv::COLOR_BGR2BGRA); 
 
-        // static int frame_cnt = 0;
-        // if(frame_cnt++ % 10 == 1){
-        // 	std::string img_out_path = "./img_" + std::to_string(frame_cnt) + ".bmp";
-        // 	cv::imwrite(img_out_path, ds2_bgra);
-        // }
+            // static int frame_cnt = 0;
+            // if(frame_cnt++ % 10 == 1){
+            // 	std::string img_out_path = "./img_" + std::to_string(frame_cnt) + ".bmp";
+            // 	cv::imwrite(img_out_path, ds2_bgra);
+            // }
 
-        cv::Mat ds2_roi=img_argb(cv::Rect(0,0,ds2_bgra.cols,ds2_bgra.rows));
-        ds2_bgra.copyTo(ds2_roi);
-#endif
+            cv::Mat ds2_roi=img_argb(cv::Rect(0,0,ds2_bgra.cols,ds2_bgra.rows));
+            ds2_bgra.copyTo(ds2_roi);
+        }
 
         od.set_input(0);
         od.set_output();
@@ -301,13 +303,14 @@ exit:
 int main(int argc, char *argv[])
 {
     std::cout << "case " << argv[0] << " build " << __DATE__ << " " << __TIME__ << std::endl;
-    if (argc != 2)
+    if (argc != 3)
     {
-        std::cerr << "Usage: " << argv[0] << " <.kmodel> <image_file>" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " <.kmodel> <display_ds2>" << std::endl;
         return -1;
     }
 
     kmodel_name = argv[1];
+    display_ds2 = atoi(argv[2]);
 
     struct sigaction sa;
     memset( &sa, 0, sizeof(sa) );
