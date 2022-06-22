@@ -1,10 +1,11 @@
 #This target is to ensure accidental execution of Makefile as a bash script will not execute commands like rm in unexpected directories and exit gracefully.
 .prevent_execution:
 	exit 0
+CROSS_COMPILE:=riscv64-linux-
 
-CC = /home/shiwentao/company/k510_buildroot/toolchain/nds64le-linux-glibc-v5d/bin/riscv64-linux-gcc
-#CC = gcc
-#remove @ for no make command prints
+CC	:= $(CROSS_COMPILE)gcc
+
+
 DEBUG = @
 
 APP_DIR = .
