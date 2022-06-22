@@ -126,16 +126,16 @@ jobs:
           test -f ./bin/dut && rm -rf ./bin/dut
           wget -qc https://ai.b-bug.org/k510_buildroot/github/dut -O ./bin/dut
           chmod +x ./bin/dut
-          device=$(./bin/dut show --dest available --hw_type k510 --hw_model $HW_MODEL --hw_ver $HW_VER --format args)
-          echo $device
-          echo "device=$device" >> $GITHUB_ENV
+          available=$(./bin/dut show --dest available --hw_type k510 --hw_model $HW_MODEL --hw_ver $HW_VER --format args)
+          echo $available
+          echo "available=$available" >> $GITHUB_ENV
 
       - name: Reserve DUT
         id: reserve_dut
         run: |
           set -x
           echo "reserve DUT"
-          echo "${{ env.device }}"
+          echo "${{ env.available }}"
           test -d bin || mkdir ./bin
           test -f ./bin/dut && rm -rf ./bin/dut
           wget -qc https://ai.b-bug.org/k510_buildroot/github/dut -O ./bin/dut
@@ -149,7 +149,7 @@ jobs:
         run: |
           set -x
           echo "Load image"
-          echo "${{ env.device }}"
+          echo "${{ env.available }}"
           echo "${{ env.reserved }}"
           test -d bin || mkdir ./bin
           test -f ./bin/ci2 && rm -rf ./bin/ci2
@@ -161,14 +161,14 @@ jobs:
           echo $HW_VER
           echo $PULL_REQUEST_ID
           echo $GITHUB_RUN_ID
-          ./bin/ci2 --project k510_buildroot --merge_id $PULL_REQUEST_ID --pipeline_id $GITHUB_RUN_ID "${{ env.device }}"
+          ./bin/ci2 --merge_id $PULL_REQUEST_ID --pipeline_id $GITHUB_RUN_ID "${{ env.available }}"
 
       - name: Run Test
         id: run_test
         run: |
           set -x
           echo "Run Test"
-          echo "${{ env.device }}"
+          echo "${{ env.available }}"
           echo "${{ env.reserved }}"
           test -d bin || mkdir ./bin
           test -f ./bin/dut && rm -rf ./bin/dut
