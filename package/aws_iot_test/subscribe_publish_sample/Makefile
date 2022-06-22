@@ -56,13 +56,15 @@ COMPILER_FLAGS += $(LOG_FLAGS)
 #If the processor is big endian uncomment the compiler flag
 #COMPILER_FLAGS += -DREVERSED
 
+
+
 MBED_TLS_MAKE_CMD = $(MAKE) CC=$(CC) -C $(MBEDTLS_DIR)
 
 PRE_MAKE_CMD = $(MBED_TLS_MAKE_CMD)
 MAKE_CMD = $(CC) $(SRC_FILES) $(COMPILER_FLAGS) -o $(APP_NAME) $(LD_FLAG) $(EXTERNAL_LIBS) $(INCLUDE_ALL_DIRS)
 
 
-all:
+all .DEFAULT: download
 	$(PRE_MAKE_CMD)
 	$(DEBUG)$(MAKE_CMD)
 	$(POST_MAKE_CMD)
@@ -70,3 +72,8 @@ all:
 clean:
 	rm -f $(APP_DIR)/$(APP_NAME)
 	$(MBED_TLS_MAKE_CMD) clean
+	
+download:
+		rm -rf $(IOT_CLIENT_DIR)/external_libs/mbedTLS.tar.gz;
+		wget https://github.com/Mbed-TLS/mbedtls/archive/refs/tags/mbedtls-2.11.0.tar.gz -O $(IOT_CLIENT_DIR)/external_libs/mbedTLS.tar.gz;
+		tar -zxvf $(IOT_CLIENT_DIR)/external_libs/mbedTLS.tar.gz;
