@@ -59,7 +59,7 @@
 #define PROFILING 0
 
 struct video_info dev_info[2];
-static char *video_cfg_file = "video.conf";
+static char *video_cfg_file = "video_192x320.conf";
 #define SELECT_TIMEOUT		2000
 
 std::mutex mtx;
@@ -71,6 +71,7 @@ int obj_cnt;
 std::vector<BoxInfo> result0;
 std::vector<BoxInfo> result1;
 char *kmodel_name;
+int display_ds2;
 
 std::atomic<bool> quit(true);
 
@@ -88,6 +89,9 @@ void ai_worker()
     float nms_thresh = 0.45;
     uint32_t valid_width = dev_info[0].video_width[3];
     uint32_t valid_height = dev_info[0].video_height[3];
+    int offset_channel = valid_width * valid_width;  // ds2 channel offset
+    int padding_r, padding_l;
+    
     objectDetect od(obj_thresh, nms_thresh);
 
     od.load_model(kmodel_name);
@@ -102,14 +106,15 @@ void ai_worker()
     capture.set(cv::CAP_PROP_FRAME_HEIGHT, valid_height);
     capture.set(cv::CAP_PROP_FOURCC, dev_info[0].video_out_format[3] ? V4L2_PIX_FMT_ARGB32 : V4L2_PIX_FMT_RGB24);
     mtx.unlock();
-    cv::Mat osd_img;
-
+    padding_r = padding_l = (valid_width-GNNE_INPUT_WIDTH)/2;
+    cv::Mat rgb24_img_for_ai(YOLOV5_FIX_SIZE, YOLOV5_FIX_SIZE, CV_8UC3, od.virtual_addr_input[0] + padding_l);
+    
     while(quit.load()) 
     {
         bool ret = false;
         ScopedTiming st("total");
         mtx.lock();
-        ret = capture.read(osd_img);
+        ret = capture.read(rgb24_img_for_ai);
         mtx.unlock();
         if(ret == false)
         {
@@ -117,17 +122,42 @@ void ai_worker()
             continue; // 
         }
 
-        for (int r = 0; r < valid_height; r++)
+        fbuf_argb = &drm_dev.drm_bufs_argb[drm_bufs_argb_index];
+        cv::Mat img_argb = cv::Mat(DRM_INPUT_HEIGHT, DRM_INPUT_WIDTH, CV_8UC4, (uint8_t *)fbuf_argb->map);
+        //padding
+        for(int h=0; h<valid_height; h++)
         {
-            for (int c = 0; c < valid_width; c++)
-            {
-                int index = (r * valid_width + c) * 4;
+            memset(od.virtual_addr_input[0] + h*valid_width, 114, padding_l);
+            memset(od.virtual_addr_input[0] + offset_channel + h*valid_width, 114, padding_l);
+            memset(od.virtual_addr_input[0] + offset_channel*2 + h*valid_width, 114, padding_l);
 
-                *(od.virtual_addr_input[0] +valid_width*40 + valid_width*r + c) = *((uint8_t *)osd_img.data + index + 3); //blue
-                *(od.virtual_addr_input[0] +valid_width*40 + valid_width*valid_width + valid_width*r + c) = *((uint8_t *)osd_img.data + index + 2); //green
-                *(od.virtual_addr_input[0] +valid_width*40 + valid_width*valid_width*2 + valid_width*r + c) = *((uint8_t *)osd_img.data + index + 1); //red
-            }
-        } 
+            memset(od.virtual_addr_input[0] + padding_l + GNNE_INPUT_WIDTH + h*valid_width, 114, padding_r);
+            memset(od.virtual_addr_input[0] + offset_channel + padding_l+GNNE_INPUT_WIDTH + h*valid_width, 114, padding_r);
+            memset(od.virtual_addr_input[0] + offset_channel*2 + padding_l+GNNE_INPUT_WIDTH + h*valid_width, 114, padding_r);
+        }
+        if(display_ds2)
+        {
+            cv::Mat ds2_bgra(YOLOV5_FIX_SIZE, YOLOV5_FIX_SIZE, CV_8UC4);
+
+            cv::Mat channel[3];
+            channel[2] = cv::Mat(YOLOV5_FIX_SIZE, YOLOV5_FIX_SIZE, CV_8UC1, od.virtual_addr_input[0]); //R
+            channel[1] = cv::Mat(YOLOV5_FIX_SIZE, YOLOV5_FIX_SIZE, CV_8UC1, od.virtual_addr_input[0]+offset_channel); //G
+            channel[0] = cv::Mat(YOLOV5_FIX_SIZE, YOLOV5_FIX_SIZE, CV_8UC1, od.virtual_addr_input[0]+offset_channel*2);  //B
+
+            cv::Mat ds2_img = cv::Mat(YOLOV5_FIX_SIZE, YOLOV5_FIX_SIZE, CV_8UC3);
+            merge(channel, 3, ds2_img);
+
+            cv::cvtColor(ds2_img, ds2_bgra, cv::COLOR_BGR2BGRA); 
+
+            // static int frame_cnt = 0;
+            // if(frame_cnt++ % 10 == 1){
+            // 	std::string img_out_path = "./img_" + std::to_string(frame_cnt) + ".bmp";
+            // 	cv::imwrite(img_out_path, ds2_bgra);
+            // }
+
+            cv::Mat ds2_roi=img_argb(cv::Rect(0,0,ds2_bgra.cols,ds2_bgra.rows));
+            ds2_bgra.copyTo(ds2_roi);
+        }
 
         od.set_input(0);
         od.set_output();
@@ -153,13 +183,10 @@ void ai_worker()
             od.post_process(result);
         }
 
-        cv::Mat img_argb;
         {
 #if PROFILING
             ScopedTiming st("display clear");
 #endif
-            fbuf_argb = &drm_dev.drm_bufs_argb[drm_bufs_argb_index];
-            img_argb = cv::Mat(DRM_INPUT_HEIGHT, DRM_INPUT_WIDTH, CV_8UC4, (uint8_t *)fbuf_argb->map);
 
             for (auto r : drm_bufs_argb_index?result1:result0)
             {
@@ -235,8 +262,8 @@ void display_worker()
     cv::VideoCapture capture;
 	capture.open(3);
     capture.set(cv::CAP_PROP_CONVERT_RGB, 0);
-    capture.set(cv::CAP_PROP_FRAME_WIDTH, (DRM_INPUT_WIDTH+15)/16*16);
-    capture.set(cv::CAP_PROP_FRAME_HEIGHT, DRM_INPUT_HEIGHT);
+    capture.set(cv::CAP_PROP_FRAME_WIDTH, dev_info[0].video_width[1]);
+    capture.set(cv::CAP_PROP_FRAME_HEIGHT, dev_info[0].video_height[1]);
     capture.set(cv::CAP_PROP_FOURCC, V4L2_PIX_FMT_NV12);
     mtx.unlock();
     while(quit.load()) {
@@ -276,13 +303,14 @@ exit:
 int main(int argc, char *argv[])
 {
     std::cout << "case " << argv[0] << " build " << __DATE__ << " " << __TIME__ << std::endl;
-    if (argc != 2)
+    if (argc != 3)
     {
-        std::cerr << "Usage: " << argv[0] << " <.kmodel> <image_file>" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " <.kmodel> <display_ds2>" << std::endl;
         return -1;
     }
 
     kmodel_name = argv[1];
+    display_ds2 = atoi(argv[2]);
 
     struct sigaction sa;
     memset( &sa, 0, sizeof(sa) );

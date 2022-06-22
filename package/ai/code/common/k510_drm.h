@@ -45,10 +45,15 @@
 #include <sys/ioctl.h>
 
 #define DRM_BUFFERS_COUNT		3
+#ifdef FULL_SCREEN
+#define DRM_INPUT_WIDTH	1080
+#define DRM_INPUT_HEIGHT 1920
+#define DRM_OFFSET_HEIGHT 0
+#else
 #define DRM_INPUT_WIDTH	1080
 #define DRM_INPUT_HEIGHT 720
 #define DRM_OFFSET_HEIGHT ((1920-DRM_INPUT_HEIGHT)/2)
-
+#endif
 struct drm_buffer {
 	uint32_t handle;
 	uint32_t pitch;

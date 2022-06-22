@@ -54,11 +54,12 @@
 #include "k510_drm.h"
 #include "media_ctl.h"
 #include <linux/videodev2.h>
+#include "v4l2.h"
 
 #define PROFILING 0
 
 struct video_info dev_info[2];
-static char *video_cfg_file = "video.conf";
+static char *video_cfg_file = "video_192x320.conf";
 #define SELECT_TIMEOUT		2000
 
 std::mutex mtx;
@@ -69,6 +70,7 @@ struct drm_buffer *fbuf_yuv, *fbuf_argb;
 int obj_cnt, obj_point[2];
 cv::Point point[2][32][5];//用于清空上一帧AI计算的OSD层的显示[2个buffer交替][最多显示32个对象][5点坐标]
 char *kmodel_name;
+int display_ds2;
 
 std::atomic<bool> quit(true);
 
@@ -80,12 +82,37 @@ void fun_sig(int sig)
     }
 }
 
+static int video_stop(struct v4l2_device *vdev)
+{
+	int ret;
+
+	ret = v4l2_stream_off(vdev);
+	if (ret < 0) {
+		printf("error: failed to stop video stream: %s (%d)\n",
+			strerror(-ret), ret);
+		return ret;
+	}
+
+	return 0;
+}
+
+static void video_cleanup(struct v4l2_device *vdev)
+{
+	if (vdev) {
+		v4l2_free_buffers(vdev);
+		v4l2_close(vdev);
+	}
+}
+
 void ai_worker()
 {
     float obj_thresh = 0.5;
     float nms_thresh = 0.2;
     uint32_t valid_width = dev_info[0].video_width[3];
     uint32_t valid_height = dev_info[0].video_height[3];
+    int offset_channel = valid_width * valid_width;  // ds2 channel offset
+    int padding_r = valid_width-GNNE_INPUT_WIDTH;
+
     retinaface rf(obj_thresh, nms_thresh);
 
     rf.load_model(kmodel_name);
@@ -100,14 +127,14 @@ void ai_worker()
     capture.set(cv::CAP_PROP_FRAME_HEIGHT, valid_height);
     capture.set(cv::CAP_PROP_FOURCC, dev_info[0].video_out_format[3] ? V4L2_PIX_FMT_ARGB32 : V4L2_PIX_FMT_RGB24);
     mtx.unlock();
-    cv::Mat osd_img;
+    cv::Mat rgb24_img_for_ai(RETINAFACE_FIX_SIZE, RETINAFACE_FIX_SIZE, CV_8UC3, rf.virtual_addr_input[0]);
 
     while(quit.load()) 
     {
         bool ret = false;
         ScopedTiming st("total");
         mtx.lock();
-        ret = capture.read(osd_img);
+        ret = capture.read(rgb24_img_for_ai);
         mtx.unlock();
         if(ret == false)
         {
@@ -115,17 +142,39 @@ void ai_worker()
             continue; // 
         }
 
-        for (int r = 0; r < valid_height; r++)
-        {
-            for (int c = 0; c < valid_width; c++)
-            {
-                int index = (r * valid_width + c) * 4;
+        fbuf_argb = &drm_dev.drm_bufs_argb[drm_bufs_argb_index];
+        cv::Mat img_argb = cv::Mat(DRM_INPUT_HEIGHT, DRM_INPUT_WIDTH, CV_8UC4, (uint8_t *)fbuf_argb->map);
 
-                *(rf.virtual_addr_input[0] + valid_width*r + c) = *((uint8_t *)osd_img.data + index + 3); //blue
-                *(rf.virtual_addr_input[0] + valid_width*valid_width + valid_width*r + c) = *((uint8_t *)osd_img.data + index + 2); //green
-                *(rf.virtual_addr_input[0] + valid_width*valid_width*2 + valid_width*r + c) = *((uint8_t *)osd_img.data + index + 1); //red
-            }
-        } 
+        //padding
+        for(int h=0; h<valid_height; h++)
+        {
+            memset(rf.virtual_addr_input[0] + GNNE_INPUT_WIDTH + h*valid_width, R_MEAN, padding_r);
+            memset(rf.virtual_addr_input[0] + offset_channel + GNNE_INPUT_WIDTH + h*valid_width, G_MEAN, padding_r);
+            memset(rf.virtual_addr_input[0] + offset_channel*2 + GNNE_INPUT_WIDTH + h*valid_width, B_MEAN, padding_r);
+        }
+        if(display_ds2)
+        {
+            cv::Mat ds2_bgra(RETINAFACE_FIX_SIZE, RETINAFACE_FIX_SIZE, CV_8UC4);
+
+            cv::Mat channel[3];
+            channel[2] = cv::Mat(RETINAFACE_FIX_SIZE, RETINAFACE_FIX_SIZE, CV_8UC1, rf.virtual_addr_input[0]); //R
+            channel[1] = cv::Mat(RETINAFACE_FIX_SIZE, RETINAFACE_FIX_SIZE, CV_8UC1, rf.virtual_addr_input[0] + offset_channel); //G
+            channel[0] = cv::Mat(RETINAFACE_FIX_SIZE, RETINAFACE_FIX_SIZE, CV_8UC1, rf.virtual_addr_input[0] + offset_channel*2);  //B
+
+            cv::Mat ds2_img = cv::Mat(RETINAFACE_FIX_SIZE, RETINAFACE_FIX_SIZE, CV_8UC3);
+            merge(channel, 3, ds2_img);
+
+            cv::cvtColor(ds2_img, ds2_bgra, cv::COLOR_BGR2BGRA); 
+
+            // static int frame_cnt = 0;
+            // if(frame_cnt++ % 10 == 1){
+            // 	std::string img_out_path = "./img_" + std::to_string(frame_cnt) + ".bmp";
+            // 	cv::imwrite(img_out_path, ds2_bgra);
+            // }
+
+            cv::Mat ds2_roi=img_argb(cv::Rect(0,0,ds2_bgra.cols,ds2_bgra.rows));
+            ds2_bgra.copyTo(ds2_roi);
+        }
 
         rf.set_input(0);
 
@@ -138,8 +187,7 @@ void ai_worker()
             rf.run();
         }
         rf.post_process();
-        
-        cv::Mat img_argb;
+
         std::vector<box_t> valid_box;
         std::vector<landmarks_t> valid_landmarks;
         rf.get_final_box(valid_box, valid_landmarks);
@@ -148,8 +196,6 @@ void ai_worker()
 #if PROFILING
             ScopedTiming st("display clear");
 #endif
-            fbuf_argb = &drm_dev.drm_bufs_argb[drm_bufs_argb_index];
-            img_argb = cv::Mat(DRM_INPUT_HEIGHT, DRM_INPUT_WIDTH, CV_8UC4, (uint8_t *)fbuf_argb->map);
 
             for(int i=0; i<obj_point[drm_bufs_argb_index]; i++)
             {
@@ -157,7 +203,7 @@ void ai_worker()
                 {
                     //对上一帧写的数据设置透明，也就是清空之前的显示。
                     //直接memset清空整个OSD层太花时间。
-                    cv::circle(img_argb, point[drm_bufs_argb_index][i][ll], 4, cv::Scalar(0, 0, 255, 0), -1);
+                    cv::circle(img_argb, point[drm_bufs_argb_index][i][ll], 4, cv::Scalar(0, 0, 0, 0), -1);
                 }
             }
             for(int i=0; i<obj_cnt; i++)
@@ -238,8 +284,8 @@ void display_worker()
     cv::VideoCapture capture;
 	capture.open(3);
     capture.set(cv::CAP_PROP_CONVERT_RGB, 0);
-    capture.set(cv::CAP_PROP_FRAME_WIDTH, (DRM_INPUT_WIDTH+15)/16*16);
-    capture.set(cv::CAP_PROP_FRAME_HEIGHT, DRM_INPUT_HEIGHT);
+    capture.set(cv::CAP_PROP_FRAME_WIDTH, dev_info[0].video_width[1]);
+    capture.set(cv::CAP_PROP_FRAME_HEIGHT, dev_info[0].video_height[1]);
     capture.set(cv::CAP_PROP_FOURCC, V4L2_PIX_FMT_NV12);
     mtx.unlock();
     while(quit.load()) {
@@ -279,13 +325,14 @@ exit:
 int main(int argc, char *argv[])
 {
     std::cout << "case " << argv[0] << " build " << __DATE__ << " " << __TIME__ << std::endl;
-    if (argc != 2)
+    if (argc != 3)
     {
-        std::cerr << "Usage: " << argv[0] << " <.kmodel>" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " <.kmodel> <display_ds2>" << std::endl;
         return -1;
     }
 
     kmodel_name = argv[1];
+    display_ds2 = atoi(argv[2]);
 
     struct sigaction sa;
     memset( &sa, 0, sizeof(sa) );

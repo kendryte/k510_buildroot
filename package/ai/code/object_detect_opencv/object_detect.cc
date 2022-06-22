@@ -67,7 +67,7 @@ void objectDetect::prepare_memory()
     }
 
     for(int i=0; i<GNNE_BUFFERS_COUNT; i++) {
-        allocAlignMemFdInput[i].size = INPUT_SIZE;
+        allocAlignMemFdInput[i].size = INPUT_SIZE+4096;
         allocAlignMemFdInput[i].alignment = 4096;
         allocAlignMemFdInput[i].phyAddr = 0;
 
