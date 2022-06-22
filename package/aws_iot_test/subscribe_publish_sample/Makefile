@@ -30,7 +30,7 @@ IOT_SRC_FILES += $(shell find $(PLATFORM_DIR)/ -name '*.c')
 IOT_SRC_FILES += $(shell find $(PLATFORM_COMMON_DIR)/ -name '*.c')
 
 #TLS - mbedtls
-MBEDTLS_DIR = $(IOT_CLIENT_DIR)/external_libs/mbedTLS
+MBEDTLS_DIR = $(IOT_CLIENT_DIR)/external_libs/mbedtls-mbedtls-2.11.0
 TLS_LIB_DIR = $(MBEDTLS_DIR)/library
 CRYPTO_LIB_DIR = $(MBEDTLS_DIR)/library
 TLS_INCLUDE_DIR = -I $(MBEDTLS_DIR)/include
@@ -64,7 +64,8 @@ PRE_MAKE_CMD = $(MBED_TLS_MAKE_CMD)
 MAKE_CMD = $(CC) $(SRC_FILES) $(COMPILER_FLAGS) -o $(APP_NAME) $(LD_FLAG) $(EXTERNAL_LIBS) $(INCLUDE_ALL_DIRS)
 
 
-all .DEFAULT: download
+# all .DEFAULT: download
+all:
 	$(PRE_MAKE_CMD)
 	$(DEBUG)$(MAKE_CMD)
 	$(POST_MAKE_CMD)
@@ -73,7 +74,7 @@ clean:
 	rm -f $(APP_DIR)/$(APP_NAME)
 	$(MBED_TLS_MAKE_CMD) clean
 	
-download:
-		rm -rf $(IOT_CLIENT_DIR)/external_libs/mbedTLS.tar.gz;
-		wget https://github.com/Mbed-TLS/mbedtls/archive/refs/tags/mbedtls-2.11.0.tar.gz -O $(IOT_CLIENT_DIR)/external_libs/mbedTLS.tar.gz;
-		tar -zxvf $(IOT_CLIENT_DIR)/external_libs/mbedTLS.tar.gz;
+# download:
+# 		rm -rf $(IOT_CLIENT_DIR)/external_libs/mbedTLS.tar.gz;
+# 		wget https://github.com/Mbed-TLS/mbedtls/archive/refs/tags/mbedtls-2.11.0.tar.gz -O $(IOT_CLIENT_DIR)/external_libs/mbedTLS.tar.gz;
+# 		tar -zxvf $(IOT_CLIENT_DIR)/external_libs/mbedTLS.tar.gz;
