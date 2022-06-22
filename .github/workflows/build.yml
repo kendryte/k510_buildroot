@@ -36,6 +36,9 @@ jobs:
     strategy:
       matrix:
         cfg: ["crb_lp3_v1_2"]
+    outputs:
+      md5_bbl: ${{ steps.save_tftp.outputs.md5_bbl }}
+      md5_dtb: ${{ steps.save_tftp.outputs.md5_dtb }}
     steps:
       - uses: actions/checkout@v3
         with:
@@ -76,7 +79,7 @@ jobs:
       - name: Save image to CI cache
         id: save_cache
         run: |
-          export HW=`echo ${{ matrix.cfg }}|awk -F '_' '{print $1"_"$3"_"$4}'`
+          export HW=`echo ${{ matrix.cfg }}|awk -F '_' '{print $1"_"$3"."$4}'`
           echo $HW
           VER=$(cat $CONF/target/etc/version/release_version | grep ".*CST-github-pull-request" | sed 's/\(.*\)CST-github-pull-request/\1/g') || exit 1
           echo $VER
@@ -87,15 +90,21 @@ jobs:
       - name: Save image to TFTP
         id: save_tftp
         run: |
-          export FILE_SUFFIX=`echo ${{ matrix.cfg }}|awk -F '_' '{print $1"-"$3"_"$4}'`-$PULL_REQUEST_ID-$GITHUB_RUN_ID
+          export FILE_SUFFIX=`echo ${{ matrix.cfg }}|awk -F '_' '{print $1"-"$3"."$4}'`-$PULL_REQUEST_ID-$GITHUB_RUN_ID
           echo $FILE_SUFFIX
           cp $CONF/images/bootm-bbl.img $TFTP_ROOT/bootm-bbl-$FILE_SUFFIX.img
           cp $CONF/images/k510.dtb $TFTP_ROOT/k510-$FILE_SUFFIX.dtb
+          md5_bbl=$(md5sum $CONF/images/bootm-bbl.img | awk -F' {2}' '{print $1}')
+          md5_dtb=$(md5sum $CONF/images/k510.dtb | awk -F' {2}' '{print $1}')
+          echo md5_bbl
+          echo md5_dtb
+          echo "::set-output name=md5_bbl::$md5_bbl"
+          echo "::set-output name=md5_dtb::$md5_dtb"
       
       - name: Save image to NFS
         id: save_nfs
         run: |
-          export HW=`echo ${{ matrix.cfg }}|awk -F '_' '{print $1"_"$3"_"$4}'`
+          export HW=`echo ${{ matrix.cfg }}|awk -F '_' '{print $1"_"$3"."$4}'`
           export SAVE_DIR=$PULL_REQUEST_ID"_"$GITHUB_RUN_ID
           echo $HW
           echo $SAVE_DIR
@@ -151,17 +160,15 @@ jobs:
           echo "Load image"
           echo "${{ env.available }}"
           echo "${{ env.reserved }}"
+          echo ${{needs.build_image.outputs.md5_bbl}}
+          echo ${{needs.build_image.outputs.md5_dtb}}
           test -d bin || mkdir ./bin
           test -f ./bin/ci2 && rm -rf ./bin/ci2
           wget -qc https://ai.b-bug.org/k510_buildroot/github/ci2 -O ./bin/ci2
           chmod +x ./bin/ci2
-          export HW_MODEL=`echo ${{ matrix.cfg }}|awk -F '_' '{print $1}'`
-          export HW_VER=`echo ${{ matrix.cfg }}|awk -F '_' '{print $3"_"$4}'`
-          echo $HW_MODEL
-          echo $HW_VER
           echo $PULL_REQUEST_ID
           echo $GITHUB_RUN_ID
-          ./bin/ci2 --merge_id $PULL_REQUEST_ID --pipeline_id $GITHUB_RUN_ID "${{ env.available }}"
+          ./bin/ci2 --merge_id $PULL_REQUEST_ID --pipeline_id $GITHUB_RUN_ID --md5_dtb ${{needs.build_image.outputs.md5_dtb}} --md5_bbl ${{needs.build_image.outputs.md5_bbl}} "${{ env.available }}"
 
       - name: Run Test
         id: run_test
