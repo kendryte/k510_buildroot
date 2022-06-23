@@ -1157,17 +1157,19 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
 
     drm_dev.camera_num = camera_num;
     struct camera_info* used_cam;
-	if(dev_info[0].video_used) {
-		if (init_isp(&camera[0]) < 0) {
-			goto cleanup;
-		}
-        used_cam = &camera[0];
-	}
+
+    //need to start r2k at first to fix dma error
 	if(dev_info[1].video_used) {
 		if (init_isp(&camera[1]) < 0) {
-            goto cleanup;
+			goto cleanup;
 		}
         used_cam = &camera[1];
+	}
+	if(dev_info[0].video_used) {
+		if (init_isp(&camera[0]) < 0) {
+            goto cleanup;
+		}
+        used_cam = &camera[0];
 	}
 
     if (dev_info[0].video_used && dev_info[1].video_used) {
