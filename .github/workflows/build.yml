@@ -168,7 +168,6 @@ jobs:
       - name: Load Image
         id: load_image
         run: |
-          set -x
           echo "Load image"
           echo "${{ env.available }}"
           echo "${{ env.reserved }}"
@@ -185,7 +184,6 @@ jobs:
       - name: Run Test
         id: run_test
         run: |
-          set -x
           echo "Run Test"
           echo "${{ env.available }}"
           echo "${{ env.reserved }}"
