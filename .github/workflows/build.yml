@@ -94,8 +94,8 @@ jobs:
           echo $FILE_SUFFIX
           cp $CONF/images/bootm-bbl.img $TFTP_ROOT/bootm-bbl-$FILE_SUFFIX.img
           cp $CONF/images/k510.dtb $TFTP_ROOT/k510-$FILE_SUFFIX.dtb
-          md5_bbl=$(md5sum $TFTP_ROOT/bootm-bbl-$FILE_SUFFIX.img | awk -F' {1}' '{print $1}')
-          md5_dtb=$(md5sum $TFTP_ROOT/k510-$FILE_SUFFIX.dtb | awk -F' {1}' '{print $1}')
+          md5_bbl=$(md5sum $TFTP_ROOT/bootm-bbl-$FILE_SUFFIX.img | awk -F " " '{print $1}')
+          md5_dtb=$(md5sum $TFTP_ROOT/k510-$FILE_SUFFIX.dtb | awk -F " " '{print $1}')
           echo $md5_bbl
           echo $md5_dtb
           echo "::set-output name=md5_bbl::$md5_bbl"
