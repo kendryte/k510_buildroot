@@ -1,0 +1,30 @@
+Index: b/liveMedia/RTPInterface.cpp
+===================================================================
+--- a/liveMedia/RTPInterface.cpp
++++ b/liveMedia/RTPInterface.cpp
+@@ -14,6 +14,7 @@ along with this library; if not, write t
+ 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301  USA
+ **********/
+ // "liveMedia"
++//Copyright (c), Canaan Bright Sight Co., Ltd
+ // Copyright (c) 1996-2022 Live Networks, Inc.  All rights reserved.
+ // An abstraction of a network interface used for RTP (or RTCP).
+ // (This allows the RTP-over-TCP hack (RFC 2326, section 10.12) to
+@@ -357,7 +358,7 @@ Boolean RTPInterface::sendRTPorRTCPPacke
+     framingHeader[1] = streamChannelId;
+     framingHeader[2] = (u_int8_t) ((packetSize&0xFF00)>>8);
+     framingHeader[3] = (u_int8_t) (packetSize&0xFF);
+-    if (!sendDataOverTCP(socketNum, tlsState, framingHeader, 4, False)) break;
++    if (!sendDataOverTCP(socketNum, tlsState, framingHeader, 4, True)) break;
+ 
+     if (!sendDataOverTCP(socketNum, tlsState, packet, packetSize, True)) break;
+ #ifdef DEBUG_SEND
+@@ -367,7 +368,7 @@ Boolean RTPInterface::sendRTPorRTCPPacke
+     return True;
+   } while (0);
+ 
+-#ifdef DEBUG_SEND
++#if 1
+   fprintf(stderr, "sendRTPorRTCPPacketOverTCP: failed! (errno %d)\n", envir().getErrno()); fflush(stderr);
+ #endif
+   return False;
