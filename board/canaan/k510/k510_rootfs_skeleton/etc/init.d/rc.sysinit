@@ -27,7 +27,7 @@ if ! ` cat /proc/cmdline  |  grep -E "ubifs|nfs" >/dev/null ` ; then
 fi
 
 mount -o remount,rw rootfs /
-
+mount -t tmpfs  tmpfs /run -o mode=0755,nosuid,nodev
 #/bin/mount -t devpts -o mode=620 none /dev/pts
 #/bin/mount -t tmpfs tmpfs /dev/shm
 /bin/mount -t sysfs none /sys
