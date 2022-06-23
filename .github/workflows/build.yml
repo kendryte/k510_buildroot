@@ -180,7 +180,7 @@ jobs:
           chmod +x ./bin/ci2
           echo $PULL_REQUEST_ID
           echo $GITHUB_RUN_ID
-          ./bin/ci2 --merge_id $PULL_REQUEST_ID --pipeline_id $GITHUB_RUN_ID --md5_dtb ${{needs.build_image.outputs.md5_dtb}} --md5_bbl ${{needs.build_image.outputs.md5_bbl}} ${{ env.available }}
+          ./bin/ci2 --pr_id $PULL_REQUEST_ID --job_id $GITHUB_RUN_ID --md5_dtb ${{needs.build_image.outputs.md5_dtb}} --md5_bbl ${{needs.build_image.outputs.md5_bbl}} ${{ env.available }}
 
       - name: Run Test
         id: run_test
