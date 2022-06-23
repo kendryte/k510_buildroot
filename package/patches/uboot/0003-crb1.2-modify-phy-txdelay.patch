@@ -1,0 +1,41 @@
+From acb38bb45806972af24f6c513c3249d400d82cf6 Mon Sep 17 00:00:00 2001
+From: wangjianxin <wangjianxin@canaan-creative.com>
+Date: Thu, 23 Jun 2022 14:27:24 +0800
+Subject: [PATCH] crb1.2 modify phy txdelay
+
+---
+ board/Canaan/k510_crb_lp3/ax25-ae350.c | 5 +++++
+ configs/k510_crb_lp3_v1_2_defconfig    | 1 +
+ 2 files changed, 6 insertions(+)
+
+diff --git a/board/Canaan/k510_crb_lp3/ax25-ae350.c b/board/Canaan/k510_crb_lp3/ax25-ae350.c
+index 140ce647..1dbcb6ff 100755
+--- a/board/Canaan/k510_crb_lp3/ax25-ae350.c
++++ b/board/Canaan/k510_crb_lp3/ax25-ae350.c
+@@ -290,6 +290,11 @@ char * fat_get_env_file_name_dynamic(void)
+         //printf("boot_media=%x %s\n", boot_media ,env_file_name);
+         return env_file_name;
+ }
++//CONFIG_LAST_STAGE_INIT
++int last_stage_init(void)
++{
++	run_command("mii write 0 0x1e 0xa003; mii write  0 0x1f 0x01 ;", 0);
++}
+ 
+ #endif
+ 
+diff --git a/configs/k510_crb_lp3_v1_2_defconfig b/configs/k510_crb_lp3_v1_2_defconfig
+index c2a150e0..7a3e4084 100755
+--- a/configs/k510_crb_lp3_v1_2_defconfig
++++ b/configs/k510_crb_lp3_v1_2_defconfig
+@@ -12,6 +12,7 @@ CONFIG_FIT=y
+ CONFIG_BOOTDELAY=3
+ CONFIG_LOGLEVEL=8
+ CONFIG_BOARD_EARLY_INIT_F=y
++CONFIG_LAST_STAGE_INIT=y
+ CONFIG_SYS_PROMPT="RISC-V # "
+ CONFIG_CMD_IMLS=y
+ CONFIG_CMD_MD5SUM=y
+-- 
+2.30.2
+
