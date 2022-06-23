@@ -94,10 +94,10 @@ jobs:
           echo $FILE_SUFFIX
           cp $CONF/images/bootm-bbl.img $TFTP_ROOT/bootm-bbl-$FILE_SUFFIX.img
           cp $CONF/images/k510.dtb $TFTP_ROOT/k510-$FILE_SUFFIX.dtb
-          md5_bbl=$(md5sum $CONF/images/bootm-bbl.img | awk -F' {2}' '{print $1}')
-          md5_dtb=$(md5sum $CONF/images/k510.dtb | awk -F' {2}' '{print $1}')
-          echo md5_bbl
-          echo md5_dtb
+          md5_bbl=$(md5sum $TFTP_ROOT/bootm-bbl-$FILE_SUFFIX.img | awk -F' {1}' '{print $1}')
+          md5_dtb=$(md5sum $TFTP_ROOT/k510-$FILE_SUFFIX.dtb | awk -F' {1}' '{print $1}')
+          echo $md5_bbl
+          echo $md5_dtb
           echo "::set-output name=md5_bbl::$md5_bbl"
           echo "::set-output name=md5_dtb::$md5_dtb"
       
@@ -124,7 +124,7 @@ jobs:
       matrix:
         cfg: ["crb_lp3_v1_2"]
     steps:
-      - name: Get DUT
+      - name: Get Available DUT
         id: get_dut
         run: |
           set -x
@@ -138,6 +138,12 @@ jobs:
           available=$(./bin/dut show --dest available --hw_type k510 --hw_model $HW_MODEL --hw_ver $HW_VER --format args)
           echo $available
           echo "available=$available" >> $GITHUB_ENV
+          if [[ $available =~ "k510" ]]; then
+            echo "Get Available DUT pass"
+          else
+            echo "ERROR: No Available DUT"
+            exit 1
+          fi
 
       - name: Reserve DUT
         id: reserve_dut
@@ -152,6 +158,12 @@ jobs:
           reserved=$(./bin/dut add ${{ env.available }} --site github-actions --source $PULL_REQUEST_ID --job $GITHUB_RUN_ID --format args)
           echo $reserved
           echo "reserved=$reserved" >> $GITHUB_ENV
+          if [[ $reserved =~ "github-actions" ]]; then
+            echo "Reserve DUT pass"
+          else
+            echo "ERROR: Reserve DUT failed"
+            exit 1
+          fi
 
       - name: Load image
         id: load_image
@@ -192,5 +204,11 @@ jobs:
           test -f ./bin/dut && rm -rf ./bin/dut
           wget -qc https://ai.b-bug.org/k510_buildroot/github/dut -O ./bin/dut
           chmod +x ./bin/dut
-          result=$(./bin/dut delete ${{ env.reserved }})"
+          result=$(./bin/dut delete ${{ env.reserved }})
           echo $result
+          if [[ $result =~ "True" ]]; then
+            echo "release DUT pass"
+          else
+            echo "ERROR: release DUT failed"
+            exit 1
+          fi
