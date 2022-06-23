@@ -165,7 +165,7 @@ jobs:
             exit 1
           fi
 
-      - name: Load image
+      - name: Load Image
         id: load_image
         run: |
           set -x
