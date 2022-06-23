@@ -12,7 +12,7 @@ FILE=$(AWS_LOCAL_PATH)/subscribe_publish_sample
 AWS_IOT_TEST_DATA_SITE = https://github.com/Mbed-TLS/mbedtls/archive/refs/tags/mbedtls-2.11.0.tar.gz
 AWS_IOT_TEST_SOURCE = subscribe_publish_sample.tar
 
-MBEDTLS_DIR_S = $(AWS_LOCAL_PATH)/subscribe_publish_sample/external_libs/
+# MBEDTLS_DIR_S = $(AWS_LOCAL_PATH)/subscribe_publish_sample/external_libs/
 
 AWS_IOT_TEST_EXTRA_DOWNLOADS = $(call qstrip,$(AWS_IOT_TEST_DATA_SITE))
 
@@ -27,7 +27,7 @@ AWS_IOT_TEST_POST_EXTRACT_HOOKS = AWS_IOT_TEST_POST_EXTRACT_HOOKS_DATA
 
 define AWS_IOT_TEST_POST_EXTRACT_HOOKS_DATA
 	rm -rf $(AWS_LOCAL_PATH)/subscribe_publish_sample.tar;
-	tar -zvxf $(AWS_IOT_TEST_DL_DIR)/mbedtls-2.11.0.tar.gz -C $(MBEDTLS_DIR_S)
+	tar -zvxf $(AWS_IOT_TEST_DL_DIR)/mbedtls-2.11.0.tar.gz -C $(AWS_IOT_TEST_DIR)/external_libs	
 endef
 
 
