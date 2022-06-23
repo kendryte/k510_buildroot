@@ -64,15 +64,13 @@ static char *video_cfg_file = "video_192x320.conf";
 
 std::mutex mtx;
 
+uint8_t drm_bufs_index = 0;
 uint8_t drm_bufs_argb_index = 0;
 struct drm_buffer *fbuf_yuv, *fbuf_argb;
 int obj_cnt, obj_point[2];
 cv::Point point[2][32][5];//用于清空上一帧AI计算的OSD层的显示[2个buffer交替][最多显示32个对象][5点坐标]
 char *kmodel_name;
 int display_ds2;
-float obj_thresh = 0.5;
-float nms_thresh = 0.2;
-retinaface rf(obj_thresh, nms_thresh);
 
 std::atomic<bool> quit(true);
 
@@ -106,261 +104,170 @@ static void video_cleanup(struct v4l2_device *vdev)
 	}
 }
 
-static int process_ds2_image(struct v4l2_device *vdev, struct v4l2_pix_format *format)
-{
-	struct v4l2_video_buffer buffer;
-	int ret;
-    uint32_t valid_width = dev_info[0].video_width[3];
-    uint32_t valid_height = dev_info[0].video_height[3];
-
-    mtx.lock();
-	ret = v4l2_dequeue_buffer(vdev, &buffer);
-	if (ret < 0) {
-		printf("error: unable to dequeue buffer: %s (%d)\n",
-			strerror(-ret), ret);
-        mtx.unlock();
-		return ret;
-	}
-    mtx.unlock();
-	if (buffer.error) {
-		printf("warning: error in dequeued buffer, skipping\n");
-		return 0;
-	}
-
-    fbuf_argb = &drm_dev.drm_bufs_argb[drm_bufs_argb_index];
-    cv::Mat img_argb = cv::Mat(DRM_INPUT_HEIGHT, DRM_INPUT_WIDTH, CV_8UC4, (uint8_t *)fbuf_argb->map);
-
-    if(display_ds2)
-    {
-        cv::Mat ds2_bgra(RETINAFACE_FIX_SIZE, RETINAFACE_FIX_SIZE, CV_8UC4);
-
-        cv::Mat channel[3];
-        channel[2] = cv::Mat(RETINAFACE_FIX_SIZE, RETINAFACE_FIX_SIZE, CV_8UC1, rf.virtual_addr_input[buffer.index]); //R
-        channel[1] = cv::Mat(RETINAFACE_FIX_SIZE, RETINAFACE_FIX_SIZE, CV_8UC1, rf.virtual_addr_input[buffer.index] + RETINAFACE_FIX_SIZE*RETINAFACE_FIX_SIZE); //G
-        channel[0] = cv::Mat(RETINAFACE_FIX_SIZE, RETINAFACE_FIX_SIZE, CV_8UC1, rf.virtual_addr_input[buffer.index] + RETINAFACE_FIX_SIZE*RETINAFACE_FIX_SIZE*2);  //B
-
-        cv::Mat ds2_img = cv::Mat(RETINAFACE_FIX_SIZE, RETINAFACE_FIX_SIZE, CV_8UC3);
-        merge(channel, 3, ds2_img);
-        
-        cv::cvtColor(ds2_img, ds2_bgra, cv::COLOR_BGR2BGRA); 
-
-        // static int frame_cnt = 0;
-        // if(frame_cnt++ % 10 == 1){
-        // 	std::string img_out_path = "./img_" + std::to_string(frame_cnt) + ".bmp";
-        // 	cv::imwrite(img_out_path, ds2_bgra);
-        // }
-
-        cv::Mat ds2_roi=img_argb(cv::Rect(0,0,ds2_bgra.cols,ds2_bgra.rows));
-        ds2_bgra.copyTo(ds2_roi);
-    }
-
-    rf.set_input(buffer.index);
-
-    rf.set_output();
-
-    {
-#if PROFILING
-        ScopedTiming st("run");
-#endif
-        rf.run();
-    }
-
-    rf.post_process();
-
-    std::vector<box_t> valid_box;
-    std::vector<landmarks_t> valid_landmarks;
-    rf.get_final_box(valid_box, valid_landmarks);
-
-    {
-#if PROFILING
-        ScopedTiming st("display clear");
-#endif
-
-        for(int i=0; i<obj_point[drm_bufs_argb_index]; i++)
-        {
-            for (uint32_t ll = 0; ll < 5; ll++)
-            {
-                //对上一帧写的数据设置透明，也就是清空之前的显示。
-                //直接memset清空整个OSD层太花时间。
-                cv::circle(img_argb, point[drm_bufs_argb_index][i][ll], 4, cv::Scalar(0, 0, 0, 0), -1);
-            }
-        }
-        for(int i=0; i<obj_cnt; i++)
-        {
-            struct vo_draw_frame frame;
-            frame.crtc_id = drm_dev.crtc_id;
-            frame.draw_en = 0;
-            frame.frame_num = i;
-            draw_frame(&frame);
-        }
-    }
-
-    {
-#if PROFILING
-        ScopedTiming st("draw frame");
-#endif
-        obj_cnt = 0;
-        for (auto b : valid_box)
-        {
-            if (obj_cnt < 32)
-            {
-                struct vo_draw_frame frame;
-                frame.crtc_id = drm_dev.crtc_id;
-                frame.draw_en = 1;
-                frame.frame_num = obj_cnt;
-                frame.line_x_start = (b.x * RETINAFACE_FIX_SIZE - b.w * RETINAFACE_FIX_SIZE / 2)*DRM_INPUT_WIDTH/GNNE_INPUT_WIDTH;
-                frame.line_y_start = (b.y * RETINAFACE_FIX_SIZE - b.h * RETINAFACE_FIX_SIZE / 2)*DRM_INPUT_HEIGHT/GNNE_INPUT_HEIGHT+DRM_OFFSET_HEIGHT;
-                frame.line_y_start = frame.line_y_start < DRM_OFFSET_HEIGHT ? DRM_OFFSET_HEIGHT : frame.line_y_start;
-                frame.line_x_end = (b.x * RETINAFACE_FIX_SIZE + b.w * RETINAFACE_FIX_SIZE / 2)*DRM_INPUT_WIDTH/GNNE_INPUT_WIDTH;
-                frame.line_y_end = (b.y * RETINAFACE_FIX_SIZE + b.h * RETINAFACE_FIX_SIZE / 2)*DRM_INPUT_HEIGHT/GNNE_INPUT_HEIGHT+DRM_OFFSET_HEIGHT;
-                frame.line_y_end = frame.line_y_end > (DRM_OFFSET_HEIGHT+DRM_INPUT_HEIGHT) ? (DRM_OFFSET_HEIGHT+DRM_INPUT_HEIGHT) : frame.line_y_end;
-                draw_frame(&frame);
-            }
-            obj_cnt += 1;
-        }
-    }
-    printf("obj_cnt = %d \n", obj_cnt);
-    {
-#if PROFILING
-        ScopedTiming st("draw point");
-#endif
-        obj_point[drm_bufs_argb_index] = 0;
-        for (auto l : valid_landmarks)
-        {
-            for (uint32_t ll = 0; ll < 5; ll++)
-            {
-                if (obj_point[drm_bufs_argb_index] < 32)
-                {
-                    uint32_t x0 = l.points[2 * ll + 0] * RETINAFACE_FIX_SIZE * DRM_INPUT_WIDTH/GNNE_INPUT_WIDTH;
-                    uint32_t y0 = l.points[2 * ll + 1] * RETINAFACE_FIX_SIZE * DRM_INPUT_HEIGHT/GNNE_INPUT_HEIGHT;
-
-                    cv::circle(img_argb, cv::Point(x0, y0), 4, cv::Scalar(0, 0, 255, 255), -1);
-                    point[drm_bufs_argb_index][obj_point[drm_bufs_argb_index]][ll] =  cv::Point(x0, y0);
-                }
-            }
-            obj_point[drm_bufs_argb_index] += 1;
-        }
-    }
-    drm_bufs_argb_index = !drm_bufs_argb_index;
-
-    mtx.lock();
-    buffer.mem = rf.virtual_addr_input[buffer.index];
-    buffer.size = rf.allocAlignMemFdInput[buffer.index].size;
-    ret = v4l2_queue_buffer(vdev, &buffer);
-    if (ret < 0) {
-        printf("error: unable to requeue buffer: %s (%d)\n",
-            strerror(-ret), ret);
-        mtx.unlock();
-        return ret;
-    }
-    mtx.unlock();
-
-	return 0;
-}
-
 void ai_worker()
 {
-    int ret;
-    struct v4l2_device *vdev;
-    fd_set fds;
-    struct v4l2_pix_format format;
+    float obj_thresh = 0.5;
+    float nms_thresh = 0.2;
+    uint32_t valid_width = dev_info[0].video_width[3];
+    uint32_t valid_height = dev_info[0].video_height[3];
+    int offset_channel = valid_width * valid_width;  // ds2 channel offset
+    int padding_r = valid_width-GNNE_INPUT_WIDTH;
+
+    retinaface rf(obj_thresh, nms_thresh);
 
     rf.load_model(kmodel_name);
 
 	rf.prepare_memory();
 
     mtx.lock();
-    vdev = v4l2_open(dev_info[0].video_name[3]);
-    if (vdev == NULL) {
-		printf("error: unable to open video capture device %s\n",
-			dev_info[0].video_name[3]);
-        mtx.unlock();
-		goto ai_cleanup;
-	}
-
-	memset(&format, 0, sizeof format);
-	format.pixelformat = dev_info[0].video_out_format[3] ? V4L2_PIX_FMT_ARGB32 : V4L2_PIX_FMT_RGB24;
-	format.width = dev_info[0].video_width[3];
-	format.height = dev_info[0].video_height[3];
-    printf("format.width=%d %d \n",format.height, format.width);
-
-	ret = v4l2_set_format(vdev, &format);
-	if (ret < 0)
-	{
-		printf("%s:v4l2_set_format error\n",__func__);
-        mtx.unlock();
-		goto ai_cleanup;
-	}
-
-    ret = v4l2_alloc_buffers(vdev, V4L2_MEMORY_USERPTR, 3);
-	if (ret < 0)
-	{
-		printf("%s:v4l2_alloc_buffers error\n",__func__);
-        mtx.unlock();
-		goto ai_cleanup;
-	}
-
-	FD_ZERO(&fds);
-	FD_SET(vdev->fd, &fds);
-
-    struct v4l2_video_buffer buffer;
-	unsigned int i;
-
-	for (i = 0; i < vdev->nbufs; ++i) {
-		buffer.index = i;
-        buffer.mem = rf.virtual_addr_input[buffer.index];
-        buffer.size = rf.allocAlignMemFdInput[buffer.index].size;
-
-		ret = v4l2_queue_buffer(vdev, &buffer);
-		if (ret < 0) {
-			printf("error: unable to queue buffer %u\n", i);
-            mtx.unlock();
-			goto ai_cleanup;
-		}	
-	}
-
-	ret = v4l2_stream_on(vdev);
-	if (ret < 0) {
-		printf("%s error: failed to start video stream: %s (%d)\n", __func__,
-			strerror(-ret), ret);
-        mtx.unlock();
-		goto ai_cleanup;
-	}
+    cv::VideoCapture capture;
+	capture.open(5);
+    capture.set(cv::CAP_PROP_CONVERT_RGB, 0);
+    capture.set(cv::CAP_PROP_FRAME_WIDTH, valid_width);
+    capture.set(cv::CAP_PROP_FRAME_HEIGHT, valid_height);
+    capture.set(cv::CAP_PROP_FOURCC, dev_info[0].video_out_format[3] ? V4L2_PIX_FMT_ARGB32 : V4L2_PIX_FMT_RGB24);
     mtx.unlock();
+    cv::Mat rgb24_img_for_ai(RETINAFACE_FIX_SIZE, RETINAFACE_FIX_SIZE, CV_8UC3, rf.virtual_addr_input[0]);
 
     while(quit.load()) 
     {
+        bool ret = false;
         ScopedTiming st("total");
+        mtx.lock();
+        ret = capture.read(rgb24_img_for_ai);
+        mtx.unlock();
+        if(ret == false)
+        {
+            quit.store(false);
+            continue; // 
+        }
 
-        struct timeval timeout;
-		fd_set rfds;
+        fbuf_argb = &drm_dev.drm_bufs_argb[drm_bufs_argb_index];
+        cv::Mat img_argb = cv::Mat(DRM_INPUT_HEIGHT, DRM_INPUT_WIDTH, CV_8UC4, (uint8_t *)fbuf_argb->map);
 
-		timeout.tv_sec = SELECT_TIMEOUT / 1000;
-		timeout.tv_usec = (SELECT_TIMEOUT % 1000) * 1000;
-		rfds = fds;
+        //padding
+        for(int h=0; h<valid_height; h++)
+        {
+            memset(rf.virtual_addr_input[0] + GNNE_INPUT_WIDTH + h*valid_width, R_MEAN, padding_r);
+            memset(rf.virtual_addr_input[0] + offset_channel + GNNE_INPUT_WIDTH + h*valid_width, G_MEAN, padding_r);
+            memset(rf.virtual_addr_input[0] + offset_channel*2 + GNNE_INPUT_WIDTH + h*valid_width, B_MEAN, padding_r);
+        }
+        if(display_ds2)
+        {
+            cv::Mat ds2_bgra(RETINAFACE_FIX_SIZE, RETINAFACE_FIX_SIZE, CV_8UC4);
 
-		ret = select(vdev->fd + 1, &rfds, NULL, NULL, &timeout);
-		if (ret < 0) {
-			if (errno == EINTR)
-				continue;
+            cv::Mat channel[3];
+            channel[2] = cv::Mat(RETINAFACE_FIX_SIZE, RETINAFACE_FIX_SIZE, CV_8UC1, rf.virtual_addr_input[0]); //R
+            channel[1] = cv::Mat(RETINAFACE_FIX_SIZE, RETINAFACE_FIX_SIZE, CV_8UC1, rf.virtual_addr_input[0] + offset_channel); //G
+            channel[0] = cv::Mat(RETINAFACE_FIX_SIZE, RETINAFACE_FIX_SIZE, CV_8UC1, rf.virtual_addr_input[0] + offset_channel*2);  //B
 
-			printf("error: select failed with %d\n", errno);
-			goto ai_cleanup;
-		}
-		if (ret == 0) {
-			printf("error: select timeout\n");
-			goto ai_cleanup;
-		}
+            cv::Mat ds2_img = cv::Mat(RETINAFACE_FIX_SIZE, RETINAFACE_FIX_SIZE, CV_8UC3);
+            merge(channel, 3, ds2_img);
 
-        process_ds2_image(vdev, &format);
+            cv::cvtColor(ds2_img, ds2_bgra, cv::COLOR_BGR2BGRA); 
+
+            // static int frame_cnt = 0;
+            // if(frame_cnt++ % 10 == 1){
+            // 	std::string img_out_path = "./img_" + std::to_string(frame_cnt) + ".bmp";
+            // 	cv::imwrite(img_out_path, ds2_bgra);
+            // }
+
+            cv::Mat ds2_roi=img_argb(cv::Rect(0,0,ds2_bgra.cols,ds2_bgra.rows));
+            ds2_bgra.copyTo(ds2_roi);
+        }
+
+        rf.set_input(0);
+
+        rf.set_output();
+
+        {
+#if PROFILING
+            ScopedTiming st("run");
+#endif
+            rf.run();
+        }
+        rf.post_process();
+
+        std::vector<box_t> valid_box;
+        std::vector<landmarks_t> valid_landmarks;
+        rf.get_final_box(valid_box, valid_landmarks);
+
+        {
+#if PROFILING
+            ScopedTiming st("display clear");
+#endif
+
+            for(int i=0; i<obj_point[drm_bufs_argb_index]; i++)
+            {
+                for (uint32_t ll = 0; ll < 5; ll++)
+                {
+                    //对上一帧写的数据设置透明，也就是清空之前的显示。
+                    //直接memset清空整个OSD层太花时间。
+                    cv::circle(img_argb, point[drm_bufs_argb_index][i][ll], 4, cv::Scalar(0, 0, 0, 0), -1);
+                }
+            }
+            for(int i=0; i<obj_cnt; i++)
+            {
+                struct vo_draw_frame frame;
+                frame.crtc_id = drm_dev.crtc_id;
+                frame.draw_en = 0;
+                frame.frame_num = i;
+                draw_frame(&frame);
+            }
+        }
+
+        {
+#if PROFILING
+            ScopedTiming st("draw frame");
+#endif
+            obj_cnt = 0;
+            for (auto b : valid_box)
+            {
+                if (obj_cnt < 32)
+                {
+                    struct vo_draw_frame frame;
+                    frame.crtc_id = drm_dev.crtc_id;
+                    frame.draw_en = 1;
+                    frame.frame_num = obj_cnt;
+                    frame.line_x_start = (b.x * RETINAFACE_FIX_SIZE - b.w * RETINAFACE_FIX_SIZE / 2)*DRM_INPUT_WIDTH/GNNE_INPUT_WIDTH;
+                    frame.line_y_start = (b.y * RETINAFACE_FIX_SIZE - b.h * RETINAFACE_FIX_SIZE / 2)*DRM_INPUT_HEIGHT/GNNE_INPUT_HEIGHT+DRM_OFFSET_HEIGHT;
+                    frame.line_y_start = frame.line_y_start < DRM_OFFSET_HEIGHT ? DRM_OFFSET_HEIGHT : frame.line_y_start;
+                    frame.line_x_end = (b.x * RETINAFACE_FIX_SIZE + b.w * RETINAFACE_FIX_SIZE / 2)*DRM_INPUT_WIDTH/GNNE_INPUT_WIDTH;
+                    frame.line_y_end = (b.y * RETINAFACE_FIX_SIZE + b.h * RETINAFACE_FIX_SIZE / 2)*DRM_INPUT_HEIGHT/GNNE_INPUT_HEIGHT+DRM_OFFSET_HEIGHT;
+                    frame.line_y_end = frame.line_y_end > (DRM_OFFSET_HEIGHT+DRM_INPUT_HEIGHT) ? (DRM_OFFSET_HEIGHT+DRM_INPUT_HEIGHT) : frame.line_y_end;
+                    draw_frame(&frame);
+                }
+                obj_cnt += 1;
+            }
+        }
+        printf("obj_cnt = %d \n", obj_cnt);
+        {
+#if PROFILING
+            ScopedTiming st("draw point");
+#endif
+            obj_point[drm_bufs_argb_index] = 0;
+            for (auto l : valid_landmarks)
+            {
+                for (uint32_t ll = 0; ll < 5; ll++)
+                {
+                    if (obj_point[drm_bufs_argb_index] < 32)
+                    {
+                        uint32_t x0 = l.points[2 * ll + 0] * RETINAFACE_FIX_SIZE * DRM_INPUT_WIDTH/GNNE_INPUT_WIDTH;
+                        uint32_t y0 = l.points[2 * ll + 1] * RETINAFACE_FIX_SIZE * DRM_INPUT_HEIGHT/GNNE_INPUT_HEIGHT;
+
+                        cv::circle(img_argb, cv::Point(x0, y0), 4, cv::Scalar(0, 0, 255, 255), -1);
+                        point[drm_bufs_argb_index][obj_point[drm_bufs_argb_index]][ll] =  cv::Point(x0, y0);
+                    }
+                }
+                obj_point[drm_bufs_argb_index] += 1;
+            }
+        }
+        drm_bufs_argb_index = !drm_bufs_argb_index;
     }
 
-ai_cleanup:
     mtx.lock();
-    video_stop(vdev);
-	video_cleanup(vdev);
+    capture.release();
     mtx.unlock();
-
     for(int i=0; i<obj_cnt; i++)
     {
         struct vo_draw_frame frame;
@@ -522,7 +429,7 @@ display_cleanup:
 
 int main(int argc, char *argv[])
 {
-    std::cout << "case2 " << argv[0] << " build " << __DATE__ << " " << __TIME__ << std::endl;
+    std::cout << "case " << argv[0] << " build " << __DATE__ << " " << __TIME__ << std::endl;
     if (argc != 3)
     {
         std::cerr << "Usage: " << argv[0] << " <.kmodel> <display_ds2>" << std::endl;
@@ -537,7 +444,6 @@ int main(int argc, char *argv[])
     sa.sa_handler = fun_sig;
     sigfillset(&sa.sa_mask);
     sigaction(SIGINT, &sa, NULL);
-
     if(drm_init())
         return -1;
 
@@ -547,15 +453,15 @@ int main(int argc, char *argv[])
     std::thread thread_ds0(display_worker);
     std::thread thread_ds2(ai_worker);
 
-    thread_ds2.join();
     thread_ds0.join();
-    
+    thread_ds2.join();
+
     for(int i = 0; i < DRM_BUFFERS_COUNT; i++) {
         drm_destory_dumb(&drm_dev.drm_bufs[i]);
     }
     for(int i = 0; i < DRM_BUFFERS_COUNT; i++) {
         drm_destory_dumb(&drm_dev.drm_bufs_argb[i]);
     }
-    mediactl_exit(); 
+    mediactl_exit();  
     return 0;
 }

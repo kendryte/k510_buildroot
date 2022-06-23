@@ -1,6 +1,6 @@
-set(SRC main.cc cv2_utils.cc object_detect.cc ../common/k510_drm.c)
-set(bin object_detect_opencv)
-set(script ../shell/object_detect_opencv_bf16.sh ../shell/object_detect_opencv_uint8.sh)
+set(SRC main.cc cv2_utils.cc object_detect.cc ../common/k510_drm.c ../common/v4l2.c)
+set(bin object_detect_demo)
+set(script ../shell/object_detect_demo_bf16.sh ../shell/object_detect_demo_uint8.sh)
 set(input ../imx219_0.conf ../imx219_1.conf ../video_192x320.conf)
 
 
