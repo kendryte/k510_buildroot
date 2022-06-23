@@ -127,7 +127,6 @@ jobs:
       - name: Get Available DUT
         id: get_dut
         run: |
-          set -x
           echo "get available DUT"
           export HW_MODEL=`echo ${{ matrix.cfg }}|awk -F '_' '{print $1}'`
           export HW_VER=`echo ${{ matrix.cfg }}|awk -F '_' '{print $3"."$4}'`
@@ -148,13 +147,14 @@ jobs:
       - name: Reserve DUT
         id: reserve_dut
         run: |
-          set -x
           echo "reserve DUT"
           echo "${{ env.available }}"
           test -d bin || mkdir ./bin
           test -f ./bin/dut && rm -rf ./bin/dut
           wget -qc https://ai.b-bug.org/k510_buildroot/github/dut -O ./bin/dut
           chmod +x ./bin/dut
+          echo $PULL_REQUEST_ID
+          echo $GITHUB_RUN_ID
           reserved=$(./bin/dut add ${{ env.available }} --site github-actions --source $PULL_REQUEST_ID --job $GITHUB_RUN_ID --format args)
           echo $reserved
           echo "reserved=$reserved" >> $GITHUB_ENV
@@ -197,7 +197,6 @@ jobs:
         id: release_dut
         if: ${{ always() }}
         run: |
-          set -x
           echo "release DUT"
           echo "${{ env.reserved }}"
           test -d bin || mkdir ./bin
