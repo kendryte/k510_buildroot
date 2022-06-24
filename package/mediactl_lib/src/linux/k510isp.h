@@ -123,6 +123,18 @@
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 40,unsigned long)
 #define VIDIOC_K510ISP_SYSCTL_RST_R2K \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 41,unsigned long)
+#define VIDIOC_K510ISP_F2K_AWB_VAL_GET \
+	_IOWR('V', BASE_VIDIOC_PRIVATE + 42, struct k510isp_awb_sync_info)
+#define VIDIOC_K510ISP_R2K_AWB_VAL_SET \
+	_IOWR('V', BASE_VIDIOC_PRIVATE + 43, struct k510isp_awb_sync_info)
+#define VIDIOC_K510ISP_F2K_CORE_REG_SET \
+	_IOWR('V', BASE_VIDIOC_PRIVATE + 44, struct k510isp_reg_val)
+#define VIDIOC_K510ISP_F2K_CORE_REG_GET \
+	_IOWR('V', BASE_VIDIOC_PRIVATE + 45, struct k510isp_reg_val)
+#define VIDIOC_K510ISP_R2K_CORE_REG_SET \
+	_IOWR('V', BASE_VIDIOC_PRIVATE + 46, struct k510isp_reg_val)
+#define VIDIOC_K510ISP_R2K_CORE_REG_GET \
+	_IOWR('V', BASE_VIDIOC_PRIVATE + 47, struct k510isp_reg_val)
 //
 /*
  * Events
@@ -175,6 +187,11 @@ struct k510isp_awb_config{
     //
     __u32 awb_r_obj;//White balance object value of red
     __u32 awb_b_obj;//White balance object value of blue
+};
+
+struct k510isp_awb_sync_info {
+    __u32 awb_ar; // AWB value of red
+    __u32 awb_ab; // AWB value of blue
 };
 
 struct k510isp_awb_stats{
@@ -292,5 +309,10 @@ struct k510isp_stat_event_status {
 	__u32 frame_number;
 	__u16 config_counter;
 	__u8 buf_err;
+};
+
+struct k510isp_reg_val {
+    __u32 reg_addr;
+    __u32 reg_value;
 };
 #endif

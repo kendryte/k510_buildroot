@@ -86,6 +86,8 @@ int fd_mem_map = -1;
 int *virtual_addr[MEMORY_TEST_BLOCK_NUM]= {0};
 bool DualCamera_Sync = TRUE;
 bool Sensor1_Sync = FALSE;
+bool Awb_Sync_Init = TRUE;
+
 
 
 struct share_memory_alloc_align_args    allocAlignMem[MEMORY_TEST_BLOCK_NUM] = {0};
@@ -673,6 +675,54 @@ static int isp_r2k_set_format(struct v4l_isp_device *isp)
 	
 	return 0;
 }
+
+#define ISP_CORE_AWB_CTL (0x0104)
+#define ISP_CORE_AWB_HANDLE_MODE (0x03f7)
+#define ISP_CORE_AWB_HANDLE_MODE_CHECK (0x0008)
+
+/**
+ * @brief
+ *
+ */
+static int isp_awb_sync_init()
+{
+	int ret;
+	struct k510isp_reg_val r2k_awb_reg_val,r2k_awb_reg_val_write;
+	struct media_entity *pipe_f2k,*pipe_r2k;
+	pipe_r2k = v4l_isp.r2k;
+
+	r2k_awb_reg_val.reg_addr = ISP_CORE_AWB_CTL;
+	r2k_awb_reg_val.reg_value = 0x0000;
+
+	ret = v4l2_subdev_open(pipe_r2k);
+	if (ret < 0)
+		return ret;
+	// get r2k awb ctl value
+	ret = ioctl(pipe_r2k->fd,VIDIOC_K510ISP_R2K_CORE_REG_GET,&r2k_awb_reg_val);
+	if (ret < 0)
+	{
+		printf("%s: ioctl(VIDIOC_K510ISP_R2K_CORE_REG_GET) failed ret(%d)\n", __func__,ret);
+		v4l2_subdev_close(pipe_r2k);
+		return ret;
+	}
+	// check r2k is handle mode or not, if auto mode then set to handle mode
+	if ((r2k_awb_reg_val.reg_value & ISP_CORE_AWB_HANDLE_MODE_CHECK) == ISP_CORE_AWB_HANDLE_MODE_CHECK)
+	{
+		r2k_awb_reg_val_write.reg_addr = ISP_CORE_AWB_CTL;
+		r2k_awb_reg_val_write.reg_value = r2k_awb_reg_val.reg_value & ISP_CORE_AWB_HANDLE_MODE;
+		ret = ioctl(pipe_r2k->fd,VIDIOC_K510ISP_R2K_CORE_REG_SET,&r2k_awb_reg_val_write);
+		if (ret < 0)
+		{
+			printf("%s: ioctl(VIDIOC_K510ISP_R2K_CORE_REG_SET) failed ret(%d)\n", __func__,
+				ret);
+			v4l2_subdev_close(pipe_r2k);
+			return ret;
+		}
+	}
+	v4l2_subdev_close(pipe_r2k);
+	return 0;
+}
+
 /**
  * @brief 
  * 
@@ -1021,7 +1071,11 @@ int mediactl_init(char *video_cfg_file,struct video_info *dev_info)
 	}
 	else
 	{
-	  	ret = mediactl_set_ae_sync(pipeline);
+		if(pipeline == ISP_F2K_PIPELINE)
+		{
+			ret = mediactl_set_ae_sync(pipeline);
+			ret = mediactl_set_awb_sync(pipeline);
+		}
 	}
 	return ret;
 }
@@ -1256,6 +1310,62 @@ int mediactl_set_ae_sync(enum isp_pipeline_e pipeline)
 		}
 	}
 	
+	return 0;
+}
+
+int mediactl_set_awb_sync(enum isp_pipeline_e pipeline)
+{
+	int ret;
+	struct k510isp_awb_sync_info awb_sync_info;
+	static unsigned int awb_prev_frame_rgain = 0,awb_prev_frame_bgain = 0;
+	struct media_entity *pipe_f2k,*pipe_r2k;
+	pipe_f2k = v4l_isp.f2k;
+	pipe_r2k = v4l_isp.r2k;
+
+	if(Awb_Sync_Init)
+	{
+		isp_awb_sync_init();
+		Awb_Sync_Init = FALSE;
+	}
+
+	if(ISP_F2K_PIPELINE == pipeline)
+	{
+		// get f2k awb ctl mode auto or handle
+		ret = v4l2_subdev_open(pipe_f2k);
+		if (ret < 0)
+			return ret;
+
+		ret = v4l2_subdev_open(pipe_r2k);
+		if (ret < 0)
+			return ret;
+
+		// get f2k AWB GAIN VALUE
+		ret = ioctl(pipe_f2k->fd,VIDIOC_K510ISP_F2K_AWB_VAL_GET,&awb_sync_info);
+		if (ret < 0)
+		{
+			printf("%s: ioctl(VIDIOC_K510ISP_F2K_AWB_VAL_GET) failed ret(%d)\n", __func__,ret);
+			v4l2_subdev_close(pipe_f2k);
+			return ret;
+		}
+
+		// if value change set f2k AWB GAIN VALUE to r2k
+		if ((awb_sync_info.awb_ar != awb_prev_frame_rgain) || (awb_sync_info.awb_ab != awb_prev_frame_bgain))
+		{
+			if (ret < 0)
+				return ret;
+			ret = ioctl(pipe_r2k->fd,VIDIOC_K510ISP_R2K_AWB_VAL_SET,&awb_sync_info);
+			if (ret < 0)
+			{
+				printf("%s: ioctl(VIDIOC_K510ISP_R2K_AWB_VAL_SET) failed ret(%d)\n", __func__,ret);
+				v4l2_subdev_close(pipe_r2k);
+				return ret;
+			}
+		}
+		awb_prev_frame_rgain = awb_sync_info.awb_ar;
+		awb_prev_frame_bgain = awb_sync_info.awb_ab;
+		v4l2_subdev_close(pipe_f2k);
+		v4l2_subdev_close(pipe_r2k);
+	}
 	return 0;
 }
 
