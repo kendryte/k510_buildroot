@@ -95,11 +95,16 @@ void main(int argc, char **argv)
     char str_dev[30];
      if (argc != 2)
     {
-      printf("Please input uart number 0、1、2\n");
+      printf("Please input uart number 0、1\n");
       return 0;
     }
     printf("请输入要发送的内容:");
-    scanf("%45s", &send_str);
+    scanf("%[^\n]", &send_str);
+    if(strlen(send_str) >= 50)
+    {
+        printf("输入字符长度不得高于50字节\n");
+        return;
+    }
     int num = atoi(argv[1]);
     sprintf(str_dev, "/dev/ttyS%d", num);
     fd = open(str_dev, O_RDWR | O_NOCTTY);
