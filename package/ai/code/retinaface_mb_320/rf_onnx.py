@@ -98,6 +98,7 @@ def main():
     compile_options.std = [1, 1, 1]
     # 如果输入是‘uint8’格式，输入反量化之后的范围
     compile_options.input_range = [0, 255]
+    compile_options.swapRB = True
 
     # import_options
     import_options = nncase.ImportOptions()
