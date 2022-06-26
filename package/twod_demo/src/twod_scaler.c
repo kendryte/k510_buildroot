@@ -170,7 +170,7 @@ static void twod_set_des_picture(struct buffer_object *bo)
 #endif
 	bo->pitch = bo->width;
 	bo->bpp = 8;
-	bo->size = bo->width * bo->height * 3 / 2; // yuv422
+	bo->size = bo->pitch * bo->height * 3 / 2 ;			// yuv422
 	bo->format = TWOD_FORMAT_YUV420SP;
 }
 
@@ -180,9 +180,9 @@ void twod_config_scaler_image(struct td_image_info *td_info,
 	td_info->act_w = buf->width;
 	td_info->act_h = buf->height;
 	td_info->format = buf->format;
+	td_info->pitch = buf->pitch;
 	td_info->yrgb_addr = buf->yrgb_addr;
-	td_info->uv_addr =
-		buf->uv_addr; // buf->yrgb_addr + (buf->pitch * buf->height);
+	td_info->uv_addr = buf->uv_addr; // buf->yrgb_addr + (buf->pitch * buf->height);
 	td_info->v_addr = 0;
 	td_info->bpp = buf->bpp;
 	td_info->v_step = buf->v_step;
@@ -276,7 +276,7 @@ int main(void)
 	twod_flashdateCache(fd_share_memory, buf[0].yrgb_addr, buf[0].vaddr,
 			    buf[0].size);
 
-	twod_set_scaler(fd, src, des);
+	twod_set_scaler(fd, src, des, 0);
 
 	twod_wait_vsync(fd);
 

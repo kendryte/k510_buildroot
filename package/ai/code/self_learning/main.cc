@@ -133,11 +133,17 @@ void ai_worker(ai_worker_args ai_args)
     int train_cnt = 0;
     while(quit.load()) 
     {
+        bool ret = false;
         bool is_show = false;
         ScopedTiming st("total", 0);
         mtx.lock();
-        capture.read(rgb24_img_for_ai);
+        ret = capture.read(rgb24_img_for_ai);
         mtx.unlock();
+        if(ret == false)
+        {
+            quit.store(false);
+            continue; // 
+        }
         if(enable_dump_image)
         {
             std::vector<cv::Mat>ori_imgparts(3);
@@ -161,12 +167,7 @@ void ai_worker(ai_worker_args ai_args)
             fbuf_argb = &drm_dev.drm_bufs_argb[drm_bufs_argb_index];
             img_argb = cv::Mat(DRM_INPUT_HEIGHT, DRM_INPUT_WIDTH, CV_8UC4, (uint8_t *)fbuf_argb->map);
 
-            if(obj_cnt == 0)
-            {
-                img_argb.setTo(cv::Scalar(0, 0, 0, 0));
-            }
-
-            for(uint32_t i = 0; i < obj_cnt; i++)
+            for(uint32_t i = 0; i < 32; i++)
             {
                 if(i == 0)
                 {
@@ -189,10 +190,18 @@ void ai_worker(ai_worker_args ai_args)
                 frame.crtc_id = drm_dev.crtc_id;
                 frame.draw_en = 1;
                 frame.frame_num = obj_cnt;
-                frame.line_x_end = DRM_INPUT_WIDTH / 2  - ((1 - 2 * MARGIN) * DRM_INPUT_HEIGHT) / 2;
-                frame.line_x_start = DRM_INPUT_WIDTH / 2  + ((1 - 2 * MARGIN) * DRM_INPUT_HEIGHT) / 2;
-                frame.line_y_start = (MARGIN) * DRM_INPUT_HEIGHT + DRM_OFFSET_HEIGHT;
-                frame.line_y_end = (1 - MARGIN) * DRM_INPUT_HEIGHT + DRM_OFFSET_HEIGHT;
+                int x1 = DRM_INPUT_WIDTH / 2  + ((1 - 2 * MARGIN) * DRM_INPUT_HEIGHT) / 2;
+				int x0 = DRM_INPUT_WIDTH / 2  - ((1 - 2 * MARGIN) * DRM_INPUT_HEIGHT) / 2;
+				int y0 = (MARGIN) * DRM_INPUT_HEIGHT;
+				int y1 = (1 - MARGIN) * DRM_INPUT_HEIGHT;
+				x1 = std::max(0, std::min(x1, DRM_INPUT_WIDTH));
+				x0 = std::max(0, std::min(x0, DRM_INPUT_WIDTH));
+				y0 = std::max(0, std::min(y0, DRM_INPUT_HEIGHT));
+				y1 = std::max(0, std::min(y1, DRM_INPUT_HEIGHT));
+				frame.line_x_start = x0;
+				frame.line_x_end = x1;
+				frame.line_y_start = y0 + DRM_OFFSET_HEIGHT;
+				frame.line_y_end = y1 + DRM_OFFSET_HEIGHT;
                 draw_frame(&frame);
                 {
                     ScopedTiming st("fe process", enable_profile);
@@ -210,19 +219,15 @@ void ai_worker(ai_worker_args ai_args)
                 float* insight_fe = reinterpret_cast<float *>(fsight.virtual_addr_output);
                 uint32_t score_index = 0;
 			    float score_max = 0;
-                if(out_loop_cnts >= max_register_obj)
-                {
-                    out_loop_cnts = max_register_obj;
-                }
-                else
-                {
-                    out_loop_cnts = valid_register_obj;
-                }
                 std::string cls_name;
                 int first_time_to_remind_out = 0;
                 while(1)
                 {                
                     pressed_key = key_values;
+                    if(pressed_key == KEY_NONE)
+                    {
+                        break;
+                    }
                     if(pressed_key == KEY_NEXT)
                     {        
                         key_values = 0;                                
@@ -289,7 +294,8 @@ void ai_worker(ai_worker_args ai_args)
                     }
                 } 
                 if(enter_recorg)
-                {           
+                {  
+                    out_loop_cnts = valid_register_obj >= max_register_obj ? max_register_obj : valid_register_obj;          
                     score_index = fsight.calulate_score(insight_fe, fsight.embs, out_loop_cnts, &score_max);
                     if(score_max >= thresh)
                     {
@@ -334,7 +340,7 @@ void ai_worker(ai_worker_args ai_args)
     mtx.lock();
     capture.release();
     mtx.unlock();
-    for(uint32_t i = 0; i < obj_cnt; i++)
+    for(uint32_t i = 0; i < 32; i++)
     {
         struct vo_draw_frame frame;
         frame.crtc_id = drm_dev.crtc_id;
@@ -361,10 +367,16 @@ void display_worker(int enable_profile)
         fbuf_yuv = &drm_dev.drm_bufs[drm_bufs_index];
         cv::Mat org_img(DRM_INPUT_HEIGHT * 3 / 2, (DRM_INPUT_WIDTH + 15) / 16 * 16, CV_8UC1, fbuf_yuv->map);
         {
+            bool ret = false;
             ScopedTiming st("capture read",enable_profile);
             mtx.lock();
-            capture.read(org_img);
+            ret = capture.read(org_img);
             mtx.unlock();
+            if(ret == false)
+            {
+                quit.store(false);
+                continue; // 
+            }
         }
 
         if (drm_dev.req)
@@ -428,11 +440,13 @@ int main(int argc, char *argv[])
 
 
     /****fixed operation for drm init****/
-    drm_init();
+    if(drm_init())
+        return -1;
 
 
     /****fixed operation for mediactl init****/
-    mediactl_init(video_cfg_file, &dev_info[0]);
+    if(mediactl_init(video_cfg_file, &dev_info[0]))
+        return -1;
 
 
     // create thread for display
@@ -455,5 +469,6 @@ int main(int argc, char *argv[])
         drm_destory_dumb(&drm_dev.drm_bufs_argb[i]);
     }
     
+	mediactl_exit();
     return 0;
 }

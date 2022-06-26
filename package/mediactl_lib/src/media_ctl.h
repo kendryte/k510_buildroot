@@ -79,6 +79,10 @@ struct video_info
 int mediactl_init(char *video_cfg_file,struct video_info *dev_info);
 void mediactl_exit(void);
 int mediactl_set_ae(enum isp_pipeline_e pipeline);
+int mediactl_set_ae_single(enum isp_pipeline_e pipeline);
+int mediactl_set_ae_sync(enum isp_pipeline_e pipeline);
+int mediactl_set_awb_sync(enum isp_pipeline_e pipeline);
+
 unsigned int mediactl_get_isp_modules(enum isp_pipeline_e pipeline,enum isp_modules module);
 #ifdef __cplusplus
 } 

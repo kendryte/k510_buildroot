@@ -1,0 +1,459 @@
+From a2b7ae9def1e995b933282943934bae1e2061034 Mon Sep 17 00:00:00 2001
+From: zhaoshuaiadada <zhaoshuai@canaan-creative.com>
+Date: Wed, 15 Jun 2022 13:49:32 +0800
+Subject: [PATCH] twod add driver
+
+---
+ drivers/video/canaan/twod/kendryte_td.c     |  77 ++++++++++-
+ drivers/video/canaan/twod/kendryte_td.h     |  42 +++++-
+ drivers/video/canaan/twod/kendryte_td_reg.c | 134 +++++++++++++++++++-
+ 3 files changed, 237 insertions(+), 16 deletions(-)
+
+diff --git a/drivers/video/canaan/twod/kendryte_td.c b/drivers/video/canaan/twod/kendryte_td.c
+index f91af66d..d6da420c 100755
+--- a/drivers/video/canaan/twod/kendryte_td.c
++++ b/drivers/video/canaan/twod/kendryte_td.c
+@@ -60,6 +60,9 @@ static void kendryte_twod_init(struct kendryte_td *kendryte_td)
+     kendryte_rot_default_config(kendryte_td);
+ 
+     kedryte_td_scaler_init(kendryte_td);
++
++    kedryte_td_osd_init(kendryte_td);
++
+ }
+ 
+ 
+@@ -108,6 +111,8 @@ static long kendryte_td_ioctl(struct file *filp, unsigned int cmd, unsigned long
+ 				break;
+ 			}
+ 
++            printk("info.mode is %d \n", info.mode);
++
+             if(atomic_read(&kendryte_td->twod_num) == 0)
+             {
+                 // first 
+@@ -118,6 +123,10 @@ static long kendryte_td_ioctl(struct file *filp, unsigned int cmd, unsigned long
+ 
+                         kendryte_rot_reg_src_info(kendryte_td, &info.src, TWOD_ROT_90);
+                         kendryte_rot_reg_dst_info(kendryte_td, &info.dsc);
++
++                        // close osd0 
++                       // kendryte_set_osd_enable(kendryte_td, 0);
++
+                      //   kendrty_2d_get_reg_val(kendryte_td);
+                         kendryte_rot_setframe_start(kendryte_td, 1);
+                         kendryte_rot_setframe_start(kendryte_td, 0);
+@@ -127,25 +136,74 @@ static long kendryte_td_ioctl(struct file *filp, unsigned int cmd, unsigned long
+                     case TWOD_ROT_270 :
+                         kendryte_rot_reg_src_info(kendryte_td, &info.src, TWOD_ROT_270);
+                         kendryte_rot_reg_dst_info(kendryte_td, &info.dsc);
++
++                        // close osd0 
++                       // kendryte_set_osd_enable(kendryte_td, 0);
++
++
+                      //   kendrty_2d_get_reg_val(kendryte_td);
+                         kendryte_rot_setframe_start(kendryte_td, 1);
+                         kendryte_rot_setframe_start(kendryte_td, 0);
+                         break;
+                     
+                     case TWOD_SCALE :
+-                    #if 1
++
++                        kendryte_tb_set_layer0_aplha(kendryte_td, 0xff);
++
+                         kendryte_td_layer0_set_config(kendryte_td, &info.src);
+                         kendryte_td_wb_set_config(kendryte_td, &info.dsc);
+-                        printk("td_info->v_step is %x  td_info->h_step is %x \n", info.src.v_step, info.src.h_step);
++                      
++                        // close osd0 
++                        kendryte_set_osd_enable(kendryte_td, 0);
+                         
+                         kendryte_scaler_start_frame(kendryte_td, 1);
+                         kendryte_scaler_start_frame(kendryte_td, 0);
+ 
+-                      //  kendrty_2d_get_reg_val(kendryte_td);
++                        //kendrty_2d_get_reg_val(kendryte_td);
++                        //kendryte_scaler_get_reg_val(kendryte_td);
++
++                        break;
++
++                    case TWOD_SET_OSD:
++
++                        kendryte_set_osd(kendryte_td, &info.src);
++                        kendryte_set_osd_enable(kendryte_td, 1);
++
++                        break;
++
++                    
++                    case TWOD_SCALE_OSD :   
++
++                        kendryte_tb_set_layer0_aplha(kendryte_td, 0xff);
++
++                        kendryte_td_layer0_set_config(kendryte_td, &info.src);
++                        kendryte_td_wb_set_config(kendryte_td, &info.dsc);
++
++                        kendryte_scaler_start_frame(kendryte_td, 1);
++                        kendryte_scaler_start_frame(kendryte_td, 0);
++
++                     //   kendrty_2d_get_reg_val(kendryte_td);
+                       //  kendryte_scaler_get_reg_val(kendryte_td);
+-                    #endif
++
+                         break;
+                     
++                    case TWOD_ONLY_OSD :
++
++                        // close layer0 
++                      //  kendryte_td_scaler_layer0_set_status(kendryte_td, 0);
++                        kendryte_tb_set_layer0_aplha(kendryte_td, 0x00);
++
++                        kendryte_td_layer0_set_config(kendryte_td, &info.src);
++                        kendryte_td_wb_set_config(kendryte_td, &info.dsc);
++
++                        kendryte_scaler_start_frame(kendryte_td, 1);
++                        kendryte_scaler_start_frame(kendryte_td, 0);
++
++                        break;
++
++                    default :
++                        printk("input mode does not exist \n");
++                        break;
+                 }
+             }else{
+                 // add list 
+@@ -157,10 +215,17 @@ static long kendryte_td_ioctl(struct file *filp, unsigned int cmd, unsigned long
+                 mutex_unlock(&kendryte_td->mutex);
+             }
+             
+-            val = atomic_read(&kendryte_td->twod_num) + 1;
+-            atomic_set(&kendryte_td->twod_num, val);
++            if(info.mode != TWOD_SET_OSD)
++            {
++                val = atomic_read(&kendryte_td->twod_num) + 1;
++                atomic_set(&kendryte_td->twod_num, val);
++            }
+ 
+             break;
++
++        default :
++            break;
++
+     }
+ 
+     return ret;
+diff --git a/drivers/video/canaan/twod/kendryte_td.h b/drivers/video/canaan/twod/kendryte_td.h
+index af3eebcb..605d7b17 100755
+--- a/drivers/video/canaan/twod/kendryte_td.h
++++ b/drivers/video/canaan/twod/kendryte_td.h
+@@ -1,9 +1,9 @@
+-/* Copyright (c) 2022, Canaan Bright Sight Co., Ltd
+- *
+- * This program is free software; you can redistribute it and/or modify
+- * it under the terms of the GNU General Public License version 2 as
+- * published by the Free Software Foundation.
+-*/
++/* Copyright (c) 2022, Canaan Bright Sight Co., Ltd
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software Foundation.
++*/
+ #ifndef __KENDRYTE_TD_H__
+ #define __KENDRYTE_TD_H__
+ 
+@@ -124,24 +124,46 @@
+ #define  TD_SCALER_YUV2RGB_COEFF22                 (0x3AC+ 0x800)
+ #define  TD_SCALER_YUV2RGB_COEFF23                 (0x3B0+ 0x800)
+ 
++// osd config 
++#define  TD_DISP_OSD0_SIZE                         (0x284+ 0x800)
++#define  TD_DISP_OSD0_INFO                         (0x280+ 0x800)
++#define  TD_DISP_OSD0_VLU_ADDR0                    (0x288+ 0x800)
++#define  TD_DISP_OSD0_ALP_ADDR0                    (0x28c+ 0x800)
++#define  TD_DISP_LAYER4_XCTL                       (0x0e8+ 0x800)
++#define  TD_DISP_LAYER4_YCTL                       (0x0ec+ 0x800)
++#define  TD_DISP_OSD0_DMA_CTRL                     (0x298+ 0x800)
++#define  TD_DISP_OSD0_STRIDE                       (0x29c+ 0x800)
++#define  TD_OSD_RGB2YUV_CTL                        (0x340+ 0x800)
++
+ #define  KENDRYTE_TWOD_GET_VERSION                  _IOWR('T', 0, unsigned long)
+ #define  KENDRYTE_TWOD_ASYNC                        _IOWR('T', 1, unsigned long)
+ #define  KENDRYTE_TWOD_SYNC                         _IOWR('T', 2, unsigned long)
+ #define  KENDRYTE_TWOD_SET_DATA                     _IOWR('T', 3, unsigned long)
+ 
+ 
++
++
+ enum TWOD_FORMAT {
+     TWOD_FORMAT_Y = 0,
+     TWOD_FORMAT_YUV420SP = 1,
+     TWOD_FORMAT_YUV422SP = 2,
+     TWOD_FORMAT_RGB888 = 3,
+     TWOD_FORMAT_ARGB8888 = 4,
++    TWOD_FORMAT_RGB565 = 5,
++    TWOD_FORMAT_RGB4444 = 6,
++    TWOD_FORMAT_RGB1555 = 7,
++    TWOD_FORMAT_MONOCNROME_8 = 8,
+ };
+ 
+ enum TWOD_MODE {
+     TWOD_ROT_90 = 1,
+     TWOD_ROT_270 = 2,
+     TWOD_SCALE = 3,
++    TWOD_SET_OSD = 4,
++    TWOD_ROT_OSD_90 = 5,
++    TWOD_ROT_OSD_270 = 6,
++    TWOD_SCALE_OSD = 7,
++    TWOD_ONLY_OSD = 8,
+ };
+ 
+ enum TWOD_INTR_STATUS {
+@@ -236,13 +258,21 @@ void kendrty_2d_get_reg_val(struct kendryte_td *kendryte_td);
+ void kendryte_rot_default_config(struct kendryte_td *kendryte_td);
+ void kendryte_rot_setframe_start(struct kendryte_td *kendryte_td, int val);
+ 
++void kendryte_tb_set_layer0_aplha(struct kendryte_td *kendryte_td, uint32_t val);
++
+ // scaler 
+ void kendryte_scaler_start_frame(struct kendryte_td *kendryte_td, uint32_t enable);
+ void kendryte_td_wb_set_config(struct kendryte_td *kendryte_td, struct td_image_info *info);
+ void kendryte_td_layer0_set_config(struct kendryte_td *kendryte_td, struct td_image_info *info);
+ void kedryte_td_scaler_init(struct kendryte_td *kendryte_td);
+ void kendryte_scaler_get_reg_val(struct kendryte_td *kendryte_td);
++void kendryte_td_scaler_layer0_set_status(struct kendryte_td *kendryte_td, uint32_t status);
+ 
+ void kendryte_td_set_scaler_table(struct kendryte_td *kendryte_td);
+ void kedryte_td_scaler_sw_config(struct kendryte_td *kendryte_td);
++
++void kendryte_set_osd(struct kendryte_td *kendryte_td, struct td_image_info *info);
++void kendryte_set_osd_enable(struct kendryte_td *kendryte_td, int status);
++void kedryte_td_osd_init(struct kendryte_td *kendryte_td);
++
+ #endif
+\ No newline at end of file
+diff --git a/drivers/video/canaan/twod/kendryte_td_reg.c b/drivers/video/canaan/twod/kendryte_td_reg.c
+index d4f7a0ac..9d2979c4 100755
+--- a/drivers/video/canaan/twod/kendryte_td_reg.c
++++ b/drivers/video/canaan/twod/kendryte_td_reg.c
+@@ -460,6 +460,12 @@ void kedryte_td_scaler_sw_config(struct kendryte_td *kendryte_td)
+     writel(0x00000011, kendryte_td->base + 0x808);
+ }
+ 
++// 
++void kendryte_tb_set_layer0_aplha(struct kendryte_td *kendryte_td, uint32_t val)
++{
++    writel(val, kendryte_td->base + TD_SCALER_LAYER0_GLB_ALPHA0);
++}
++
+ 
+ void kedryte_td_scaler_init(struct kendryte_td *kendryte_td)
+ {
+@@ -498,7 +504,8 @@ void kedryte_td_scaler_init(struct kendryte_td *kendryte_td)
+     writel(reg, kendryte_td->base + TD_SCALER_DISP_ENABLE);
+ #else
+     reg = readl(kendryte_td->base + TD_SCALER_DISP_ENABLE);
+-    reg = (reg & ~(GENMASK(7, 4))) | (6 << 4);
++    reg = (reg & ~(GENMASK(7, 5))) | (7 << 5);
++	//reg = (reg & ~(GENMASK(7, 4))) | (6 << 4);
+     writel(reg, kendryte_td->base + TD_SCALER_DISP_ENABLE);
+ #endif
+     // set csc
+@@ -544,7 +551,7 @@ static void kendryte_td_scaler_layer0_set_out_size(struct kendryte_td *kendryte_
+     writel(reg, kendryte_td->base + TD_SCALER_LAYER0_OUT_PIX_SIZE);
+ }
+ 
+-static void kendryte_td_scaler_layer0_set_status(struct kendryte_td *kendryte_td, uint32_t status)
++void kendryte_td_scaler_layer0_set_status(struct kendryte_td *kendryte_td, uint32_t status)
+ {
+     writel(status, kendryte_td->base + TD_SCALER_LAYER0_CRTL);
+ }
+@@ -697,12 +704,23 @@ void kendryte_td_wb_set_config(struct kendryte_td *kendryte_td, struct td_image_
+         writel(reg, kendryte_td->base + TD_WB_PIXEL_FORMAT_OUT);
+ 
+     }
++    else if(info->format == TWOD_FORMAT_RGB888)
++    {
++        // set argb8888 format 
++        reg = readl(kendryte_td->base + TD_WB_PIXEL_FORMAT_OUT);
++        reg = (reg & ~(GENMASK(3, 0))) | (0 << 0);
++        writel(reg, kendryte_td->base + TD_WB_PIXEL_FORMAT_OUT);
++
++        reg = readl(kendryte_td->base + TD_WB_PIXEL_FORMAT_OUT);
++        reg = (reg & ~(GENMASK(7, 4))) | (0x0e << 4);
++        writel(reg, kendryte_td->base + TD_WB_PIXEL_FORMAT_OUT);
++    }
+     else if(info->format ==TWOD_FORMAT_YUV420SP)
+     {
+         reg = readl(kendryte_td->base + TD_WB_PIXEL_FORMAT_OUT);
+         reg = (reg & ~(GENMASK(2, 0))) | (5 << 0);
+         writel(reg, kendryte_td->base + TD_WB_PIXEL_FORMAT_OUT);
+-
++#if 0
+         // write stride
+         if(info->bpp == 0)
+         {
+@@ -713,6 +731,7 @@ void kendryte_td_wb_set_config(struct kendryte_td *kendryte_td, struct td_image_
+         
+         writel(stride, kendryte_td->base + TD_WB_HSTRIDE_OUT_Y);
+         writel(stride, kendryte_td->base + TD_WB_HSTRIDE_OUT_UV);
++#endif
+ 
+     }
+     else if(info->format ==TWOD_FORMAT_YUV422SP)
+@@ -721,6 +740,7 @@ void kendryte_td_wb_set_config(struct kendryte_td *kendryte_td, struct td_image_
+         reg = (reg & ~(GENMASK(4, 0))) | (1 << 0);
+         writel(reg, kendryte_td->base + TD_WB_PIXEL_FORMAT_OUT);
+ 
++#if 0
+         // write stride
+         if(info->bpp == 0)
+         {
+@@ -733,9 +753,16 @@ void kendryte_td_wb_set_config(struct kendryte_td *kendryte_td, struct td_image_
+ 
+         writel(stride, kendryte_td->base + TD_WB_HSTRIDE_OUT_Y);
+         writel(stride, kendryte_td->base + TD_WB_HSTRIDE_OUT_UV);
++#endif
+ 
+     }
+ 
++    stride = info->pitch;
++
++    writel(stride, kendryte_td->base + TD_WB_HSTRIDE_OUT_Y);
++    writel(stride, kendryte_td->base + TD_WB_HSTRIDE_OUT_UV);
++
++
+     // set wb addr 
+     writel(info->yrgb_addr, kendryte_td->base + TD_WB_OUT_ADDR0_Y);
+     writel(info->yrgb_addr, kendryte_td->base + TD_WB_OUT_ADDR1_Y);
+@@ -761,12 +788,14 @@ void kendryte_td_wb_set_config(struct kendryte_td *kendryte_td, struct td_image_
+ #else
+     reg = readl(kendryte_td->base + TD_SCALER_XZONE_CTL);
+     reg = (reg & ~(GENMASK(28, 16))) | ((198 + info->act_w - 1) << 16);
++   // reg = (reg & ~(GENMASK(28, 16))) | ((198 + info->act_w) << 16);
+     writel(reg, kendryte_td->base + TD_SCALER_XZONE_CTL);
+     writel(reg, kendryte_td->base + TD_SCALER_LAYER0_XCTL);
+ 
+     // set yzone ystart
+     reg = readl(kendryte_td->base + TD_SCALER_YZONE_CTL);
+     reg = (reg & ~(GENMASK(28, 16))) | ((42 + info->act_h - 1) << 16);
++   // reg = (reg & ~(GENMASK(28, 16))) | ((42 + info->act_h) << 16);
+     writel(reg, kendryte_td->base + TD_SCALER_YZONE_CTL);
+     writel(reg, kendryte_td->base + TD_SCALER_LAYER0_YCTL);
+ #endif
+@@ -774,7 +803,9 @@ void kendryte_td_wb_set_config(struct kendryte_td *kendryte_td, struct td_image_
+     // write totle szie 
+     reg = readl(kendryte_td->base + TD_SCALER_YZONE_CTL) & 0xff;
+     total_hsize = info->act_w * 110 / 100 + 192;
+-    total_vsize = info->act_h + 3 + reg;
++    //total_vsize = info->act_h + 3 + reg;
++    total_vsize = info->act_h  + reg; 
++
+     writel((total_vsize&0x1FFF)<<16|(total_hsize&0x1FFF), kendryte_td->base + TD_SCALER_LAYER0_DISP_SIZE);
+ 
+     // set layer0 out size
+@@ -838,6 +869,101 @@ void kendryte_scaler_get_reg_val(struct kendryte_td *kendryte_td)
+     }
+ }
+ 
++void kedryte_td_osd_init(struct kendryte_td *kendryte_td)
++{
++    uint32_t reg = 0;
++
++    // set argb wei 5
++    reg = readl(kendryte_td->base + TD_DISP_OSD0_INFO);
++    reg = (reg & ~(GENMASK(6, 4))) | (0 << 4);
++    writel(reg, kendryte_td->base + TD_DISP_OSD0_INFO);
++
++    writel(0x4f, kendryte_td->base + TD_DISP_OSD0_DMA_CTRL);
++}
++
++
++void kendryte_set_osd_enable(struct kendryte_td *kendryte_td, int status)
++{
++    uint32_t reg;
++
++    reg = readl(kendryte_td->base + TD_SCALER_DISP_ENABLE);
++    reg = (reg & ~(BIT_MASK(4))) | (status << 4);
++    writel(reg, kendryte_td->base + TD_SCALER_DISP_ENABLE);
++}
++
++
++void kendryte_set_osd(struct kendryte_td *kendryte_td, struct td_image_info *info)
++{
++
++    uint32_t reg = 0;
++    // set act size
++    reg = info->act_w + (info->act_h << 16);
++    writel(reg, kendryte_td->base + TD_DISP_OSD0_SIZE);
++
++    printk("info->x_offset ios %d info->y_offset is %d \n", info->x_offset, info->y_offset);
++    // set osd postision
++    reg = (198 + info->x_offset) + ((198 + info->x_offset + info->act_w - 1) << 16);
++    writel(reg, kendryte_td->base + TD_DISP_LAYER4_XCTL);
++
++    reg = (46 - 3 + info->y_offset) + ((46 - 3  + info->y_offset + info->act_h - 1) << 16);
++    writel(reg, kendryte_td->base + TD_DISP_LAYER4_YCTL);
++
++    //set addr
++    writel(info->yrgb_addr, kendryte_td->base + TD_DISP_OSD0_VLU_ADDR0);
++    writel(info->yrgb_addr, kendryte_td->base + TD_DISP_OSD0_ALP_ADDR0);
++
++    printk("osd info->pitch is %d \n", info->pitch);
++    // set stride 
++    //reg = (info->pitch) + (info->pitch << 16);
++    reg = (info->pitch) + (0xa0 << 16);
++
++    writel(reg, kendryte_td->base + TD_DISP_OSD0_STRIDE);
++    reg = readl(kendryte_td->base + TD_DISP_OSD0_INFO);
++
++    switch (info->format)
++    {
++        case TWOD_FORMAT_RGB888:
++            reg = (reg & ~(GENMASK(3, 0))) | (0 << 0);
++            writel(reg, kendryte_td->base + TD_DISP_OSD0_INFO);
++           
++            break;
++
++        case TWOD_FORMAT_ARGB8888:
++            reg = (reg & ~(GENMASK(3, 0))) | (3 << 0);
++            writel(reg, kendryte_td->base + TD_DISP_OSD0_INFO);
++            break;
++        
++        case TWOD_FORMAT_RGB565:
++            reg = (reg & ~(GENMASK(3, 0))) | (2 << 0);
++            writel(reg, kendryte_td->base + TD_DISP_OSD0_INFO);
++            break;
++
++        case TWOD_FORMAT_RGB4444:
++            reg = (reg & ~(GENMASK(3, 0))) | (4 << 0);
++            writel(reg, kendryte_td->base + TD_DISP_OSD0_INFO);
++            break;
++
++        case TWOD_FORMAT_RGB1555:
++            reg = (reg & ~(GENMASK(3, 0))) | (5 << 0);
++            writel(reg, kendryte_td->base + TD_DISP_OSD0_INFO);
++            break;
++
++        case TWOD_FORMAT_MONOCNROME_8:
++            reg = (reg & ~(GENMASK(3, 0))) | (1 << 0);
++            writel(reg, kendryte_td->base + TD_DISP_OSD0_INFO);
++            break;
++
++        default:
++            reg = (reg & ~(GENMASK(3, 0))) | (3 << 0);
++            writel(reg, kendryte_td->base + TD_DISP_OSD0_INFO);
++            break;
++    }
++
++    // set osd rgb 2 yuv 
++    writel(0x1, kendryte_td->base + TD_OSD_RGB2YUV_CTL);
++    
++}
++
+ 
+ MODULE_LICENSE("GPL");
+ 
+-- 
+2.36.1
+

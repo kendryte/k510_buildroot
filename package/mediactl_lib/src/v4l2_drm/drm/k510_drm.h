@@ -45,7 +45,7 @@
 #include <drm_fourcc.h>
 #include <sys/ioctl.h>
 
-#define BUFFERS_COUNT		10//10//4//6/3
+#define BUFFERS_COUNT		5//10//4//6/3
 #define BUFFERS_NUM			2
 
 struct drm_size {
@@ -106,7 +106,7 @@ int drm_dmabuf_set_plane(struct drm_buffer *buf);
 void drm_wait_vsync(void);
 //void drm_init(void);
 //void drm_init(uint32_t width, uint32_t height);
-void drm_init(struct drm_size *size);
+int drm_init(struct drm_size *size);
 
 void drm_destory_dumb(struct drm_buffer *buf);
 void drm_exit(void);

@@ -21,9 +21,7 @@ add_subdirectory(person_detect)
 add_subdirectory(hand_image_classify)
 add_subdirectory(license_plate_recog)
 add_subdirectory(self_learning)
-add_subdirectory(object_detect_v4l2)
-add_subdirectory(retinaface_mb_320_v4l2)
-add_subdirectory(object_detect_opencv)
-add_subdirectory(retinaface_mb_320_opencv)
+add_subdirectory(object_detect_demo)
+add_subdirectory(retinaface_mb_320)
 
 

@@ -84,6 +84,11 @@ int fd_mem_map = -1;
 #define SHARE_MEMORY_DEV    "/dev/k510-share-memory"
 #define MAP_MEMORY_DEV      "/dev/mem"
 int *virtual_addr[MEMORY_TEST_BLOCK_NUM]= {0};
+bool DualCamera_Sync = TRUE;
+bool Sensor1_Sync = FALSE;
+bool Awb_Sync_Init = TRUE;
+
+
 
 struct share_memory_alloc_align_args    allocAlignMem[MEMORY_TEST_BLOCK_NUM] = {0};
 //
@@ -670,6 +675,54 @@ static int isp_r2k_set_format(struct v4l_isp_device *isp)
 	
 	return 0;
 }
+
+#define ISP_CORE_AWB_CTL (0x0104)
+#define ISP_CORE_AWB_HANDLE_MODE (0x03f7)
+#define ISP_CORE_AWB_HANDLE_MODE_CHECK (0x0008)
+
+/**
+ * @brief
+ *
+ */
+static int isp_awb_sync_init()
+{
+	int ret;
+	struct k510isp_reg_val r2k_awb_reg_val,r2k_awb_reg_val_write;
+	struct media_entity *pipe_f2k,*pipe_r2k;
+	pipe_r2k = v4l_isp.r2k;
+
+	r2k_awb_reg_val.reg_addr = ISP_CORE_AWB_CTL;
+	r2k_awb_reg_val.reg_value = 0x0000;
+
+	ret = v4l2_subdev_open(pipe_r2k);
+	if (ret < 0)
+		return ret;
+	// get r2k awb ctl value
+	ret = ioctl(pipe_r2k->fd,VIDIOC_K510ISP_R2K_CORE_REG_GET,&r2k_awb_reg_val);
+	if (ret < 0)
+	{
+		printf("%s: ioctl(VIDIOC_K510ISP_R2K_CORE_REG_GET) failed ret(%d)\n", __func__,ret);
+		v4l2_subdev_close(pipe_r2k);
+		return ret;
+	}
+	// check r2k is handle mode or not, if auto mode then set to handle mode
+	if ((r2k_awb_reg_val.reg_value & ISP_CORE_AWB_HANDLE_MODE_CHECK) == ISP_CORE_AWB_HANDLE_MODE_CHECK)
+	{
+		r2k_awb_reg_val_write.reg_addr = ISP_CORE_AWB_CTL;
+		r2k_awb_reg_val_write.reg_value = r2k_awb_reg_val.reg_value & ISP_CORE_AWB_HANDLE_MODE;
+		ret = ioctl(pipe_r2k->fd,VIDIOC_K510ISP_R2K_CORE_REG_SET,&r2k_awb_reg_val_write);
+		if (ret < 0)
+		{
+			printf("%s: ioctl(VIDIOC_K510ISP_R2K_CORE_REG_SET) failed ret(%d)\n", __func__,
+				ret);
+			v4l2_subdev_close(pipe_r2k);
+			return ret;
+		}
+	}
+	v4l2_subdev_close(pipe_r2k);
+	return 0;
+}
+
 /**
  * @brief 
  * 
@@ -711,6 +764,13 @@ static int isp_pipeline_setup(struct v4l_isp_device *isp)
 		//
 		isp_r2k_set_format(isp);
 	}
+
+	
+	if((isp->isp_pipeline[ISP_F2K].pipeline_en == 1)&&(isp->isp_pipeline[ISP_R2K].pipeline_en == 1)&&(DualCamera_Sync == TRUE))
+	{
+		Sensor1_Sync = TRUE;
+	}
+
 	return 0;
 }
 /**
@@ -754,6 +814,7 @@ void pipline_cfg(struct isp_pipeline_s *isp_pipeline,struct sensor_info *sensor)
     isp_pipeline->video_entity_info[3].used = isp_wrap_cfg->ds2Info.ds2_out_en;
     isp_pipeline->video_entity_info[3].video_size.width = isp_wrap_cfg->ds2Info.ds2_size.width;
     isp_pipeline->video_entity_info[3].video_size.height = isp_wrap_cfg->ds2Info.ds2_video_height;//isp_wrap_cfg->ds2Info.ds2_size.height;
+	isp_pipeline->video_entity_info[3].video_size.pitch = isp_wrap_cfg->ds2Info.ds2_size.pitch;//isp_wrap_cfg->ds2Info.ds2_size.height;
 	isp_pipeline->video_entity_info[3].video_out_format = isp_wrap_cfg->ds2Info.ds2_out_img_out_format;
 	//
 	isp_pipeline->pipeline_en = 0;
@@ -766,7 +827,7 @@ void pipline_cfg(struct isp_pipeline_s *isp_pipeline,struct sensor_info *sensor)
  * @brief 
  * 
  */
-static void isp_share_memory_alloc(void)
+static int  isp_share_memory_alloc(void)
 {
     fd_share_memory = open(SHARE_MEMORY_DEV,O_RDWR);
     if(fd_share_memory < 0) {
@@ -791,12 +852,14 @@ static void isp_share_memory_alloc(void)
     allocAlignMem[1].phyAddr   = 0;
 
     if(ioctl(fd_share_memory, SHARE_MEMORY_ALIGN_ALLOC, &allocAlignMem[1]) < 0) {
+        ioctl(fd_share_memory, SHARE_MEMORY_FREE, &allocAlignMem[0].phyAddr);
         printf("main share memory  SHARE_MEMORY_ALIGN_ALLOC error!\r\n");
         return 1;
     }
     else {
         printf("main block alloc:0x%08x,size:%d,align %d\r\n",allocAlignMem[1].phyAddr,allocAlignMem[1].size,allocAlignMem[1].alignment);
     }
+    return 0;
 }
 /**
  * @brief 
@@ -957,7 +1020,8 @@ int mediactl_init(char *video_cfg_file,struct video_info *dev_info)
 	}
 #endif
 	//
-	isp_share_memory_alloc();
+	if(isp_share_memory_alloc())
+		return -1;
 	//
 	if( v4l_isp.isp_pipeline[ISP_F2K].pipeline_en == 1 )
 	{
@@ -997,19 +1061,41 @@ int mediactl_init(char *video_cfg_file,struct video_info *dev_info)
  * @brief 
  * 
  */
-int mediactl_set_ae(enum isp_pipeline_e pipeline)
+ int mediactl_set_ae(enum isp_pipeline_e pipeline)
 {
 	int ret;
+	
+	if(Sensor1_Sync == FALSE)
+	{
+		ret = mediactl_set_ae_single(pipeline);
+	}
+	else
+	{
+		if(pipeline == ISP_F2K_PIPELINE)
+		{
+			ret = mediactl_set_ae_sync(pipeline);
+			ret = mediactl_set_awb_sync(pipeline);
+		}
+	}
+	return ret;
+}
+int mediactl_set_ae_single(enum isp_pipeline_e pipeline)
+{
+	int ret, i;
 	struct k510isp_ae_stats ae_stats;
 	struct media_entity *pipe;
-	 
+	static unsigned int ET_sensor0 = 0;
+	static unsigned int ET_sensor1 = 0;
+	static unsigned int Gain_sensor0 = 0;
+	static unsigned int Gain_sensor1 = 0;
+	
 	if(ISP_F2K_PIPELINE == pipeline)
 	{
+	
 		pipe = v4l_isp.f2k;
 		ret = v4l2_subdev_open(pipe);
 		if (ret < 0)
 			return ret;
-
 
 		ret = ioctl(pipe->fd,VIDIOC_K510ISP_F2K_AE_STAT_REQ,&ae_stats);
 		if (ret < 0)
@@ -1019,6 +1105,7 @@ int mediactl_set_ae(enum isp_pipeline_e pipeline)
 			v4l2_subdev_close(pipe);
 			return ret;
 		}
+		
 		//printf("%s:ae_wren(%d),ae_expl(%d),ae_agco(%d)\n",__func__,ae_stats.ae_wren,ae_stats.ae_expl,ae_stats.ae_agco);
 		v4l2_subdev_close(pipe);
 		//
@@ -1030,38 +1117,47 @@ int mediactl_set_ae(enum isp_pipeline_e pipeline)
 				return ret;
 
 			struct v4l2_control  control_s;
-			control_s.id = V4L2_CID_EXPOSURE;
-			control_s.value = ae_stats.ae_expl;
-			ret = ioctl(sensor0->fd,VIDIOC_S_CTRL,&control_s);
-			if (ret < 0)
+			
+			if (ae_stats.ae_expl != ET_sensor0)
 			{
-				printf("%s: ioctl(VIDIOC_S_CTRL-V4L2_CID_GAIN)failed ret(%d)\n", __func__,
-					  ret);
-				v4l2_subdev_close(sensor0);	  
-				return ret;
-			} 
+				control_s.id = V4L2_CID_EXPOSURE;
+				control_s.value = ae_stats.ae_expl;
+				ret = ioctl(sensor0->fd,VIDIOC_S_CTRL,&control_s);
+				if (ret < 0)
+				{
+					printf("%s: ioctl(VIDIOC_S_CTRL-V4L2_CID_EXPOSURE)failed ret(%d)\n", __func__,
+						  ret);
+					v4l2_subdev_close(sensor0);
+					return ret;
+				}
+				ET_sensor0 = control_s.value;
+			}
 
-			control_s.id = V4L2_CID_GAIN;
-			control_s.value = ae_stats.ae_agco;
-			ret = ioctl(sensor0->fd,VIDIOC_S_CTRL,&control_s);
-			if (ret < 0)
+			if(ae_stats.ae_agco != Gain_sensor0)
 			{
-				printf("%s: ioctl(VIDIOC_S_CTRL-V4L2_CID_EXPOSURE)failed ret(%d)\n", __func__,
-					  ret);
-				v4l2_subdev_close(sensor0);
-				return ret;
-			} 		
+				control_s.id = V4L2_CID_GAIN;
+				control_s.value = ae_stats.ae_agco;
+				ret = ioctl(sensor0->fd,VIDIOC_S_CTRL,&control_s);
+				if (ret < 0)
+				{
+					printf("%s: ioctl(VIDIOC_S_CTRL-V4L2_CID_GAIN)failed ret(%d)\n", __func__,
+						  ret);
+					v4l2_subdev_close(sensor0);
+					return ret;
+				}
+				Gain_sensor0 = control_s.value;
+			}
 			v4l2_subdev_close(sensor0);
 		}
 	}
 
-	if(ISP_F2K_PIPELINE == pipeline)
+	if(ISP_R2K_PIPELINE == pipeline)
 	{
+
 		pipe = v4l_isp.r2k;
 		ret = v4l2_subdev_open(pipe);
 		if (ret < 0)
 			return ret;
-
 
 		ret = ioctl(pipe->fd,VIDIOC_K510ISP_R2K_AE_STAT_REQ,&ae_stats);
 		if (ret < 0)
@@ -1082,33 +1178,197 @@ int mediactl_set_ae(enum isp_pipeline_e pipeline)
 				return ret;
 
 			struct v4l2_control  control_s;
-			control_s.id = V4L2_CID_EXPOSURE;
-			control_s.value = ae_stats.ae_expl;
-			ret = ioctl(sensor1->fd,VIDIOC_S_CTRL,&control_s);
-			if (ret < 0)
-			{
-				printf("%s: ioctl(VIDIOC_S_CTRL-V4L2_CID_GAIN)failed ret(%d)\n", __func__,
-					  ret);
-				v4l2_subdev_close(sensor1);
-				return ret;
-			} 
 
-			control_s.id = V4L2_CID_GAIN;
-			control_s.value = ae_stats.ae_agco;
-			ret = ioctl(sensor1->fd,VIDIOC_S_CTRL,&control_s);
-			if (ret < 0)
+			if (ae_stats.ae_expl != ET_sensor1)
 			{
-				printf("%s: ioctl(VIDIOC_S_CTRL-V4L2_CID_EXPOSURE)failed ret(%d)\n", __func__,
-					  ret);
-				v4l2_subdev_close(sensor1);
-				return ret;
-			} 		
+			
+				control_s.id = V4L2_CID_EXPOSURE;
+				control_s.value = ae_stats.ae_expl;
+				ret = ioctl(sensor1->fd,VIDIOC_S_CTRL,&control_s);
+				if (ret < 0)
+				{
+					printf("%s: ioctl(VIDIOC_S_CTRL-V4L2_CID_EXPOSURE)failed ret(%d)\n", __func__,
+						  ret);
+					v4l2_subdev_close(sensor1);
+					return ret;
+				}
+				ET_sensor1 = control_s.value;
+			}
+			
+			if(ae_stats.ae_agco != Gain_sensor1)
+			{
+				control_s.id = V4L2_CID_GAIN;
+				control_s.value = ae_stats.ae_agco;
+				ret = ioctl(sensor1->fd,VIDIOC_S_CTRL,&control_s);
+				if (ret < 0)
+				{
+					printf("%s: ioctl(VIDIOC_S_CTRL-V4L2_CID_GAIN)failed ret(%d)\n", __func__,
+						  ret);
+					v4l2_subdev_close(sensor1);
+					return ret;
+				} 		
+				Gain_sensor1 = control_s.value;
+			}
 			v4l2_subdev_close(sensor1);
 		}
 	}
 	
 	return 0;
 }
+
+int mediactl_set_ae_sync(enum isp_pipeline_e pipeline)
+{
+	int ret;
+	struct k510isp_ae_stats ae_stats;
+	struct media_entity *pipe;
+	static unsigned int ET_current = 0;
+	static unsigned int Gain_current = 0;
+
+	if(ISP_F2K_PIPELINE == pipeline)
+	{
+		pipe = v4l_isp.f2k;
+		ret = v4l2_subdev_open(pipe);
+		if (ret < 0)
+			return ret;
+
+		ret = ioctl(pipe->fd,VIDIOC_K510ISP_F2K_AE_STAT_REQ,&ae_stats);
+		if (ret < 0)
+		{
+			printf("%s: ioctl(VIDIOC_K510ISP_F2K_AE_STAT_REQ) failed ret(%d)\n", __func__,
+				  ret);
+			v4l2_subdev_close(pipe);
+			return ret;
+		}
+		//printf("%s:ae_wren(%d),ae_expl(%d),ae_agco(%d)\n",__func__,ae_stats.ae_wren,ae_stats.ae_expl,ae_stats.ae_agco);
+		v4l2_subdev_close(pipe);
+		//
+		if( ae_stats.ae_wren == 1)
+		{
+			//sensor0
+			struct media_entity *sensor0 = v4l_isp.sensor0;
+			ret = v4l2_subdev_open(sensor0);
+			if (ret < 0)
+				return ret;
+			
+			//sensor1
+			struct media_entity *sensor1 = v4l_isp.sensor1;
+			ret = v4l2_subdev_open(sensor1);
+			if (ret < 0)
+				return ret;
+
+			struct v4l2_control  control_s;
+			
+			//Set ET		
+			if(ae_stats.ae_expl != ET_current)
+			{
+				control_s.id = V4L2_CID_EXPOSURE;
+				control_s.value = ae_stats.ae_expl;
+				ret = ioctl(sensor1->fd,VIDIOC_S_CTRL,&control_s);
+				if (ret < 0)
+				{
+					printf("%s: ioctl(VIDIOC_S_CTRL-V4L2_CID_EXPOSURE)failed ret(%d)\n", __func__,
+						  ret);
+					v4l2_subdev_close(sensor1);
+					return ret;
+				} 
+				
+				ret = ioctl(sensor0->fd,VIDIOC_S_CTRL,&control_s);
+				if (ret < 0)
+				{
+					printf("%s: ioctl(VIDIOC_S_CTRL-V4L2_CID_EXPOSURE)failed ret(%d)\n", __func__,
+						  ret);
+					v4l2_subdev_close(sensor0);
+					return ret;
+				}
+				ET_current = control_s.value;
+			}
+			//Set gain
+			if(ae_stats.ae_agco != Gain_current)
+			{
+				control_s.id = V4L2_CID_GAIN;
+				control_s.value = ae_stats.ae_agco;
+				ret = ioctl(sensor1->fd,VIDIOC_S_CTRL,&control_s);
+				if (ret < 0)
+				{
+					printf("%s: ioctl(VIDIOC_S_CTRL-V4L2_CID_GAIN)failed ret(%d)\n", __func__,
+						  ret);
+					v4l2_subdev_close(sensor1);
+					return ret;
+				}
+				ret = ioctl(sensor0->fd,VIDIOC_S_CTRL,&control_s);
+				if (ret < 0)
+				{
+					printf("%s: ioctl(VIDIOC_S_CTRL-V4L2_CID_GAIN)failed ret(%d)\n", __func__,
+						  ret);
+					v4l2_subdev_close(sensor0);
+					return ret;
+				} 
+				Gain_current = control_s.value;
+			}
+			v4l2_subdev_close(sensor1);
+			v4l2_subdev_close(sensor0);	
+		}
+	}
+	
+	return 0;
+}
+
+int mediactl_set_awb_sync(enum isp_pipeline_e pipeline)
+{
+	int ret;
+	struct k510isp_awb_sync_info awb_sync_info;
+	static unsigned int awb_prev_frame_rgain = 0,awb_prev_frame_bgain = 0;
+	struct media_entity *pipe_f2k,*pipe_r2k;
+	pipe_f2k = v4l_isp.f2k;
+	pipe_r2k = v4l_isp.r2k;
+
+	if(Awb_Sync_Init)
+	{
+		isp_awb_sync_init();
+		Awb_Sync_Init = FALSE;
+	}
+
+	if(ISP_F2K_PIPELINE == pipeline)
+	{
+		// get f2k awb ctl mode auto or handle
+		ret = v4l2_subdev_open(pipe_f2k);
+		if (ret < 0)
+			return ret;
+
+		ret = v4l2_subdev_open(pipe_r2k);
+		if (ret < 0)
+			return ret;
+
+		// get f2k AWB GAIN VALUE
+		ret = ioctl(pipe_f2k->fd,VIDIOC_K510ISP_F2K_AWB_VAL_GET,&awb_sync_info);
+		if (ret < 0)
+		{
+			printf("%s: ioctl(VIDIOC_K510ISP_F2K_AWB_VAL_GET) failed ret(%d)\n", __func__,ret);
+			v4l2_subdev_close(pipe_f2k);
+			return ret;
+		}
+
+		// if value change set f2k AWB GAIN VALUE to r2k
+		if ((awb_sync_info.awb_ar != awb_prev_frame_rgain) || (awb_sync_info.awb_ab != awb_prev_frame_bgain))
+		{
+			if (ret < 0)
+				return ret;
+			ret = ioctl(pipe_r2k->fd,VIDIOC_K510ISP_R2K_AWB_VAL_SET,&awb_sync_info);
+			if (ret < 0)
+			{
+				printf("%s: ioctl(VIDIOC_K510ISP_R2K_AWB_VAL_SET) failed ret(%d)\n", __func__,ret);
+				v4l2_subdev_close(pipe_r2k);
+				return ret;
+			}
+		}
+		awb_prev_frame_rgain = awb_sync_info.awb_ar;
+		awb_prev_frame_bgain = awb_sync_info.awb_ab;
+		v4l2_subdev_close(pipe_f2k);
+		v4l2_subdev_close(pipe_r2k);
+	}
+	return 0;
+}
+
 /**
  * @brief 
  * 
@@ -1128,3 +1388,54 @@ void mediactl_exit(void)
     system("echo 2 > /proc/sys/vm/drop_caches");
     system("echo 3 > /proc/sys/vm/drop_caches");
 }
+/**
+ * @brief 
+ * 
+ * @param addr 
+ * @return unsigned int 
+ */
+
+unsigned int ISPRegRead(unsigned int addr)
+{
+    char result[64] = {0};
+	char buf[64] = {0};
+    char cmd[64] = {0};
+    unsigned ret;
+    FILE *fp = NULL;
+
+    sprintf(cmd, "devmem 0x%08X\n", addr);
+
+    if( (fp = popen(cmd, "r")) == NULL ) {
+        printf("popen error!\n");
+        return -1;
+    }
+
+    while (fgets(buf, sizeof(buf), fp)) {
+        strcat(result, buf);
+    }
+    pclose(fp);
+    // printf("result: %s\n", result);
+
+    ret = strtol(result, NULL, 16);
+    return ret;
+
+}
+
+unsigned int ISPRegWrite(unsigned int addr, unsigned int value)
+{
+    char cmd[64] = {0};
+    unsigned ret;
+    FILE *fp = NULL;
+
+    sprintf(cmd, "devmem 0x%08X 32 0x%08X\n", addr, value);
+
+    if( (fp = popen(cmd, "w")) == NULL ) {
+        printf("popen error!\n");
+        return -1;
+    }
+    pclose(fp);
+    return 1;
+}
+
+
+
