@@ -1,0 +1,79 @@
+From 420169fda7e78b6b19aff3d15c3280715ee9c921 Mon Sep 17 00:00:00 2001
+From: wangjianxin <wangjianxin@canaan-creative.com>
+Date: Mon, 27 Jun 2022 11:08:34 +0800
+Subject: [PATCH] fix after reboot enter  cmd insert  cable, net can not work
+
+---
+ board/Canaan/k510_crb_lp3/Makefile     |  4 ++++
+ board/Canaan/k510_crb_lp3/ax25-ae350.c | 22 +++++++++++++++++++++-
+ include/configs/k510_crb_lp3_v1_2.h    |  3 ++-
+ 3 files changed, 27 insertions(+), 2 deletions(-)
+
+diff --git a/board/Canaan/k510_crb_lp3/Makefile b/board/Canaan/k510_crb_lp3/Makefile
+index 512bcbca..087d8aad 100755
+--- a/board/Canaan/k510_crb_lp3/Makefile
++++ b/board/Canaan/k510_crb_lp3/Makefile
+@@ -3,4 +3,8 @@
+ # Copyright (C) 2017 Andes Technology Corporation.
+ # Rick Chen, Andes Technology Corporation <rick@andestech.com>
+ 
++EXTRA_CFLAGS += -I${src}/../dsi_logo/bsp/include   \
++				-I${src}/../dsi_logo/bsp/include/controler \
++				-I${src}/../dsi_logo/bsp/include/cpu -I${src}/../dsi_logo/bsp/include/utils
++
+ obj-y	:= ax25-ae350.o lpddr3_init.o lpddr3_training.o ddr_common.o sysctl_clk.o ../dsi_logo/
+diff --git a/board/Canaan/k510_crb_lp3/ax25-ae350.c b/board/Canaan/k510_crb_lp3/ax25-ae350.c
+index 1dbcb6ff..3784fcb0 100755
+--- a/board/Canaan/k510_crb_lp3/ax25-ae350.c
++++ b/board/Canaan/k510_crb_lp3/ax25-ae350.c
+@@ -70,7 +70,8 @@ void sysctl_enable_all_leaf_clk(void)
+         freq = sysctl_clk_get_leaf_freq(SYSCTL_CLK_GNNE_AXI);
+         printf("GNNE AXI clock freq changed: %d \r\n", freq);
+ 
+-        writel(0x0f000f00,(void *)0x97001000);
++        writel(0x0f000f00,(void *)0x97001000);//792M
++		//writel(0x0f000f60,(void *)0x97001000);//396M
+         // writel(0x0f000f10,(void *)0x97001000);		//726M
+ 
+         printf("CPU freq %d MHZ\n", sysctl_clk_get_leaf_freq(SYSCTL_CLK_AX25M_SRC) / 1000000);
+@@ -296,6 +297,25 @@ int last_stage_init(void)
+ 	run_command("mii write 0 0x1e 0xa003; mii write  0 0x1f 0x01 ;", 0);
+ }
+ 
++#ifdef CONFIG_RESET_PHY_R 
++#include "gpio.h"
++#include "muxpin.h"
++void	reset_phy     (void)
++{
++
++	muxpin_set_function(31, FUNC_GPIO20);
++	gpio_set_drive_mode(20, GPIO_DM_OUTPUT);//GPIO_DM_OUTPUT
++	gpio_set_pin(20, GPIO_PV_LOW);//GPIO_PV_LOW
++	mdelay(20);
++	gpio_set_pin(20, GPIO_PV_HIGH);//GPIO_PV_HIGH
++	udelay(10);
++	gpio_set_pin(20, GPIO_PV_LOW);//GPIO_PV_LOW
++	mdelay(20);
++	gpio_set_pin(20, GPIO_PV_HIGH);//GPIO_PV_HIGH
++	mdelay(200);
++	return 0;
++}
++#endif 
+ #endif
+ 
+ 
+diff --git a/include/configs/k510_crb_lp3_v1_2.h b/include/configs/k510_crb_lp3_v1_2.h
+index 0317d918..568f6aba 100755
+--- a/include/configs/k510_crb_lp3_v1_2.h
++++ b/include/configs/k510_crb_lp3_v1_2.h
+@@ -169,5 +169,6 @@
+                                 "tftp 0x2000000 k510.dtb;bootm 0x600000 - 0x2000000\0" \
+ 				BOOTENV
+ #define FAT_ENV_DEV_PART_DYNMIC
+-#define CONFIG_BOARD_LATE_INIT
++#define CONFIG_BOARD_LATE_INIT 
++#define CONFIG_RESET_PHY_R
+ #endif /* __CONFIG_H */
+-- 
+2.30.2
+
