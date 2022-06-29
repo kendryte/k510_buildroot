@@ -41,17 +41,17 @@ define AI_COMPILE_MODEL
 	#tar -xf $(AI_DL_DIR)/kmodel.tar.xz -C  $(TARGET_DIR)/app/ai
 
 	#demo7
-	mkdir -p $(TARGET_DIR)/app/ai/kmodel/kmodel_compile/object_detect
-	cd $(@D) && /usr/bin/python3 object_detect_opencv/od_onnx.py --quant_type uint8 --model ai_kmodel_data/model_file/object_detect/yolov5sFocus_320x3.onnx
-	cp $(@D)/od.kmodel $(TARGET_DIR)/app/ai/kmodel/kmodel_compile/object_detect/od_uint8.kmodel
-	cd $(@D) && /usr/bin/python3 object_detect_opencv/od_onnx.py --quant_type bf16 --model ai_kmodel_data/model_file/object_detect/yolov5sFocus_320x3.onnx
-	cp $(@D)/od.kmodel $(TARGET_DIR)/app/ai/kmodel/kmodel_compile/object_detect/od_bf16.kmodel
+	mkdir -p $(TARGET_DIR)/app/ai/kmodel/kmodel_compile/object_detect_demo
+	cd $(@D) && /usr/bin/python3 object_detect_demo/od_onnx.py --quant_type uint8 --model ai_kmodel_data/model_file/object_detect/yolov5sFocus_320x3.onnx
+	cp $(@D)/od.kmodel $(TARGET_DIR)/app/ai/kmodel/kmodel_compile/object_detect_demo/od_uint8.kmodel
+	cd $(@D) && /usr/bin/python3 object_detect_demo/od_onnx.py --quant_type bf16 --model ai_kmodel_data/model_file/object_detect/yolov5sFocus_320x3.onnx
+	cp $(@D)/od.kmodel $(TARGET_DIR)/app/ai/kmodel/kmodel_compile/object_detect_demo/od_bf16.kmodel
 	
 	#demo1
 	mkdir -p $(TARGET_DIR)/app/ai/kmodel/kmodel_compile/retinaface_mb_320
-	cd $(@D) && /usr/bin/python3 retinaface_mb_320_opencv/rf_onnx.py --quant_type uint8 --model ai_kmodel_data/model_file/retinaface/retinaface_mobile0.25_320.onnx
+	cd $(@D) && /usr/bin/python3 retinaface_mb_320/rf_onnx.py --quant_type uint8 --model ai_kmodel_data/model_file/retinaface/retinaface_mobile0.25_320.onnx
 	cp $(@D)/rf.kmodel $(TARGET_DIR)/app/ai/kmodel/kmodel_compile/retinaface_mb_320/rf_uint8.kmodel
-	cd $(@D) && /usr/bin/python3 retinaface_mb_320_opencv/rf_onnx.py --quant_type bf16 --model ai_kmodel_data/model_file/retinaface/retinaface_mobile0.25_320.onnx
+	cd $(@D) && /usr/bin/python3 retinaface_mb_320/rf_onnx.py --quant_type bf16 --model ai_kmodel_data/model_file/retinaface/retinaface_mobile0.25_320.onnx
 	cp $(@D)/rf.kmodel $(TARGET_DIR)/app/ai/kmodel/kmodel_compile/retinaface_mb_320/rf_bf16.kmodel
 endef
 

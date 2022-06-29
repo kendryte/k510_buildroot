@@ -1,0 +1,33 @@
+Index: b/testProgs/DataBufCtrlEX.cpp
+===================================================================
+--- a/testProgs/DataBufCtrlEX.cpp
++++ b/testProgs/DataBufCtrlEX.cpp
+@@ -12,7 +12,7 @@
+ #include<string.h>
+ 
+ //#define   HI_MAX_DATA_SIZE  5000000
+-#define   HI_MAX_VIDEO_DATA_SIZE  5000000
++#define   HI_MAX_VIDEO_DATA_SIZE  20000000
+ #define   HI_MAX_AUDIO_DATA_SIZE  500000
+ CDataBufCtrlEX::CDataBufCtrlEX(void)
+ {
+@@ -64,9 +64,10 @@ int CDataBufCtrlEX::GetBufferSize()
+ 
+ bool CDataBufCtrlEX::PullBuffer(unsigned char*pBuffer, int nSize, unsigned long long dTimestamp, bool bBlock/* = true*/)
+ {
++	
+ 	pthread_mutex_lock(&m_FrameMutex);
+ 	//if (m_nBufferLen + nSize > HI_MAX_DATA_SIZE)
+-	if (m_nPushIndex - m_nPopIndex > 100)
++	if (m_nPushIndex - m_nPopIndex > 15)
+ 	{
+ 		m_nBufferLen = 0;
+ 		char sInfo[1000] = { 0 };
+@@ -75,6 +76,7 @@ bool CDataBufCtrlEX::PullBuffer(unsigned
+ 		m_mapFrameTimeStamp.clear();
+ 		m_nPopIndex = m_nPushIndex;//清空之前的数据，popindex也要清空
+ 	}
++
+ 	memcpy(m_Buffer + m_nBufferLen, pBuffer, nSize);
+ 	m_nBufferLen += nSize;
+ 
