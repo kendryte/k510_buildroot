@@ -127,7 +127,7 @@ jobs:
       - name: Get Available DUT
         id: get_dut
         run: |
-          echo "get available DUT"
+          echo "Get Available DUT start"
           export HW_MODEL=`echo ${{ matrix.cfg }}|awk -F '_' '{print $1}'`
           export HW_VER=`echo ${{ matrix.cfg }}|awk -F '_' '{print $3"."$4}'`
           test -d bin || mkdir ./bin
@@ -147,7 +147,7 @@ jobs:
       - name: Reserve DUT
         id: reserve_dut
         run: |
-          echo "reserve DUT"
+          echo "Reserve DUT start"
           echo "${{ env.available }}"
           test -d bin || mkdir ./bin
           test -f ./bin/dut && rm -rf ./bin/dut
@@ -168,11 +168,11 @@ jobs:
       - name: Load Image
         id: load_image
         run: |
-          echo "Load image"
+          echo "Load image start"
           echo "${{ env.available }}"
           echo "${{ env.reserved }}"
-          echo ${{needs.build_image.outputs.md5_bbl}}
-          echo ${{needs.build_image.outputs.md5_dtb}}
+          echo "bbl md5: ${{needs.build_image.outputs.md5_bbl}}"
+          echo "dtb md5: ${{needs.build_image.outputs.md5_dtb}}"
           test -d bin || mkdir ./bin
           test -f ./bin/ci2 && rm -rf ./bin/ci2
           wget -qc https://ai.b-bug.org/k510_buildroot/github/ci2 -O ./bin/ci2
@@ -184,18 +184,18 @@ jobs:
       - name: Run Test
         id: run_test
         run: |
-          echo "Run Test"
+          echo "Run Test start"
           echo "${{ env.available }}"
           echo "${{ env.reserved }}"
           test -d bin || mkdir ./bin
           test -f ./bin/dut && rm -rf ./bin/dut
-          echo "Run test case later"
+          echo "Run test case demo"
 
       - name: Release DUT
         id: release_dut
         if: ${{ always() }}
         run: |
-          echo "release DUT"
+          echo "Release DUT start"
           echo "${{ env.reserved }}"
           test -d bin || mkdir ./bin
           test -f ./bin/dut && rm -rf ./bin/dut
@@ -204,8 +204,8 @@ jobs:
           result=$(./bin/dut delete ${{ env.reserved }})
           echo $result
           if [[ $result =~ "True" ]]; then
-            echo "release DUT pass"
+            echo "Release DUT pass"
           else
-            echo "ERROR: release DUT failed"
+            echo "ERROR: Release DUT failed"
             exit 1
           fi
