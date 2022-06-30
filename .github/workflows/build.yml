@@ -111,10 +111,10 @@ jobs:
           mkdir -p $NFS_ROOT/k510/$HW/$SAVE_DIR/
           tar -xf $CONF/images/rootfs.tar -C $NFS_ROOT/k510/$HW/$PULL_REQUEST_ID"_"$GITHUB_RUN_ID
 
-  load_image:
-    name: Load
+  test_image:
+    name: Test
     needs: build_image
-    timeout-minutes: 5
+    timeout-minutes: 15
     runs-on: [self-hosted, k510_buildroot]
     container:
       image: ai.b-bug.org:5000/k510_sdk_github
@@ -167,6 +167,7 @@ jobs:
 
       - name: Load Image
         id: load_image
+        timeout-minutes: 5
         run: |
           echo "Load image start"
           echo "${{ env.available }}"
@@ -174,15 +175,16 @@ jobs:
           echo "bbl md5: ${{needs.build_image.outputs.md5_bbl}}"
           echo "dtb md5: ${{needs.build_image.outputs.md5_dtb}}"
           test -d bin || mkdir ./bin
-          test -f ./bin/ci2 && rm -rf ./bin/ci2
-          wget -qc https://ai.b-bug.org/k510_buildroot/github/ci2 -O ./bin/ci2
-          chmod +x ./bin/ci2
+          test -f ./bin/ci && rm -rf ./bin/ci
+          wget -qc https://ai.b-bug.org/k510_buildroot/github/ci -O ./bin/ci
+          chmod +x ./bin/ci
           echo $PULL_REQUEST_ID
           echo $GITHUB_RUN_ID
-          ./bin/ci2 --pr_id $PULL_REQUEST_ID --job_id $GITHUB_RUN_ID --md5_dtb ${{needs.build_image.outputs.md5_dtb}} --md5_bbl ${{needs.build_image.outputs.md5_bbl}} ${{ env.available }}
+          ./bin/ci --pr_id $PULL_REQUEST_ID --job_id $GITHUB_RUN_ID --md5_dtb ${{needs.build_image.outputs.md5_dtb}} --md5_bbl ${{needs.build_image.outputs.md5_bbl}} ${{ env.available }}
 
       - name: Run Test
         id: run_test
+        timeout-minutes: 10
         run: |
           echo "Run Test start"
           echo "${{ env.available }}"
