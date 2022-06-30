@@ -108,8 +108,8 @@ jobs:
           export SAVE_DIR=$PULL_REQUEST_ID"_"$GITHUB_RUN_ID
           echo $HW
           echo $SAVE_DIR
-          mkdir -p $NFS_ROOT/k510_buildroot/$HW/$SAVE_DIR/
-          tar -xf $CONF/images/rootfs.tar -C $NFS_ROOT/k510_buildroot/$HW/$PULL_REQUEST_ID"_"$GITHUB_RUN_ID
+          mkdir -p $NFS_ROOT/k510/$HW/$SAVE_DIR/
+          tar -xf $CONF/images/rootfs.tar -C $NFS_ROOT/k510/$HW/$PULL_REQUEST_ID"_"$GITHUB_RUN_ID
 
   load_image:
     name: Load
