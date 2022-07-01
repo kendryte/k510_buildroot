@@ -1,0 +1,5 @@
+config BR2_PACKAGE_K510_MPP_SDK
+	bool "k510_mpp_sdk"
+	depends on BR2_riscv
+	help
+	  k510 mpp sdk
