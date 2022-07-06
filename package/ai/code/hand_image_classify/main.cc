@@ -51,7 +51,7 @@
 #include "k510_drm.h"
 #include "media_ctl.h"
 #include <linux/videodev2.h>
-
+#include "v4l2.h"
 
 #include "yolo.h"
 #include "hld.h"
@@ -97,7 +97,7 @@ void ai_worker(ai_worker_args ai_args)
     int is_rgb = ai_args.is_rgb;  // isp ds2 input format, RGB or BGR, RGB now
     int enable_profile = ai_args.enable_profile;  // wether enable time counting
     std::string dump_img_dir = ai_args.dump_img_dir;  // where to dump image 
-    int offset_channel = valid_width * valid_width;  // ds2 channel offset
+    int offset_channel = hd_net_len * hd_net_len;  // ds2 channel offset
     int enable_dump_image = (dump_img_dir != "None");
     yolo hd(hd_net_len, obj_thresh, nms_thresh);
     hd.load_model(hd_kmodel_path);  // load kmodel
@@ -126,12 +126,12 @@ void ai_worker(ai_worker_args ai_args)
     int frame_cnt = 0;
 
     // define cv::Mat for ai input
-    // padding offset is (valid_width - valid_height) / 2 * valid_width
-    cv::Mat rgb24_img_for_ai(hd_net_len, hd_net_len, CV_8UC3, hd.virtual_addr_input[0] + (valid_width - valid_height) / 2 * valid_width);
+    // padding offset is (hd_net_len - valid_width) / 2
+    cv::Mat rgb24_img_for_ai(hd_net_len, hd_net_len, CV_8UC3, hd.virtual_addr_input[0] + (hd_net_len - valid_width) / 2);
     // define cv::Mat for post process
-    cv::Mat ori_img_R = cv::Mat(valid_height, valid_width, CV_8UC1, hd.virtual_addr_input[0] + (valid_width - valid_height) / 2 * valid_width);
-    cv::Mat ori_img_G = cv::Mat(valid_height, valid_width, CV_8UC1, hd.virtual_addr_input[0] + (valid_width - valid_height) / 2 * valid_width + valid_width * valid_width);
-    cv::Mat ori_img_B = cv::Mat(valid_height, valid_width, CV_8UC1, hd.virtual_addr_input[0] + (valid_width - valid_height) / 2 * valid_width + valid_width * valid_width * 2);
+    cv::Mat ori_img_R = cv::Mat(hd_net_len, hd_net_len, CV_8UC1, hd.virtual_addr_input[0] + (hd_net_len - valid_width) / 2);
+    cv::Mat ori_img_G = cv::Mat(hd_net_len, hd_net_len, CV_8UC1, hd.virtual_addr_input[0] + offset_channel + (hd_net_len - valid_width) / 2);
+    cv::Mat ori_img_B = cv::Mat(hd_net_len, hd_net_len, CV_8UC1, hd.virtual_addr_input[0] + offset_channel * 2 + (hd_net_len - valid_width) / 2);
     
 
     cv::Mat hld_img_R = cv::Mat(hld_net_len, hld_net_len, CV_8UC1, hkd.virtual_addr_input[0]);
@@ -162,31 +162,29 @@ void ai_worker(ai_worker_args ai_args)
             quit.store(false);
             continue; // 
         }
-        //拷贝图像的同时修改padding方式，默认读出的图像是最后做padding，修改为前后做padding
         if(is_rgb)
         {
-            // R
-            memset(hd.virtual_addr_input[0], PADDING_R, (valid_width - valid_height) / 2 * valid_width);
-            memset(hd.virtual_addr_input[0] + ((valid_width - valid_height) / 2 + valid_height) * valid_width, PADDING_R, (valid_width - (valid_width - valid_height) / 2 - valid_height) * valid_width);
-            // G
-            memset(hd.virtual_addr_input[0] + offset_channel, PADDING_G, (valid_width - valid_height) / 2 * valid_width);
-            memset(hd.virtual_addr_input[0] + offset_channel + ((valid_width - valid_height) / 2 + valid_height) * valid_width, PADDING_G, (valid_width - (valid_width - valid_height) / 2 - valid_height) * valid_width);
-            // B
-            memset(hd.virtual_addr_input[0] + offset_channel * 2, PADDING_B, (valid_width - valid_height) / 2 * valid_width);
-            memset(hd.virtual_addr_input[0] + offset_channel * 2 + ((valid_width - valid_height) / 2 + valid_height) * valid_width, PADDING_B, (valid_width - (valid_width - valid_height) / 2 - valid_height) * valid_width);    
+            for(int h = 0; h < valid_height; h++)
+            {
+                memset(hd.virtual_addr_input[0], PADDING_R, (hd_net_len - valid_width) / 2);
+                memset(hd.virtual_addr_input[0] + (hd_net_len + valid_width) / 2, PADDING_R, (hd_net_len - valid_width) / 2);
+                memset(hd.virtual_addr_input[0] + offset_channel, PADDING_G, (hd_net_len - valid_width) / 2);
+                memset(hd.virtual_addr_input[0] + offset_channel + (hd_net_len + valid_width) / 2, PADDING_G, (hd_net_len - valid_width) / 2);
+                memset(hd.virtual_addr_input[0] + offset_channel * 2, PADDING_B, (hd_net_len - valid_width) / 2);
+                memset(hd.virtual_addr_input[0] + offset_channel * 2 + (hd_net_len + valid_width) / 2, PADDING_B, (hd_net_len - valid_width) / 2);
+            } 
         }
         else
         {
-            // B
-            memset(hd.virtual_addr_input[0], PADDING_B, (valid_width - valid_height) / 2 * valid_width);
-            memset(hd.virtual_addr_input[0] + ((valid_width - valid_height) / 2 + valid_height) * valid_width, PADDING_B, (valid_width - (valid_width - valid_height) / 2 - valid_height) * valid_width);
-            // G
-            memset(hd.virtual_addr_input[0] + offset_channel, PADDING_G, (valid_width - valid_height) / 2 * valid_width);
-            memset(hd.virtual_addr_input[0] + offset_channel + ((valid_width - valid_height) / 2 + valid_height) * valid_width, PADDING_G, (valid_width - (valid_width - valid_height) / 2 - valid_height) * valid_width);
-            // R
-            memset(hd.virtual_addr_input[0] + offset_channel * 2, PADDING_R, (valid_width - valid_height) / 2 * valid_width);
-            memset(hd.virtual_addr_input[0] + offset_channel * 2 + ((valid_width - valid_height) / 2 + valid_height) * valid_width, PADDING_R, (valid_width - (valid_width - valid_height) / 2 - valid_height) * valid_width);
-            
+            for(int h = 0; h < valid_height; h++)
+            {
+                memset(hd.virtual_addr_input[0], PADDING_B, (hd_net_len - valid_width) / 2);
+                memset(hd.virtual_addr_input[0] + (hd_net_len + valid_width) / 2, PADDING_B, (hd_net_len - valid_width) / 2);
+                memset(hd.virtual_addr_input[0] + offset_channel, PADDING_G, (hd_net_len - valid_width) / 2);
+                memset(hd.virtual_addr_input[0] + offset_channel + (hd_net_len + valid_width) / 2, PADDING_G, (hd_net_len - valid_width) / 2);
+                memset(hd.virtual_addr_input[0] + offset_channel * 2, PADDING_R, (hd_net_len - valid_width) / 2);
+                memset(hd.virtual_addr_input[0] + offset_channel * 2 + (hd_net_len + valid_width) / 2, PADDING_R, (hd_net_len - valid_width) / 2);
+            } 
         }
         if(enable_dump_image)
         {
@@ -251,7 +249,7 @@ void ai_worker(ai_worker_args ai_args)
             obj_cnt = 0;
             for (auto b : valid_box)
             {
-                cropped_box = scale_coords(hd_net_len, b, ori_img_R);
+                cropped_box = scale_coords(hd_net_len, b, valid_width, valid_height);
                 {
                     ScopedTiming st("hld process", enable_profile);
                     hkd.set_valid_box(cropped_box, ori_img_R);
@@ -558,16 +556,6 @@ int main(int argc, char *argv[])
     ai_args.hd_net_len = atoi(argv[2]);
     ai_args.valid_width = atoi(argv[3]);
     ai_args.valid_height = atoi(argv[4]);
-    if(ai_args.valid_height > ai_args.valid_width)
-    {
-        std::cerr << "You should set width bigger than height" << std::endl;
-                std::abort();
-    }
-    if(ai_args.valid_width != ai_args.hd_net_len)
-    {
-        std::cerr << "We won't resize image for gnne input, so valid_width should be equal to net_len" << std::endl;
-                std::abort();
-    }
     ai_args.obj_thresh = atof(argv[5]);
     ai_args.nms_thresh = atof(argv[6]);
     ai_args.hld_kmodel_path = argv[7];
