@@ -29,13 +29,8 @@
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
+#include "k510_drm.h"
 #include <stdint.h>
-
-
-#define DISP_HEIGHT     720
-#define DISP_WIDTH      1080
-#define OFFSET_X        0
-#define OFFSET_Y        600
 
 #define SHARE_MEMORY_ALLOC          _IOWR('m', 1, unsigned long)
 #define SHARE_MEMORY_ALIGN_ALLOC    _IOWR('m', 2, unsigned long)
@@ -106,7 +101,7 @@ typedef struct ai_worker_args
     std::string dump_img_dir;
 }ai_worker_args;
 
-box_t scale_coords(int net_len, box_t b, cv::Mat image);
+box_t scale_coords(int net_len, box_t b, int valid_width, int valid_height);
 float minf(float v1, float v2);
 float maxf(float v1, float v2);
 box_t get_enlarged_box(box_t b, int valid_width, int valid_height, cv::Mat mat, float enlarge_ratio);

@@ -122,7 +122,7 @@ void insightface::get_affine_matrix(landmarks_t l, cv::Mat image, int valid_widt
 {
     for (uint32_t ll = 0; ll < 5; ll++)
     {
-        srcTri[ll] = cv::Point2f(l.points[2 * ll + 0] * image.cols, l.points[2 * ll + 1] * valid_width / valid_height * image.rows);
+        srcTri[ll] = cv::Point2f(l.points[2 * ll + 0] * image.cols, l.points[2 * ll + 1] * image.rows);
     }
     warp_mat = cv::getAffineTransform(srcTri, dstTri);
 }
