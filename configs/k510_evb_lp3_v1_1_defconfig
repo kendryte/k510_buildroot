@@ -116,4 +116,3 @@ BR2_PACKAGE_LIBRTMP=y
 BR2_PACKAGE_OPENSSL=y
 BR2_PACKAGE_LIBOPENSSL=y
 BR2_PACKAGE_AI=y
-BR2_PACKAGE_AI_KMODEL_DATA_SITE="https://github.com/kendryte/k510_buildroot/releases/download/v1.6/ai_kmodel_data.tar.xz"
