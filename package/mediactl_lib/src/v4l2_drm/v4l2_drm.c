@@ -753,7 +753,7 @@ static void usage(FILE *fp, int argc, char **argv)
          argv[0], video_cfg_file);
 }
 
-static const char short_options[] = "f:e:hv:";// 短选项 ：表示带参数
+static const char short_options[] = "f:e:hv";// 短选项 ：表示带参数
 
 static const struct option //长选项
 long_options[] = {
