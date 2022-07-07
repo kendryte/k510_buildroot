@@ -1,7 +1,7 @@
-Index: b/k510_crb_lp3_v1_2_defconfig/build/ffmpeg_canaan-4.4/libavdevice/v4l2.c
+Index: b/libavdevice/v4l2.c
 ===================================================================
---- a/k510_crb_lp3_v1_2_defconfig/build/ffmpeg_canaan-4.4/libavdevice/v4l2.c
-+++ b/k510_crb_lp3_v1_2_defconfig/build/ffmpeg_canaan-4.4/libavdevice/v4l2.c
+--- a/libavdevice/v4l2.c
++++ b/libavdevice/v4l2.c
 @@ -373,6 +373,7 @@ static unsigned long int get_time()
  static int isp_sync(AVFormatContext *ctx)
  {
