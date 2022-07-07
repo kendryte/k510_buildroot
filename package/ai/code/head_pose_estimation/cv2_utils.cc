@@ -24,6 +24,12 @@
  */
 #include "cv2_utils.h"
 
+
+extern std::vector<cv::Point> points_to_clear;
+extern std::vector<std::string> strs_to_clear;
+extern std::vector<std::vector<cv::Point>> first_lines_to_clear;
+extern std::vector<std::vector<cv::Point>> second_lines_to_clear;
+
 void rotationMatrixToEulerAngles(float (*R)[3], float* eular)
 {
 	float sy = sqrtf(powf(R[0][0], 2) + powf(R[1][0], 2));
@@ -71,10 +77,11 @@ void draw_pose(box_t b, float *pdst, int valid_height, int valid_width, cv::Mat&
 		memcpy(&R[hh][0], pdst + hh * 4, 3 * sizeof(float));
 	}
 	float bbox[4] = {b.x - b.w / 2, b.y - b.h / 2, b.x + b.w / 2, b.y + b.h / 2};	
-    bbox[0] = bbox[0] * frame.cols;
-    bbox[1] = bbox[1] * valid_width / valid_height * frame.rows;
-    bbox[2] = bbox[2] * frame.cols;
-    bbox[3] = bbox[3] * valid_width / valid_height * frame.rows;   
+	int net_len = valid_height > valid_width ? valid_height : valid_width;
+    bbox[0] = bbox[0] * net_len / valid_width * frame.cols;
+    bbox[1] = bbox[1] * net_len / valid_height * frame.rows;
+    bbox[2] = bbox[2] * net_len / valid_width * frame.cols;
+    bbox[3] = bbox[3] * net_len / valid_height * frame.rows;   
 	float height = bbox[3] - bbox[1];
 	float width = bbox[2] - bbox[0];
 	float center_x = (bbox[0] + bbox[2]) / 2.0;
@@ -103,6 +110,7 @@ void draw_pose(box_t b, float *pdst, int valid_height, int valid_width, cv::Mat&
 		first_points.push_back(point);
 	}
 	cv::polylines(frame, first_points, true, cv::Scalar(255, 0, 0, 255), 5, 8, 0);
+	first_lines_to_clear.push_back(first_points);
 	std::vector<cv::Point> second_points;
 	second_points.clear();
 	for (uint32_t pp = 4; pp < 8; pp++)
@@ -121,6 +129,7 @@ void draw_pose(box_t b, float *pdst, int valid_height, int valid_width, cv::Mat&
 		point.y = std::max(0, std::min(y, frame.rows));
 		second_points.push_back(point);
 	}
+	second_lines_to_clear.push_back(second_points);
 	cv::polylines(frame, second_points, true, cv::Scalar(255, 0, 0, 255), 5, 8, 0);
 	for (uint32_t ll = 0; ll < 4; ll++)
 	{
@@ -128,4 +137,6 @@ void draw_pose(box_t b, float *pdst, int valid_height, int valid_width, cv::Mat&
 	}
 	std::string strs = "roll:" + std::to_string(eular[2]).substr(0, 6) + ";yaw:" + std::to_string(eular[1]).substr(0, 6) + ";pitch:" + std::to_string(eular[0]).substr(0, 6);
 	cv::putText(frame, strs, cv::Point(int(bbox[0]), int(bbox[1])), cv::FONT_HERSHEY_COMPLEX, 1.2, cv::Scalar(0, 0, 255, 255), 2, 4, 0);
+	strs_to_clear.push_back(strs);
+	points_to_clear.push_back(cv::Point(int(bbox[0]), int(bbox[1])));
 }

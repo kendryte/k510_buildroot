@@ -51,11 +51,13 @@
 #include "k510_drm.h"
 #include "media_ctl.h"
 #include <linux/videodev2.h>
+#include "v4l2.h"
 
 
 #include "scrpd.h"
 #include "cv2_utils.h"
 
+#define SELECT_TIMEOUT		2000
 
 struct video_info dev_info[2];
 std::mutex mtx;
@@ -87,7 +89,7 @@ void ai_worker(ai_worker_args ai_args)
     int is_rgb = ai_args.is_rgb;  // isp ds2 input format, RGB or BGR, RGB now
     int enable_profile = ai_args.enable_profile;  // wether enable time counting
     std::string dump_img_dir = ai_args.dump_img_dir;  // where to dump image 
-    int offset_channel = valid_height * valid_width;  // ds2 channel offset
+    int offset_channel = net_height * net_width;  // ds2 channel offset
     int enable_dump_image = (dump_img_dir != "None");
     scrpd rf(net_height, net_width, obj_thresh, nms_thresh);
     rf.load_model(kmodel_path);  // load kmodel
@@ -109,7 +111,6 @@ void ai_worker(ai_worker_args ai_args)
     int frame_cnt = 0;
 
     // define cv::Mat for ai input
-    // padding offset is (valid_width - valid_height) / 2 * valid_width
     cv::Mat rgb24_img_for_ai(net_height, net_width, CV_8UC3, rf.virtual_addr_input[0]);
     while(quit.load()) 
     {
@@ -125,9 +126,9 @@ void ai_worker(ai_worker_args ai_args)
         }
         if(enable_dump_image)
         {
-            cv::Mat ori_img_R = cv::Mat(valid_height, valid_width, CV_8UC1, rf.virtual_addr_input[0]);
-            cv::Mat ori_img_G = cv::Mat(valid_height, valid_width, CV_8UC1, rf.virtual_addr_input[0] + offset_channel);
-            cv::Mat ori_img_B = cv::Mat(valid_height, valid_width, CV_8UC1, rf.virtual_addr_input[0] + offset_channel * 2);
+            cv::Mat ori_img_R = cv::Mat(net_height, net_width, CV_8UC1, rf.virtual_addr_input[0]);
+            cv::Mat ori_img_G = cv::Mat(net_height, net_width, CV_8UC1, rf.virtual_addr_input[0] + offset_channel);
+            cv::Mat ori_img_B = cv::Mat(net_height, net_width, CV_8UC1, rf.virtual_addr_input[0] + offset_channel * 2);
             std::vector<cv::Mat>ori_imgparts(3);
             ori_imgparts.clear();
             ori_imgparts.push_back(ori_img_B);
@@ -167,10 +168,6 @@ void ai_worker(ai_worker_args ai_args)
 
             for(uint32_t i = 0; i < 32; i++)
             {
-                if(i == 0)
-                {
-                    img_argb.setTo(cv::Scalar(0, 0, 0, 0));
-                }
                 struct vo_draw_frame frame;
                 frame.crtc_id = drm_dev.crtc_id;
                 frame.draw_en = 0;
@@ -226,48 +223,175 @@ void ai_worker(ai_worker_args ai_args)
     }
 }
 
-/****fixed operation for display worker****/
+static int video_stop(struct v4l2_device *vdev)
+{
+	int ret;
+
+	ret = v4l2_stream_off(vdev);
+	if (ret < 0) {
+		printf("error: failed to stop video stream: %s (%d)\n",
+			strerror(-ret), ret);
+		return ret;
+	}
+
+	return 0;
+}
+
+static void video_cleanup(struct v4l2_device *vdev)
+{
+	if (vdev) {
+		v4l2_free_buffers(vdev);
+		v4l2_close(vdev);
+	}
+}
+
+static int process_ds0_image(struct v4l2_device *vdev,unsigned int width,unsigned int height)
+{
+	struct v4l2_video_buffer buffer;
+	int ret;
+    static struct v4l2_video_buffer old_buffer;
+    static int screen_init_flag = 0;
+
+    mtx.lock();
+	ret = v4l2_dequeue_buffer(vdev, &buffer);
+	if (ret < 0) {
+		printf("error: unable to dequeue buffer: %s (%d)\n",
+			strerror(-ret), ret);
+        mtx.unlock();
+		return ret;
+	}
+    mtx.unlock();
+	if (buffer.error) {
+		printf("warning: error in dequeued buffer, skipping\n");
+		return 0;
+	}
+
+    fbuf_yuv = &drm_dev.drm_bufs[buffer.index];
+
+    if (drm_dev.req)
+        drm_wait_vsync();
+    fbuf_argb = &drm_dev.drm_bufs_argb[!drm_bufs_argb_index];
+    if (drm_dmabuf_set_plane(fbuf_yuv, fbuf_argb)) {
+        std::cerr << "Flush fail \n";
+        return 1;
+    }
+
+    if(screen_init_flag) {
+        fbuf_yuv = &drm_dev.drm_bufs[old_buffer.index];
+        old_buffer.mem = fbuf_yuv->map;
+        old_buffer.size = fbuf_yuv->size;
+        mtx.lock();
+        ret = v4l2_queue_buffer(vdev, &old_buffer);
+        if (ret < 0) {
+            printf("error: unable to requeue buffer: %s (%d)\n",
+                strerror(-ret), ret);
+            mtx.unlock();
+            return ret;
+        }
+        mtx.unlock();
+    }
+    else {
+        screen_init_flag = 1;
+    }
+
+    old_buffer = buffer;
+
+	return 0;
+}
+
+
 void display_worker(int enable_profile)
 {
-    mtx.lock();
-    cv::VideoCapture capture;
-	capture.open(3);
-    capture.set(cv::CAP_PROP_CONVERT_RGB, 0);
-    capture.set(cv::CAP_PROP_FRAME_WIDTH, (DRM_INPUT_WIDTH + 15) / 16 * 16);
-    capture.set(cv::CAP_PROP_FRAME_HEIGHT, DRM_INPUT_HEIGHT);
-    capture.set(cv::CAP_PROP_FOURCC, V4L2_PIX_FMT_NV12);
-    mtx.unlock();
-    while(quit.load()) 
-    {
-        drm_bufs_index = !drm_bufs_index;
-        fbuf_yuv = &drm_dev.drm_bufs[drm_bufs_index];
-        cv::Mat org_img(DRM_INPUT_HEIGHT * 3 / 2, (DRM_INPUT_WIDTH + 15) / 16 * 16, CV_8UC1, fbuf_yuv->map);
-        {
-            bool ret = false;
-            ScopedTiming st("capture read",enable_profile);
-            mtx.lock();
-            ret = capture.read(org_img);
-            mtx.unlock();
-            if(ret == false)
-            {
-                quit.store(false);
-                continue; // 
-            }
-        }
+    int ret;
+    struct v4l2_device *vdev;
+    struct v4l2_pix_format format;
+    fd_set fds;
+    struct v4l2_video_buffer buffer;
+	unsigned int i;
 
-        if (drm_dev.req)
-            drm_wait_vsync();
-        fbuf_argb = &drm_dev.drm_bufs_argb[!drm_bufs_argb_index];
-        if (drm_dmabuf_set_plane(fbuf_yuv, fbuf_argb)) 
-        {
-            std::cerr << "Flush fail \n";
-            goto exit;
-        }
-    }
-exit:
-    printf("%s ==========release \n", __func__);
     mtx.lock();
-    capture.release();
+    vdev = v4l2_open(dev_info[0].video_name[1]);
+    if (vdev == NULL) {
+		printf("error: unable to open video capture device %s\n",
+			dev_info[0].video_name[1]);
+        mtx.unlock();
+		goto display_cleanup;
+	}
+
+	memset(&format, 0, sizeof format);
+	format.pixelformat = dev_info[0].video_out_format[1] ? V4L2_PIX_FMT_NV12 : V4L2_PIX_FMT_NV16;
+	format.width = dev_info[0].video_width[1];
+	format.height = dev_info[0].video_height[1];
+
+	ret = v4l2_set_format(vdev, &format);
+	if (ret < 0)
+	{
+		printf("%s:v4l2_set_format error\n",__func__);
+        mtx.unlock();
+		goto display_cleanup;
+	}
+
+	ret = v4l2_alloc_buffers(vdev, V4L2_MEMORY_USERPTR, DRM_BUFFERS_COUNT);
+	if (ret < 0)
+	{
+		printf("%s:v4l2_alloc_buffers error\n",__func__);
+        mtx.unlock();
+		goto display_cleanup;
+	}
+
+	FD_ZERO(&fds);
+	FD_SET(vdev->fd, &fds);
+
+	for (i = 0; i < vdev->nbufs; ++i) {
+		buffer.index = i;
+        fbuf_yuv = &drm_dev.drm_bufs[buffer.index];
+        buffer.mem = fbuf_yuv->map;
+        buffer.size = fbuf_yuv->size;
+
+		ret = v4l2_queue_buffer(vdev, &buffer);
+		if (ret < 0) {
+			printf("error: unable to queue buffer %u\n", i);
+            mtx.unlock();
+			goto display_cleanup;
+		}	
+	}
+
+	ret = v4l2_stream_on(vdev);
+	if (ret < 0) {
+		printf("%s error: failed to start video stream: %s (%d)\n", __func__,
+			strerror(-ret), ret);
+        mtx.unlock();
+		goto display_cleanup;
+	}
+    mtx.unlock();
+
+    while(quit.load()) {
+		struct timeval timeout;
+		fd_set rfds;
+
+		timeout.tv_sec = SELECT_TIMEOUT / 1000;
+		timeout.tv_usec = (SELECT_TIMEOUT % 1000) * 1000;
+		rfds = fds;
+
+		ret = select(vdev->fd + 1, &rfds, NULL, NULL, &timeout);
+		if (ret < 0) {
+			if (errno == EINTR)
+				continue;
+
+			printf("error: select failed with %d\n", errno);
+			goto display_cleanup;
+		}
+		if (ret == 0) {
+			printf("error: select timeout\n");
+			goto display_cleanup;
+		}
+        process_ds0_image(vdev, format.width, format.height);
+    }
+
+display_cleanup:
+    mtx.lock();
+    video_stop(vdev);
+	video_cleanup(vdev);
     mtx.unlock();
 }
 
@@ -286,16 +410,6 @@ int main(int argc, char *argv[])
     ai_args.net_height = atoi(argv[3]);
     ai_args.valid_width = atoi(argv[4]);
     ai_args.valid_height = atoi(argv[5]);
-    if(ai_args.valid_height > ai_args.valid_width)
-    {
-        std::cerr << "You should set width bigger than height" << std::endl;
-                std::abort();
-    }
-    if(ai_args.valid_width != ai_args.net_width)
-    {
-        std::cerr << "We won't resize image for gnne input, so valid_width should be equal to net_len" << std::endl;
-                std::abort();
-    }
     ai_args.obj_thresh = atof(argv[6]);
     ai_args.nms_thresh = atof(argv[7]);
     char* video_cfg_file = argv[8];
