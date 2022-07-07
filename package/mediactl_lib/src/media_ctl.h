@@ -29,6 +29,9 @@
 extern "C"{
 #endif
 
+
+extern bool done;
+
 enum  isp_pipeline_e
 {
 	ISP_F2K_PIPELINE,
