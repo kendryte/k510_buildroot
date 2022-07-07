@@ -16,6 +16,10 @@ defaults:
   run:
     shell: bash
 
+concurrency:
+  group: ${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
   build_image:
     name: Build
@@ -32,6 +36,9 @@ jobs:
     strategy:
       matrix:
         cfg: ["crb_lp3_v1_2"]
+    outputs:
+      md5_bbl: ${{ steps.save_tftp.outputs.md5_bbl }}
+      md5_dtb: ${{ steps.save_tftp.outputs.md5_dtb }}
     steps:
       - uses: actions/checkout@v3
         with:
@@ -39,11 +46,13 @@ jobs:
           clean: false
 
       - name: Install toolchain
+        id: install_toolchain
         run: |
           test -f toolchain/nds64le-linux-glibc-v5d.txz || wget -c https://ai.b-bug.org/k510_buildroot/toolchain/nds64le-linux-glibc-v5d.txz -O toolchain/nds64le-linux-glibc-v5d.txz
           test -f toolchain/nds64le-elf-mculib-v5d.txz || wget -c https://ai.b-bug.org/k510_buildroot/toolchain/nds64le-elf-mculib-v5d.txz -O toolchain/nds64le-elf-mculib-v5d.txz          
 
       - name: Download cache package
+        id: download_cache
         run: |
           test -f pkg-download/dl.tar.gz && rm pkg-download/dl.tar.gz
           wget -qc https://ai.b-bug.org/k510_buildroot/pkg-download/dl.tar.gz -O pkg-download/dl.tar.gz
@@ -60,6 +69,7 @@ jobs:
           test -d dl_bak && rm -rf dl_bak
       
       - name: Build image
+        id: build_image
         run: |
           sed -i "s/BR2_JLEVEL=5/BR2_JLEVEL=14/g" configs/$CONF
           rm -rf $CONF
@@ -67,8 +77,9 @@ jobs:
           make CONF=$CONF
 
       - name: Save image to CI cache
+        id: save_cache
         run: |
-          export HW=`echo ${{ matrix.cfg }}|awk -F '_' '{print $1"_"$3"_"$4}'`
+          export HW=`echo ${{ matrix.cfg }}|awk -F '_' '{print $1"_"$3"."$4}'`
           echo $HW
           VER=$(cat $CONF/target/etc/version/release_version | grep ".*CST-github-pull-request" | sed 's/\(.*\)CST-github-pull-request/\1/g') || exit 1
           echo $VER
@@ -77,25 +88,33 @@ jobs:
           cp -r $CONF/target/etc/version/release_version $CI_ROOT/$VER/$HW/
 
       - name: Save image to TFTP
+        id: save_tftp
         run: |
-          export FILE_SUFFIX=`echo ${{ matrix.cfg }}|awk -F '_' '{print $1"-"$3"_"$4}'`-$PULL_REQUEST_ID-$GITHUB_RUN_ID
+          export FILE_SUFFIX=`echo ${{ matrix.cfg }}|awk -F '_' '{print $1"-"$3"."$4}'`-$PULL_REQUEST_ID-$GITHUB_RUN_ID
           echo $FILE_SUFFIX
           cp $CONF/images/bootm-bbl.img $TFTP_ROOT/bootm-bbl-$FILE_SUFFIX.img
           cp $CONF/images/k510.dtb $TFTP_ROOT/k510-$FILE_SUFFIX.dtb
+          md5_bbl=$(md5sum $TFTP_ROOT/bootm-bbl-$FILE_SUFFIX.img | awk '{print $1}')
+          md5_dtb=$(md5sum $TFTP_ROOT/k510-$FILE_SUFFIX.dtb | awk '{print $1}')
+          echo $md5_bbl
+          echo $md5_dtb
+          echo "::set-output name=md5_bbl::$md5_bbl"
+          echo "::set-output name=md5_dtb::$md5_dtb"
       
       - name: Save image to NFS
+        id: save_nfs
         run: |
-          export HW=`echo ${{ matrix.cfg }}|awk -F '_' '{print $1"_"$3"_"$4}'`
+          export HW=`echo ${{ matrix.cfg }}|awk -F '_' '{print $1"_"$3"."$4}'`
           export SAVE_DIR=$PULL_REQUEST_ID"_"$GITHUB_RUN_ID
           echo $HW
           echo $SAVE_DIR
-          mkdir -p $NFS_ROOT/k510_buildroot/$HW/$SAVE_DIR/
-          tar -xf $CONF/images/rootfs.tar -C $NFS_ROOT/k510_buildroot/$HW/$PULL_REQUEST_ID"_"$GITHUB_RUN_ID
+          mkdir -p $NFS_ROOT/k510/$HW/$SAVE_DIR/
+          tar -xf $CONF/images/rootfs.tar -C $NFS_ROOT/k510/$HW/$PULL_REQUEST_ID"_"$GITHUB_RUN_ID
 
-  load_image:
-    name: Load
+  test_image:
+    name: Test
     needs: build_image
-    timeout-minutes: 5
+    timeout-minutes: 15
     runs-on: [self-hosted, k510_buildroot]
     container:
       image: ai.b-bug.org:5000/k510_sdk_github
@@ -105,16 +124,90 @@ jobs:
       matrix:
         cfg: ["crb_lp3_v1_2"]
     steps:
-      - name: Load image
+      - name: Get Available DUT
+        id: get_dut
         run: |
-          test -d bin && rm -rf bin
-          mkdir ./bin
-          wget -qc https://ai.b-bug.org/k510_buildroot/github/ci -O ./bin/ci
-          chmod +x ./bin/ci
+          echo "Get Available DUT start"
           export HW_MODEL=`echo ${{ matrix.cfg }}|awk -F '_' '{print $1}'`
-          export HW_VER=`echo ${{ matrix.cfg }}|awk -F '_' '{print $3"_"$4}'`
-          echo $HW_MODEL
-          echo $HW_VER
+          export HW_VER=`echo ${{ matrix.cfg }}|awk -F '_' '{print $3"."$4}'`
+          test -d bin || mkdir ./bin
+          test -f ./bin/dut && rm -rf ./bin/dut
+          wget -qc https://ai.b-bug.org/k510_buildroot/github/dut -O ./bin/dut
+          chmod +x ./bin/dut
+          available=$(./bin/dut show --dest available --hw_type k510 --hw_model $HW_MODEL --hw_ver $HW_VER --format args)
+          echo $available
+          echo "available=$available" >> $GITHUB_ENV
+          if [[ $available =~ "k510" ]]; then
+            echo "Get Available DUT pass"
+          else
+            echo "ERROR: No Available DUT"
+            exit 1
+          fi
+
+      - name: Reserve DUT
+        id: reserve_dut
+        run: |
+          echo "Reserve DUT start"
+          echo "${{ env.available }}"
+          test -d bin || mkdir ./bin
+          test -f ./bin/dut && rm -rf ./bin/dut
+          wget -qc https://ai.b-bug.org/k510_buildroot/github/dut -O ./bin/dut
+          chmod +x ./bin/dut
           echo $PULL_REQUEST_ID
           echo $GITHUB_RUN_ID
-          ./bin/ci --project k510_buildroot --merge_id $PULL_REQUEST_ID --pipeline_id $GITHUB_RUN_ID --hw_ver $HW_VER --hw_model $HW_MODEL
+          reserved=$(./bin/dut add ${{ env.available }} --site github-actions --source $PULL_REQUEST_ID --job $GITHUB_RUN_ID --format args)
+          echo $reserved
+          echo "reserved=$reserved" >> $GITHUB_ENV
+          if [[ $reserved =~ "github-actions" ]]; then
+            echo "Reserve DUT pass"
+          else
+            echo "ERROR: Reserve DUT failed"
+            exit 1
+          fi
+
+      - name: Load Image
+        id: load_image
+        timeout-minutes: 5
+        run: |
+          echo "Load image start"
+          echo "${{ env.available }}"
+          echo "${{ env.reserved }}"
+          echo "bbl md5: ${{needs.build_image.outputs.md5_bbl}}"
+          echo "dtb md5: ${{needs.build_image.outputs.md5_dtb}}"
+          test -d bin || mkdir ./bin
+          test -f ./bin/ci && rm -rf ./bin/ci
+          wget -qc https://ai.b-bug.org/k510_buildroot/github/ci -O ./bin/ci
+          chmod +x ./bin/ci
+          echo $PULL_REQUEST_ID
+          echo $GITHUB_RUN_ID
+          ./bin/ci --pr_id $PULL_REQUEST_ID --job_id $GITHUB_RUN_ID --md5_dtb ${{needs.build_image.outputs.md5_dtb}} --md5_bbl ${{needs.build_image.outputs.md5_bbl}} ${{ env.available }}
+
+      - name: Run Test
+        id: run_test
+        timeout-minutes: 10
+        run: |
+          echo "Run Test start"
+          echo "${{ env.available }}"
+          echo "${{ env.reserved }}"
+          test -d bin || mkdir ./bin
+          test -f ./bin/dut && rm -rf ./bin/dut
+          echo "Run test case demo"
+
+      - name: Release DUT
+        id: release_dut
+        if: ${{ always() }}
+        run: |
+          echo "Release DUT start"
+          echo "${{ env.reserved }}"
+          test -d bin || mkdir ./bin
+          test -f ./bin/dut && rm -rf ./bin/dut
+          wget -qc https://ai.b-bug.org/k510_buildroot/github/dut -O ./bin/dut
+          chmod +x ./bin/dut
+          result=$(./bin/dut delete ${{ env.reserved }})
+          echo $result
+          if [[ $result =~ "True" ]]; then
+            echo "Release DUT pass"
+          else
+            echo "ERROR: Release DUT failed"
+            exit 1
+          fi

@@ -108,7 +108,7 @@ dl:
 	rm -rf pkg-download/dl.tar.gz;
 	wget -c  https://github.com/kendryte/k510_buildroot/releases/download/v1.6/dl.tar.gz  -O pkg-download/dl.tar.gz;
 	tar -zxf pkg-download/dl.tar.gz;
-	mkdir -p  dl/ai/; wget -c https://github.com/kendryte/k510_buildroot/releases/download/v1.6/ai_kmodel_data.tar.xz  -O dl/ai/ai_kmodel_data.tar.xz;
+	mkdir -p  dl/ai/; wget -c https://github.com/kendryte/k510_buildroot/releases/download/v1.7/ai_kmodel_data.tar.xz  -O dl/ai/ai_kmodel_data.tar.xz;
 	(set -x;   NNCASE_VER=v1.7.0 ;\
 		NNCASE_SITE=https://github.com/kendryte/nncase/releases/download;\
 		NNCASE_PIP_VD=1.7.0.20220530		; \
