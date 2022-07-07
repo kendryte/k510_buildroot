@@ -1,0 +1,80 @@
+From 61b94e5ec6dc573beb70a87f9555e304e43c7367 Mon Sep 17 00:00:00 2001
+From: gh-sxp <sunxiaopeng@canaan-creative.com>
+Date: Thu, 7 Jul 2022 15:43:59 +0800
+Subject: [PATCH] nau8822 mix i2s out audio
+
+---
+ sound/core/pcm_lib.c | 48 ++++++++++++++++++++++++++++++++++++++++++--
+ 1 file changed, 46 insertions(+), 2 deletions(-)
+
+diff --git a/sound/core/pcm_lib.c b/sound/core/pcm_lib.c
+index f4a19509..5f69b444 100644
+--- a/sound/core/pcm_lib.c
++++ b/sound/core/pcm_lib.c
+@@ -32,6 +32,7 @@
+ #include <sound/pcm.h>
+ #include <sound/pcm_params.h>
+ #include <sound/timer.h>
++#include<sound/soc.h>
+ 
+ #include "pcm_local.h"
+ 
+@@ -1965,10 +1966,53 @@ static int default_read_copy(struct snd_pcm_substream *substream,
+ 			     int channel, unsigned long hwoff,
+ 			     void *buf, unsigned long bytes)
+ {
+-	if (copy_to_user((void __user *)buf,
+-			 get_dma_ptr(substream->runtime, channel, hwoff),
++	struct snd_soc_pcm_runtime *rtd = substream->private_data;
++	int i =0;
++	void* pDmaPtr = NULL;
++	short mixData = 0;
++	short*pData   = NULL;
++	static const int AUDIO_DATA_MAX = 32767;   // 2^15（short）
++	static const int AUDIO_DATA_MIN = -32768;
++	
++	//mix left and right channel
++	//only process audio codec is nau8822 and pcm capture
++	if (SNDRV_PCM_STREAM_CAPTURE == substream->stream && 1 == rtd->num_codecs && (0 == strcmp(rtd->codec_dai->name,"nau8822-hifi")))
++	{
++	  // only process stereo channel and 16 bit
++		if (2 == substream->runtime->channels &&  
++			(substream->runtime->format >= SNDRV_PCM_FORMAT_S16_LE && substream->runtime->format <= SNDRV_PCM_FORMAT_U16_BE ))
++		{
++			pDmaPtr = get_dma_ptr(substream->runtime, channel, hwoff);
++			pData = (short*)pDmaPtr;
++			for (i =0;i< bytes/4;i++)
++			{
++				mixData = *pData + *(pData+1);
++				if (mixData > AUDIO_DATA_MAX)
++				{
++					mixData = AUDIO_DATA_MAX;
++				}
++				else if (mixData < AUDIO_DATA_MIN)
++				{
++					mixData = AUDIO_DATA_MIN;
++				}
++				*pData = mixData;
++				*(pData+1) = mixData;
++				pData += 2;
++			}
++			if (copy_to_user((void __user *)buf,
++			 pDmaPtr,
+ 			 bytes))
++			return -EFAULT;
++
++			return 0;
++		}
++	}
++
++	if (copy_to_user((void __user *)buf,
++		get_dma_ptr(substream->runtime, channel, hwoff),
++		bytes))
+ 		return -EFAULT;
++
+ 	return 0;
+ }
+ 
+-- 
+2.36.1
+
