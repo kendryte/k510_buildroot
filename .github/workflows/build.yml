@@ -191,7 +191,15 @@ jobs:
           echo "${{ env.reserved }}"
           test -d bin || mkdir ./bin
           test -f ./bin/dut && rm -rf ./bin/dut
-          echo "Run test case demo"
+          wget -qc https://ai.b-bug.org/k510_buildroot/github/airobot -O ./bin/airobot
+          chmod +x ./bin/airobot
+          wget -qc https://ai.b-bug.org/k510_buildroot/github/k510.robot -O ./k510.robot
+          ./bin/dut convert --dest=script --format yaml --file_name=var.yml ${{ env.available }}
+          test -f var.yml || exit 1
+          echo "Run test case start"
+          ./bin/airobot -V var.yml -i github k510.robot
+          echo "Run test case pass"
+
 
       - name: Release DUT
         id: release_dut
