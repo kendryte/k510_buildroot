@@ -194,7 +194,7 @@ jobs:
           ./bin/ai_dut convert --dest=script --format yaml --file_name=var.yml ${{ env.available }}
           test -f var.yml || exit 1
           echo "Run test case start"
-          ./bin/ai_robot -V var.yml -i github k510.robot
+          ./bin/ai_robot -m github -V var.yml -i github k510.robot
           echo "Run test case pass"
 
       - name: Release DUT
