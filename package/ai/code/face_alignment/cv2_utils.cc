@@ -39,9 +39,9 @@ box_t get_enlarged_box(box_t b, int valid_width, int valid_height, cv::Mat mat, 
     box_t dest;
     float x, y, w, h;
     x = b.x * mat.cols;
-    y = b.y * valid_width / valid_height * mat.rows;
+    y = b.y * mat.rows;
     w = b.w * mat.cols;
-    h = b.h * valid_width / valid_height * mat.rows;
+    h = b.h * mat.rows;
     float long_side = maxf(w, h);
     long_side = enlarge_ratio * long_side;
     dest.x = minf(maxf(0.0, x), (float)(mat.cols));

@@ -1,8 +1,9 @@
-set(SRC main.cc cv2_utils.cc anchors_320.cc anchors_640.cc retinalpd.cc lprnet.cc ../common/k510_drm.c)
+set(SRC main.cc cv2_utils.cc anchors_320.cc anchors_640.cc retinalpd.cc lprnet.cc ../common/k510_drm.c ../common/v4l2.c)
 set(bin license_plate_recog)
 set(script ../shell/license_recog.sh)
 set(input ../imx219_0.conf ../imx219_1.conf ../video_object_detect_320.conf ../video_object_detect_640.conf)
 
+add_definitions(-DFULL_SCREEN)
 
 include_directories ("../common")
 include_directories(${DEMO_ROOT}/riscv64/include)
