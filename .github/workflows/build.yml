@@ -148,9 +148,8 @@ jobs:
         id: reserve_dut
         run: |
           echo "Reserve DUT start"
-          echo "${{ env.available }}"
-          echo $PULL_REQUEST_ID
-          echo $GITHUB_RUN_ID
+          echo "PR ID: $PULL_REQUEST_ID"
+          echo "Job ID: $GITHUB_RUN_ID"
           reserved=$(./bin/ai_dut add ${{ env.available }} --site github-actions --source $PULL_REQUEST_ID --job $GITHUB_RUN_ID --format args)
           echo $reserved
           echo "reserved=$reserved" >> $GITHUB_ENV
@@ -166,8 +165,6 @@ jobs:
         timeout-minutes: 5
         run: |
           echo "Load image start"
-          echo "${{ env.available }}"
-          echo "${{ env.reserved }}"
           echo "bbl md5: ${{needs.build_image.outputs.md5_bbl}}"
           echo "dtb md5: ${{needs.build_image.outputs.md5_dtb}}"
           test -d bin || mkdir ./bin
@@ -183,8 +180,6 @@ jobs:
         timeout-minutes: 10
         run: |
           echo "Run Test start"
-          echo "${{ env.available }}"
-          echo "${{ env.reserved }}"
           test -d bin || mkdir ./bin
           test -f ./bin/ai_robot && rm -rf ./bin/ai_robot
           wget -qc https://ai.b-bug.org/k510_buildroot/github/ai_robot -O ./bin/ai_robot
@@ -202,7 +197,6 @@ jobs:
         if: ${{ always() }}
         run: |
           echo "Release DUT start"
-          echo "${{ env.reserved }}"
           test -d bin || mkdir ./bin
           result=$(./bin/ai_dut delete ${{ env.reserved }})
           echo $result
