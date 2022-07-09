@@ -1,7 +1,8 @@
-set(SRC main.cc cv2_utils.cc anchors_0.cc anchors_1.cc anchors_2.cc anchors_3.cc anchors_4.cc scrpd.cc ../common/k510_drm.c)
+set(SRC main.cc cv2_utils.cc anchors_0.cc anchors_1.cc anchors_2.cc anchors_3.cc anchors_4.cc scrpd.cc ../common/k510_drm.c ../common/v4l2.c)
 set(bin person_detect)
 set(script ../shell/person_detect.sh)
 set(input ../imx219_0.conf ../imx219_1.conf ../video_object_detect_320.conf ../video_object_detect_640.conf)
+add_definitions(-DFULL_SCREEN)
 
 include_directories ("../common")
 include_directories(${DEMO_ROOT}/riscv64/include)
