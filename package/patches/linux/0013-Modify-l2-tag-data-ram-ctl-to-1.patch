@@ -1,0 +1,27 @@
+From 0b0140450ca19ce19f94492c991e75fe75deb9d6 Mon Sep 17 00:00:00 2001
+From: zhaozhongxiang <zhaozhongxiang@canaan-creative.com>
+Date: Fri, 8 Jul 2022 21:12:28 +0800
+Subject: [PATCH] Modify l2 tag data  ram ctl to 1
+
+---
+ arch/riscv/boot/dts/canaan/k510_common/k510.dtsi | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/arch/riscv/boot/dts/canaan/k510_common/k510.dtsi b/arch/riscv/boot/dts/canaan/k510_common/k510.dtsi
+index 11ba9525..fd8c3eae 100755
+--- a/arch/riscv/boot/dts/canaan/k510_common/k510.dtsi
++++ b/arch/riscv/boot/dts/canaan/k510_common/k510.dtsi
+@@ -70,8 +70,8 @@
+         andes,inst-prefetch = <3>;
+         andes,data-prefetch = <3>;
+         // The value format is <XRAMOCTL XRAMICTL>
+-        andes,tag-ram-ctl = <0 0>;
+-        andes,data-ram-ctl = <0 0>;
++        andes,tag-ram-ctl = <1 0>;
++        andes,data-ram-ctl = <1 0>;
+     };
+ 
+     pmu: pmu {
+-- 
+2.36.1
+
