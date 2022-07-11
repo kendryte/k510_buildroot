@@ -1,0 +1,60 @@
+Index: b/libavdevice/v4l2.c
+===================================================================
+--- a/libavdevice/v4l2.c
++++ b/libavdevice/v4l2.c
+@@ -373,6 +373,7 @@ static unsigned long int get_time()
+ static int isp_sync(AVFormatContext *ctx)
+ {
+   struct video_data *s = ctx->priv_data;
++  int drop=0, repeat=0;
+ 
+   s->time = get_time();
+   
+@@ -388,9 +389,8 @@ static int isp_sync(AVFormatContext *ctx
+         
+   if(s->time - s->check_time >= 1000000000)
+   {
+-    unsigned long int cap_time, elasp_time, delta=0, duration;
+-    int drop=0, repeat=0;
+-    
++    double cap_time, elasp_time, delta, duration;
++        
+     s->check_time = 0;
+ 
+     duration = 1000000.0/s->fr;
+@@ -416,21 +416,21 @@ static int isp_sync(AVFormatContext *ctx
+         s->drop_cnt++;
+       }
+     }
++  }
+ 
+-    if(drop == 0)
+-    {
+-      s->isp_pic_cnt++;
+-    }
+-    else
+-    {
+-      return -1;
+-    }
+-    
+-    if(repeat == 1)
+-    {
+-      s->isp_pic_cnt++;
+-      return 1;
+-    }
++  if(drop == 0)
++  {
++    s->isp_pic_cnt++;
++  }
++  else
++  {
++    return -1;
++  }
++  
++  if(repeat == 1)
++  {
++    s->isp_pic_cnt++;
++    return 1;
+   }
+   
+   return 0;
