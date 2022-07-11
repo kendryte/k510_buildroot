@@ -131,10 +131,10 @@ jobs:
           export HW_MODEL=`echo ${{ matrix.cfg }}|awk -F '_' '{print $1}'`
           export HW_VER=`echo ${{ matrix.cfg }}|awk -F '_' '{print $3"."$4}'`
           test -d bin || mkdir ./bin
-          test -f ./bin/dut && rm -rf ./bin/dut
-          wget -qc https://ai.b-bug.org/k510_buildroot/github/dut -O ./bin/dut
-          chmod +x ./bin/dut
-          available=$(./bin/dut show --dest available --hw_type k510 --hw_model $HW_MODEL --hw_ver $HW_VER --format args)
+          test -f ./bin/ai_dut && rm -rf ./bin/ai_dut
+          wget -qc https://ai.b-bug.org/k510_buildroot/github/ai_dut -O ./bin/ai_dut
+          chmod +x ./bin/ai_dut
+          available=$(./bin/ai_dut show --dest available --hw_type k510 --hw_model $HW_MODEL --hw_ver $HW_VER --format args)
           echo $available
           echo "available=$available" >> $GITHUB_ENV
           if [[ $available =~ "k510" ]]; then
@@ -148,14 +148,9 @@ jobs:
         id: reserve_dut
         run: |
           echo "Reserve DUT start"
-          echo "${{ env.available }}"
-          test -d bin || mkdir ./bin
-          test -f ./bin/dut && rm -rf ./bin/dut
-          wget -qc https://ai.b-bug.org/k510_buildroot/github/dut -O ./bin/dut
-          chmod +x ./bin/dut
-          echo $PULL_REQUEST_ID
-          echo $GITHUB_RUN_ID
-          reserved=$(./bin/dut add ${{ env.available }} --site github-actions --source $PULL_REQUEST_ID --job $GITHUB_RUN_ID --format args)
+          echo "PR ID: $PULL_REQUEST_ID"
+          echo "Job ID: $GITHUB_RUN_ID"
+          reserved=$(./bin/ai_dut add ${{ env.available }} --site github-actions --source $PULL_REQUEST_ID --job $GITHUB_RUN_ID --format args)
           echo $reserved
           echo "reserved=$reserved" >> $GITHUB_ENV
           if [[ $reserved =~ "github-actions" ]]; then
@@ -170,40 +165,40 @@ jobs:
         timeout-minutes: 5
         run: |
           echo "Load image start"
-          echo "${{ env.available }}"
-          echo "${{ env.reserved }}"
           echo "bbl md5: ${{needs.build_image.outputs.md5_bbl}}"
           echo "dtb md5: ${{needs.build_image.outputs.md5_dtb}}"
           test -d bin || mkdir ./bin
-          test -f ./bin/ci && rm -rf ./bin/ci
-          wget -qc https://ai.b-bug.org/k510_buildroot/github/ci -O ./bin/ci
-          chmod +x ./bin/ci
+          test -f ./bin/ai_load && rm -rf ./bin/ai_load
+          wget -qc https://ai.b-bug.org/k510_buildroot/github/ai_load -O ./bin/ai_load
+          chmod +x ./bin/ai_load
           echo $PULL_REQUEST_ID
           echo $GITHUB_RUN_ID
-          ./bin/ci --pr_id $PULL_REQUEST_ID --job_id $GITHUB_RUN_ID --md5_dtb ${{needs.build_image.outputs.md5_dtb}} --md5_bbl ${{needs.build_image.outputs.md5_bbl}} ${{ env.available }}
+          ./bin/ai_load --pr_id $PULL_REQUEST_ID --job_id $GITHUB_RUN_ID --md5_dtb ${{needs.build_image.outputs.md5_dtb}} --md5_bbl ${{needs.build_image.outputs.md5_bbl}} ${{ env.available }}
 
       - name: Run Test
         id: run_test
         timeout-minutes: 10
         run: |
           echo "Run Test start"
-          echo "${{ env.available }}"
-          echo "${{ env.reserved }}"
           test -d bin || mkdir ./bin
-          test -f ./bin/dut && rm -rf ./bin/dut
-          echo "Run test case demo"
+          test -f ./bin/ai_robot && rm -rf ./bin/ai_robot
+          wget -qc https://ai.b-bug.org/k510_buildroot/github/ai_robot -O ./bin/ai_robot
+          chmod +x ./bin/ai_robot
+          test -f ./k510.robot && rm -rf ./k510.robot
+          wget -qc https://ai.b-bug.org/k510_buildroot/github/k510.robot -O ./k510.robot
+          ./bin/ai_dut convert --dest=script --format yaml --file_name=var.yml ${{ env.available }}
+          test -f var.yml || exit 1
+          echo "Run test case start"
+          ./bin/ai_robot -m github -V var.yml -i github k510.robot
+          echo "Run test case pass"
 
       - name: Release DUT
         id: release_dut
         if: ${{ always() }}
         run: |
           echo "Release DUT start"
-          echo "${{ env.reserved }}"
           test -d bin || mkdir ./bin
-          test -f ./bin/dut && rm -rf ./bin/dut
-          wget -qc https://ai.b-bug.org/k510_buildroot/github/dut -O ./bin/dut
-          chmod +x ./bin/dut
-          result=$(./bin/dut delete ${{ env.reserved }})
+          result=$(./bin/ai_dut delete ${{ env.reserved }})
           echo $result
           if [[ $result =~ "True" ]]; then
             echo "Release DUT pass"
