@@ -4,7 +4,7 @@
 #
 ################################################################################
 
-RISCV_PK_K510_VERSION = 1e666d6c5dbab220d2ca57fbd9bec49702599b75
+RISCV_PK_K510_VERSION = d645baf2964c3088f8cb08b4600e8f9f0fdeca4e
 RISCV_PK_K510_SITE = https://github.com/kendryte/k510_BBL.git
 RISCV_PK_K510_SITE_METHOD = git
 
