@@ -1007,7 +1007,7 @@ int mediactl_all_set_ae(enum isp_pipeline_e pipeline)
 		// FIXME: lantency, skip 3 frames
 		static uint32_t counter = 0;
 		counter += 1;
-		if (counter % 2) {
+		if (counter % 3) {
 			// do nothing
 			return ret;
 		}
@@ -1079,7 +1079,7 @@ int mediactl_all_set_ae(enum isp_pipeline_e pipeline)
 		// lantency
 		static uint32_t counter = 0;
 		counter += 1;
-		if (counter % 2) {
+		if (counter % 3) {
 			// do nothing
 			return ret;
 		}
