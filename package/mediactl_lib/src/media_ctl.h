@@ -30,7 +30,6 @@ extern "C"{
 #endif
 
 
-extern bool done;
 
 enum  isp_pipeline_e
 {

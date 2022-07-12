@@ -25,6 +25,7 @@
 
 /* v4l2_test */
 #include <asm-generic/errno-base.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1232,9 +1233,9 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
                         fprintf(stderr, "> %d\n", vbuf[j][i].index);
                         #endif
                         // FIXME: should be (1U << (i - 1))
-                        if(isp_ae_status & (i + 1)) {
-                            mediactl_set_ae(ISP_F2K_PIPELINE + i);
-                        }
+                        //if(isp_ae_status & (i + 1)) {
+                        //    mediactl_set_ae(ISP_F2K_PIPELINE + i);
+                        //}
                         bit_mask_w &= ~(1U << i);
                     }
                 }
@@ -1280,6 +1281,7 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
     max_fd_with_drm = max_fd > drm_dev.fd ? max_fd : drm_dev.fd;
     max_fd += 1;
     max_fd_with_drm += 1;
+    bit_mask |= 0b100;
     fprintf(stderr, "start drm\n");
     #if DEBUG_VBUF_IDX
     unsigned used_index[2] = {vbuf[0][0].index, vbuf[0][1].index};
@@ -1287,8 +1289,11 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
     while (!done) {
         fd_set rfds = fds_with_drm;
         unsigned need_flip[2] = {0, 0};
+        bit_mask_w = bit_mask;
+        static uint32_t frame_counter = 0;
+        frame_counter += 1;
         // FIXME
-        while (1) {
+        do {
             tv.tv_sec = 5; // ???? if not, select() will timeout
             tv.tv_usec = 0;
             fd_set rrfds = rfds;
@@ -1310,10 +1315,17 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
                             #if DEBUG_VBUF_IDX
                             fprintf(stderr, "> %d\n", vbuf[vbuf_ptr[i]][i].index);
                             #endif
-                            if(isp_ae_status & (i + 1)) {
-                                mediactl_set_ae(ISP_F2K_PIPELINE + i);
+                            //if(isp_ae_status & (i + 1)) {
+                            //    mediactl_set_ae(ISP_F2K_PIPELINE + i);
+                            //}
+                            if (need_flip[i]) {
+                                // frame droped
+                                static uint32_t drop_frame_counter[2] = {0, 0};
+                                pr_debug("camera %d drop a frame in %d frames\n", i, frame_counter - drop_frame_counter[i]);
+                                drop_frame_counter[i] = frame_counter;
                             }
                             need_flip[i] = 1;
+                            bit_mask_w &= ~(1 << i);
                         } else if (errno != EAGAIN) {
                             perror("camera DQBUF");
                             goto cleanup;
@@ -1326,7 +1338,7 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
                     drmHandleEvent(drm_dev.fd, &drm_dev.drm_event_ctx);
                     drmModeAtomicFree(drm_dev.req);
                     drm_dev.req = NULL;
-                    break;
+                    bit_mask_w &= ~0b100;
                 }
             } else if (r < 0) {
                 if (errno == EINTR) {
@@ -1341,10 +1353,10 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
             if (done) {
                 goto cleanup;
             }
-        }
+        } while (bit_mask_w && (!done));
 
         // fps stat
-#define DEBUG_FPS 1
+#define DEBUG_FPS 0
 #if DEBUG_FPS
         static unsigned frames = 0;
         static uint32_t tm = 0;
@@ -1385,9 +1397,9 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
             }
         }
 
-        // flip
+        // FIXME: always flip
         for (unsigned i = 0; i < 2; i++) {
-            vbuf_ptr[i] ^= need_flip[i];
+            vbuf_ptr[i] ^= 1;
         }
     }
 
