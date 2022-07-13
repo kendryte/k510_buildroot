@@ -1,0 +1,95 @@
+From d334ad778aa3a4a2d3e3344c659d42c1eebb866e Mon Sep 17 00:00:00 2001
+From: wycwyhwyq <5f20.6d9b@gmail.com>
+Date: Tue, 28 Jun 2022 11:51:33 +0800
+Subject: [PATCH] add lvgl resolution auto adaptation
+
+---
+ lv_port_disp_k510.c | 27 +++++++++++++++++++--------
+ 1 file changed, 19 insertions(+), 8 deletions(-)
+
+diff --git a/lv_port_disp_k510.c b/lv_port_disp_k510.c
+index c511bb1..49992a3 100644
+--- a/lv_port_disp_k510.c
++++ b/lv_port_disp_k510.c
+@@ -9,6 +9,7 @@
+ #include <time.h>
+ #include <sys/time.h>
+ #include <stdio.h>
++#include <stdlib.h>
+ #include <errno.h>
+ #include <signal.h>
+ #include "lv_port_disp_k510.h"
+@@ -36,6 +37,8 @@ static void disp_flush(lv_disp_drv_t *disp_drv, const lv_area_t *area,
+  *  STATIC VARIABLES
+  **********************/
+ static struct drm_dev drm_dev;
++static uint32_t screen_width, screen_height;
++static uint32_t display_width, display_height;
+ #define DRM_BUF_COUNT 2
+ static struct drm_buffer drm_bufs[DRM_BUF_COUNT] = {
+ 	{ 0, 0, 1080, 1920, DRM_FORMAT_ARGB8888, 32 },
+@@ -62,11 +65,12 @@ void lv_port_disp_init(void)
+ 	/*-----------------------------
+      * Create a buffer for drawing
+      *----------------------------*/
++	display_width = drm_bufs[0].width;
++	display_height = drm_bufs[0].height;
+ 	static lv_disp_draw_buf_t draw_buf_dsc;
+-	static lv_color_t draw_buf[DISP_HOR_RES * 100];
++	lv_color_t *draw_buf = malloc(display_width * 100 * sizeof(lv_color_t));
+ 	lv_disp_draw_buf_init(&draw_buf_dsc, draw_buf, NULL,
+-			      DISP_HOR_RES *
+-				      100); /*Initialize the display buffer*/
++			      display_width * 100); /*Initialize the display buffer*/
+ 	/*-----------------------------------
+      * Register the display in LVGL
+      *----------------------------------*/
+@@ -76,8 +80,8 @@ void lv_port_disp_init(void)
+ 	/*Set up the functions to access to your display*/
+ 
+ 	/*Set the resolution of the display*/
+-	disp_drv.hor_res = DISP_HOR_RES;
+-	disp_drv.ver_res = DISP_VER_RES;
++	disp_drv.hor_res = display_width;
++	disp_drv.ver_res = display_height;
+ 
+ 	/*Used to copy the buffer's content to the display*/
+ 	disp_drv.flush_cb = disp_flush;
+@@ -266,6 +270,13 @@ static int disp_init(void)
+ 
+ 	if (drm_dev_setup(&drm_dev, DRM_DEV_NAME_DEFAULT))
+ 		return -1;
++	drm_get_resolution(&drm_dev, &screen_width, &screen_height);
++	printf("screen resolution: %dx%d\n", screen_width, screen_height);
++
++	for (int i = 0; i < DRM_BUF_COUNT; i++) {
++		drm_bufs[i].width = ALIGNED_UP_POWER_OF_TWO(screen_width, 3);
++		drm_bufs[i].height = ALIGNED_DOWN_POWER_OF_TWO(screen_height, 0);
++	}
+ 
+ 	if (alloc_drm_buff()) {
+ 		drm_dev_cleanup(&drm_dev);
+@@ -292,9 +303,9 @@ static void disp_deinit(void)
+ static void disp_flush(lv_disp_drv_t *disp_drv, const lv_area_t *area,
+ 		       lv_color_t *color_p)
+ {
+-	uint32_t *dst, *src = (uint32_t *)color_p;
++	lv_color_t *dst, *src = color_p;
+ 	for (int y = area->y1; y <= area->y2; y++) {
+-		dst = lvgl_buf + DISP_HOR_RES * y + area->x1;
++		dst = lvgl_buf + display_width * y + area->x1;
+ 		for (int x = area->x1; x <= area->x2; x++)
+ 			*dst++ = *src++;
+ 	}
+@@ -305,7 +316,7 @@ static void disp_flush(lv_disp_drv_t *disp_drv, const lv_area_t *area,
+ 
+ 	static uint32_t current_buf = 0;
+ 	memcpy(drm_bufs[current_buf].map, lvgl_buf,
+-	       DISP_HOR_RES * DISP_VER_RES * 4);
++	       display_width * display_height * sizeof(lv_color_t));
+ 	if (drm_dev.pflip_pending)
+ 		drm_wait_vsync(&drm_dev);
+ 
+-- 
+2.17.1
+
