@@ -36,6 +36,9 @@
 extern "C" {
 #endif
 
+#define ALIGNED_UP_POWER_OF_TWO(value, n) (((value) + (1 << (n)) - 1) & ~((1 << (n)) - 1))
+#define ALIGNED_DOWN_POWER_OF_TWO(value, n) (((value) & ~((1 << (n)) - 1)))
+
 struct drm_buffer {
 	int32_t offset_x;
 	int32_t offset_y;
@@ -77,6 +80,7 @@ int drm_create_fb(int fd, struct drm_buffer *buf);
 void drm_destroy_fb(int fd, struct drm_buffer *buf);
 int drm_set_object_property(drmModeAtomicReq *req, struct drm_object *obj,
 			    const char *name, uint64_t value);
+int drm_get_resolution(struct drm_dev *dev, uint32_t *width, uint32_t *height);
 
 #if defined(__cplusplus)
 }
