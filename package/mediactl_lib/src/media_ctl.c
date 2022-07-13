@@ -1030,16 +1030,13 @@ int mediactl_all_set_ae(enum isp_pipeline_e pipeline)
 		v4l2_subdev_close(pipe);
 
 		// no change
-		/*
 		static int expl = 0, agco = 0;
-		if (abs(expl - (int)ae_stats.ae_expl) <= 1 && abs(agco - (int)ae_stats.ae_agco) <= 1) {
+		if (expl == ae_stats.ae_expl && agco == ae_stats.ae_agco) {
 			return ret;
 		} else {
-			ae_stats.ae_expl = (ae_stats.ae_expl + expl) / 2;
-			ae_stats.ae_agco = (ae_stats.ae_agco + agco) / 2;
 			expl = ae_stats.ae_expl;
 			agco = ae_stats.ae_agco;
-		}*/
+		}
 
 		struct media_entity *sensor0 = v4l_isp.sensor0;
 		if( ae_stats.ae_wren == 1)
@@ -1101,17 +1098,13 @@ int mediactl_all_set_ae(enum isp_pipeline_e pipeline)
 		//printf("%s:ae_wren(%d),ae_expl(%d),ae_agco(%d)\n",__func__,ae_stats.ae_wren,ae_stats.ae_expl,ae_stats.ae_agco);
 		v4l2_subdev_close(pipe);
 
-		// no change
-		/*
 		static int expl = 0, agco = 0;
-		if (abs(expl - (int)ae_stats.ae_expl) <= 1 && abs(agco - (int)ae_stats.ae_agco) <= 1) {
+		if (expl == ae_stats.ae_expl && agco == ae_stats.ae_agco) {
 			return ret;
 		} else {
-			ae_stats.ae_expl = (ae_stats.ae_expl + expl) / 2;
-			ae_stats.ae_agco = (ae_stats.ae_agco + agco) / 2;
 			expl = ae_stats.ae_expl;
 			agco = ae_stats.ae_agco;
-		}*/
+		}
 
 		struct media_entity *sensor1 = v4l_isp.sensor1;
 		if( ae_stats.ae_wren == 1)
