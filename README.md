@@ -2,17 +2,17 @@
 [![GitHub release](https://img.shields.io/github/v/release/kendryte/k510_buildroot?color=brightgreen&display_name=tag&logo=github&style=plastic)](https://github.com/kendryte/k510_buildroot/releases)
 
 * [English](README.md)
-* [Chinese Simplified](README.zh-Hans.md)
-* [Chinese Traditional](README.zh-Hant.md)
-* [Dutch](README.nl.md)
-* [French](README.fr.md)
-* [German](README.de.md)
-* [Italian](README.it.md)
-* [Japanese](README.ja.md)
-* [Korean](README.ko.md)
-* [Russian](README.ru.md)
-* [Spanish](README.es.md)
-* [Polish](README.pl.md)
+* [简体中文](README.zh-Hans.md)
+* [繁體中文](README.zh-Hant.md)
+* [Nederlands](README.nl.md)
+* [Français](README.fr.md)
+* [Deutsch](README.de.md)
+* [Italiano](README.it.md)
+* [日本語](README.ja.md)
+* [한국어](README.ko.md)
+* [Русский](README.ru.md)
+* [Español](README.es.md)
+* [Polski](README.pl.md)
 
 # K510 SDK
 
