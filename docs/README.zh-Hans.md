@@ -1,7 +1,7 @@
 [![Gitee repository](https://img.shields.io/badge/gitee-repository-blue?logo=gitee&style=plastic)](https://gitee.com/kendryte/k510_buildroot)
 [![GitHub release](https://img.shields.io/github/v/release/kendryte/k510_buildroot?color=brightgreen&display_name=tag&logo=github&style=plastic)](https://github.com/kendryte/k510_buildroot/releases)
 
-* [English](README.md)
+* [English](../README.md)
 * [简体中文](README.zh-Hans.md)
 * [繁體中文](README.zh-Hant.md)
 * [Nederlands](README.nl.md)
