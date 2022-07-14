@@ -1,82 +1,95 @@
 [![Gitee repository](https://img.shields.io/badge/gitee-repository-blue?logo=gitee&style=plastic)](https://gitee.com/kendryte/k510_buildroot)
 [![GitHub release](https://img.shields.io/github/v/release/kendryte/k510_buildroot?color=brightgreen&display_name=tag&logo=github&style=plastic)](https://github.com/kendryte/k510_buildroot/releases)
 
+* [English](README.md)
+* [Chinese Simplified](README.zh-Hans.md)
+* [Chinese Traditional](README.zh-Hant.md)
+* [Dutch](README.nl.md)
+* [French](README.fr.md)
+* [German](README.de.md)
+* [Italian](README.it.md)
+* [Japanese](README.ja.md)
+* [Korean](README.ko.md)
+* [Russian](README.ru.md)
+* [Spanish](README.es.md)
+* [Polish](README.pl.md)
+
 # K510 SDK
 
-勘智K510是嘉楠公司推出的第二代AI边缘侧推理芯片，它为AI应用提供了高性能的图像及语音处理能力。K510搭载自主研发的第二代神经网络处理器KPU2.0， 采用独创计算数据流技术，算力较上一代提升3倍同时降低功耗。集成最新一代图像处理器ISP，支持TOF深度相机接入，支持2D/3D降噪、宽动态范围（WDR）、硬件3A等完备功能。3D ISP支持深度摄像头TOF sensor。可广泛应用于无人机、高清航拍、专业相机、视频会议、智能机器人、教育STEAM、自动辅助驾驶等不同应用领域。
+Kanzhi K510 is the second generation of AI edge-side inference chips launched by Canaan, which provides high-performance image and speech processing capabilities for AI applications. The K510 is equipped with the self-developed second-generation neural network processor KPU2.0, which adopts the original computing data flow technology, which increases the computing power by 3 times compared with the previous generation and reduces power consumption. Integrated with the latest generation of image processor ISP, support TOF depth camera access, support 2D/3D noise reduction, wide dynamic range (WDR), hardware 3A and other complete functions. 3D ISPs support depth camera TOF sensors. It can be widely used in different application fields such as unmanned aerial vehicles, high-definition aerial photography, professional cameras, video conferencing, intelligent robots, educational STEAM, and automatic assisted driving.
 
-K510 SDK是嘉楠公司提供的用于K510芯片应用研发的软件开发资料包，它的默认配置基于K510 CRB(客户参考平台)，仓库内容包括用户在使用 K510 芯片进行开发中可能用到的工具链软件、PC工具包、Linux代码、bootloader、bbl、buildroot构建系统软件及相关的硬件资源文档。用户可以基于本套软件代码库，根据自己的需求进行定制更改开发，最终构建并编译生成部署使用的镜像文件。
+K510 SDK is a software development kit provided by Canaan for K510 chip application development, its default configuration is based on K510 CRB (customer reference platform), the warehouse content includes the toolchain software, PC toolkit, Linux code, bootloader, bbl, buildroot build system software and related hardware resource documents that users may use in the development of K510 chip. Users can customize the change development according to their own needs based on this set of software code base, and finally build and compile the image file used for deployment.
 
-## 资料内容说明和参考资源链接
+## Descriptions of material content and links to reference resources
 
-| No | 链接地址 | 说明  |
+| No | Link address | illustrate  |
 | :----: | ---- |  ------------------------------------------------------------ |
-|1| / | 代码编译工作目录 |
-|2|[docs/](https://github.com/kendryte/k510_docs)| K510系统编译及应用开发文档；硬件资源介绍文档
-|3|[package/](/package/)| 提供Linux系统外设开发应用示例；各种AI 演示应用源代码  |
-|4|[嘉楠勘智](https://canaan-creative.com/product/勘智k510)|嘉楠勘智官网|
-|5|[开发者社区](https://canaan-creative.com/developer)|嘉楠勘智论坛
-|6|[演示视频](https://space.bilibili.com/677429436)|K510开发板开箱视频及多个 AI 应用展示视频|
-|7|[K510 CRB-KIT](https://item.taobao.com/item.htm?spm=a230r.1.14.1.22714815bDh5ei&id=673510674381&ns=1&abbucket=0&mt=)|K510 开发板套装在线购买链接|
-|8|即时沟通|  社区互助 QQ 群：790699378</br>Telegram：nncase community |
+|1| / | The code compiles the working directory |
+|2|[docs/](https://github.com/kendryte/k510_docs)| K510 system compilation and application development documentation; Hardware resource introduction documentation
+|3|[package/](/package/)| Provide Linux system peripheral development application examples; Various AI demo application source code  |
+|4|[Canaan Kanchi](https://canaan-creative.com/product/勘智k510)|Canaan Kanji official website|
+|5|[Developer community](https://canaan-creative.com/developer)|Canaan Kanchi Forum
+|6|[Demo video](https://space.bilibili.com/677429436)|K510 development board out-of-the-box video and multiple AI application demonstration videos|
+|7|[K510 CRB-KIT](https://item.taobao.com/item.htm?spm=a230r.1.14.1.22714815bDh5ei&id=673510674381&ns=1&abbucket=0&mt=)|K510 Board Kit Online Purchase Link|
+|8|Instant communication|  Community Mutual Aid QQ Group: 790699378</br>Telegram: nncase community |
 
-## K510 CRB 开发者套装介绍
+## Introduction to the K510 CRB Developer Suite
 
-K510 CRB-KIT是基于K510芯片研发的开发者套装，它采用分级设计，以K510核心模组为基础，外设丰富，便于扩展。 支持USB 2.0 OTG+PHY、千兆以太网口、3xSDIO、3xSPI等高速通信接口，支持4xUART、GPIO、I2C和I2S等低速通信接口。使用简单、资料丰富、能够帮助客户快速实现创意评估、产品原型验证，缩短产品设计周期。
-![canaan-board.png](https://github.com/kendryte/k510_docs/raw/v1.5/zh/images/hw_crb_v1_2/canaan-board.png)
-<center>K510 CRB 正面照 </center>
+K510 CRB-KIT is a developer suite based on the K510 chip development, which adopts a hierarchical design, based on the K510 core module, with rich peripherals and easy to expand. Support USB 2.0 OTG+PHY, Gigabit Ethernet port, 3xSDIO, 3xSPI and other high-speed communication interfaces, support 4xUART, GPIO, I2C and I2S and other low-speed communication interfaces. Simple to use, informative, can help customers quickly achieve creative evaluation, product prototype verification, shorten the product design cycle.
+![Canaan-board .png](https://github.com/kendryte/k510_docs/raw/v1.5/zh/images/hw_crb_v1_2/canaan-board.png)
+<center>K510 CRB front photo </center>
 
 ![image-hw_1_3.png](https://github.com/kendryte/k510_docs/raw/v1.5/zh/images/hw_crb_v1_2/image-hw_1_3.png)
-<center>K510系统框图</center>  
+ <center>K510 system block diagram</center>  
 
 ![image-hw_3_1.png](https://github.com/kendryte/k510_docs/raw/v1.5/zh/images/hw_crb_v1_2/image-hw_3_1.png)
-<center>K510核心板模组图</center>  
+ <center>K510 core board module diagram</center>  
 
-## K510 软件开发入门
+## Getting started with K510 software development
 
-### 建立软件开发环境
+### Set up a software development environment
 
-K510 软件开发基于 Linux 环境。用户需要准备一台装有 Linux 操作系统的主机用于软件编译及部署，如果您工作在 windows 下，推荐安装 Windows WSL 以便进行软件开发工作。
+K510 software development is based on a Linux environment. Users need to prepare a host with a Linux operating system for software compilation and deployment, and if you are working under Windows, it is recommended to install Windows WSL for software development work.
 
-### 源代码下载
+### Source code download
 
 ```sh
 git clone https://github.com/kendryte/k510_buildroot.git
 ```
 
-### 启动docker
+### Start Docker
 
 ```sh
 sh k510_buildroot/tools/docker/run_k510_docker.sh
 ```
 
-### 编译代码库
+### Compile the code base
 
-进入docker环境后，输入如下命令进行系统编译。
+After entering the docker environment, enter the following command to compile the system.
 
 ```sh
 make dl
 make
 ```
 
-`make dl`为可选步骤，用于加速源码下载。
-第一次全新系统编译时间较长，请耐心等待（时间和主机CPU的性能和网络下载速度相关）。
+`make dl`Optional step to speed up source code downloads.
+The first new system takes a long time to compile, so be patient (time is related to the performance of the host CPU and the speed of network downloads).
 
-### 烧写镜像文件
+### Flash the image file
 
-K510 支持sdcard和eMMC启动方式，用户可以通过改变开板上SW1拔码开关的设置切换不同启动模式。  
-出厂默认为从emmc启动。为方便开发，建议您准备一张TF卡，并将拔码开关切换至SD卡启动模式，后续可考虑将镜像文件固化至emmc中。  
-无论您工作在 Linux 还是 Windows系统下， 均可下载 [Etcher](https://www.balena.io/etcher/) 工具，将编译生成的镜像文件（k510_buildroot/k510_crb_lp3_v1_2_defconfig/image/sysimage-sdcard.img）烧录至 TF 卡中。
+The K510 supports sdcard and eMMC boot modes, and users can switch between different boot modes by changing the settings of the SW1 pull switch on the open board.  
+The factory default is to boot from emmc. For ease of development, it is recommended that you prepare a TF card and switch the code switch to the SD card boot mode, and then consider curing the image file into emmc.  
+Whether you work on Linux or Windows, you can download [the Etcher](https://www.balena.io/etcher/) tool to burn the compiled image file (k510_buildroot/k510_crb_lp3_v1_2_defconfig/image/sysimage-sdcard.img) to your TF card.
 ![balenaetcher.png](https://github.com/kendryte/k510_docs/raw/v1.5/zh/images/quick_start/balenaetcher.png)
 
-### 上电运行
+### Power-on operation
 
-确认SW1开关选择在SD卡启动模式下，将烧录完成的TF卡插入进开板板卡槽中，然后将电源开关K1拔到ON位置，系统可上电。您会看到屏幕显示 CANAAN logo 画面，如果您有接好串口，可在串口中看到启动日志输出。
+Confirm that the SW1 switch is selected in SD card boot mode, insert the burned TF card into the open board card slot, and then unplug the power switch K1 to the ON position, and the system can power up. You will see the screen display the CANAAN logo screen, if you have a connected serial port, you can see the boot log output in the serial port.
 ![k510_boot.png](https://github.com/kendryte/k510_docs/raw/v1.5/zh/images/quick_start/k510_boot.png)
 
-### 更改默认启动程序
+### Change the default startup program
 
-默认情况下，系统开机会自动运行 /app/mediactl_lib 路径下的示例程序(v4l2_drm.out)。你也可以手动更改配置程序，改成运行其它演示程序。更改方法如下：
+By default, the system automatically runs the sample program (v4l2_drm.out) under the /app/mediactl_lib path on. You can also manually change the configuration program to run other demo programs instead. Here's how to change it:
 
 ```sh
 vi /etc/init.d/rc.sysinit
@@ -88,12 +101,17 @@ cd /
 /app/ai/shell/face_detect.sh &
 ```
 
-## 贡献指南
+## Contribution Guide
 
-如果您对本项目感兴趣，想要反馈问题或提交代码，请参考[CONTRIBUTING](.github/CONTRIBUTING.md)
+If you are interested in this project and would like feedback on a problem or submit code, please refer to[CONSOLIDATING](.github/CONTRIBUTING.md)
 
-## 联系我们
+## Contact us
 
-北京嘉楠捷思信息技术有限公司  
-网址：[canaan-creative.com](https://canaan-creative.com)  
-商务垂询：[salesAI@canaan-creative.com](mailto:salesAI@canaan-creative.com)
+Beijing Canaan Jiesi Information Technology Co., Ltd  
+URL:[canaan-creative.com](https://canaan-creative.com)  
+Business Enquiries:[salesAI@canaan-creative.com](mailto:salesAI@canaan-creative.com)
+
+**Translation Disclaimer**  
+For the convenience of customers, Canaan uses an AI translator to translate text into multiple languages, which may contain errors. We do not guarantee the accuracy, reliability or timeliness of the translations provided. Canaan shall not be liable for any loss or damage caused by reliance on the accuracy or reliability of the translated information. If there is a content difference between the translations in different languages, the Chinese Simplified version shall prevail.
+
+If you would like to report a translation error or inaccuracy, please feel free to contact us by mail.
