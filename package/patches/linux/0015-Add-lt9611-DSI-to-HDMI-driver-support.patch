@@ -1,0 +1,2541 @@
+From 6d3f91245f861e6c284b8201e057db8ad521fd24 Mon Sep 17 00:00:00 2001
+From: wangquan <wangquan@canaan-creative.com>
+Date: Thu, 14 Jul 2022 20:51:01 +0800
+Subject: [PATCH] Add lt9611 DSI-to-HDMI driver support
+
+---
+ .../dts/canaan/k510_crb_lp3_hdmi_v1_2.dts     |  684 +++++++++
+ .../boot/dts/canaan/k510_crb_lp3_v1_2.dts     |   14 +-
+ arch/riscv/configs/k510_defconfig             |   10 +-
+ drivers/gpu/drm/bridge/Kconfig                |   11 +
+ drivers/gpu/drm/bridge/Makefile               |    1 +
+ drivers/gpu/drm/bridge/lontium-lt9611.c       | 1219 +++++++++++++++++
+ drivers/gpu/drm/canaan/kendryte_crtc.c        |   15 +-
+ drivers/gpu/drm/canaan/kendryte_dsi.c         |  124 +-
+ drivers/gpu/drm/canaan/kendryte_dsi.h         |    1 +
+ drivers/gpu/drm/canaan/kendryte_vo.c          |   89 +-
+ drivers/gpu/drm/canaan/kendryte_vo.h          |    3 +-
+ 11 files changed, 2116 insertions(+), 55 deletions(-)
+ create mode 100755 arch/riscv/boot/dts/canaan/k510_crb_lp3_hdmi_v1_2.dts
+ create mode 100644 drivers/gpu/drm/bridge/lontium-lt9611.c
+
+diff --git a/arch/riscv/boot/dts/canaan/k510_crb_lp3_hdmi_v1_2.dts b/arch/riscv/boot/dts/canaan/k510_crb_lp3_hdmi_v1_2.dts
+new file mode 100755
+index 00000000..107eabe3
+--- /dev/null
++++ b/arch/riscv/boot/dts/canaan/k510_crb_lp3_hdmi_v1_2.dts
+@@ -0,0 +1,684 @@
++/* Copyright (c) 2022, Canaan Bright Sight Co., Ltd
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software Foundation.
++*/
++#include "k510_common/k510.dtsi"                    /* k510 soc top, include cpu/cache/memory/noc/axi/ahb/apb/sysctl etc. */
++#include "k510_common/interrupt_provider.dtsi"      /* k510 soc interrupt controller */
++#include "k510_common/interrupt_consumer.dtsi"      /* k510 soc and evb device interrupt consumer */
++#include "k510_common/clock_provider.dtsi"          /* k510 soc clock tree */
++#include "k510_common/clock_consumer.dtsi"          /* k510 soc and evb clock consumer */
++#include "k510_common/reset_provider.dtsi"          /* k510 soc reset provider */
++#include "k510_common/reset_consumer.dtsi"          /* k510 soc reset consumer */
++#include "k510_common/power_provider.dtsi"          /* k510 soc power provider */
++#include "k510_common/power_consumer.dtsi"          /* k510 soc power consumer */
++#include "k510_common/dma_provider.dtsi"            /* k510 soc dma provider */
++#include "k510_common/dma_consumer.dtsi"            /* k510 soc dma consumer */
++#include "k510_common/gpio_provider.dtsi"           /* k510 soc gpio provider */
++//#include "k510_common/gpio_consumer.dtsi"           /* k510 soc gpio consumer */
++#include "k510_common/iomux_provider.dtsi"          /* k510 soc iomux provider */
++#include "k510_common/iomux_consumer.dtsi"          /* k510 soc iomux consumer */
++#include "k510_common/camera-imx219x2.dtsi"          /* camera imx219 */
++#include <dt-bindings/display/drm_mipi_dsi.h>
++
++/* evalution board device tree, include nandflash/emmc/ethphy/sensor/hdmi/pmic etc. */
++
++/ {
++    chosen {
++        bootargs            = "root=/dev/nfs rw nfsroot=10.100.226.63:/home/yangguang/nfs_server/k510_nfsroot ip=10.100.226.221:10.100.226.63:10.100.226.254:255.255.255.0:k510:eth0:off console=ttyS0,115200n8 debug loglevel=7";
++        stdout-path         = "uart0:115200n8";
++    };
++};
++
++
++&ddr_memory {
++    reg = <0x0 0x00000000 0x0 0xf000000>;  /*0~240M*/
++};
++
++/*DSP: 128M to 136M*/
++    
++&sharem {
++    reg = <0x0 0xf000000 0x0 0x10000000>;  /*240M~496M*/
++};
++
++&serial0 {
++    clock-frequency = <25000000>;
++    reg-shift = <2>;
++    reg-io-width = <4>;
++    no-loopback-test = <1>;
++};
++
++&serial1 {
++    clock-frequency = <25000000>;
++    reg-shift = <2>;
++    reg-io-width = <4>;
++    no-loopback-test = <1>;
++};
++&spi0 {
++    status = "okay";
++    pinctrl-names = "default";
++    pinctrl-0 = <&spi0_pins>;
++    num-cs = <4>;
++    reg-io-width = <4>;
++    spi-nand@0 {
++        #address-cells = <1>;
++        #size-cells = <1>;
++        compatible = "spi-nand";
++        spi-max-frequency = <6000000>;
++        spi-tx-bus-width = <4>;
++	spi-rx-bus-width = <4>;
++        reg = <0 0 0 0>;
++        partition@0 {
++                label = "uboot-1";
++                reg = <0x00000000 0x00100000>;
++        };
++
++        partition@100000 {
++                label = "uboot-2";
++                reg = <0x00100000 0x00100000>;
++        };
++
++        partition@200000 {
++                label = "uboot-3";
++                reg = <0x00200000 0x00100000>;
++        };
++
++        partition@300000 {
++                label = "env";
++                reg = <0x00300000 0x00040000>;
++        };
++
++        partition@340000 {
++                label = "dtb";
++                reg = <0x00340000 0x00040000>;
++        };
++
++        partition@380000 {
++                label = "kernel";
++                reg = <0x00380000 0x0f00000>;
++        };
++
++        partition@1280000 {
++                label = "rootfs";
++                reg = <0x1280000 0x06d00000>;
++        };
++    };
++};
++
++&iomux {
++//    pinctrl-0 = <&uart0_pins &uart1_pins &mmc0_pins &mmc2_pins &pwm0_pins &pwm1_pins &i2c3_pins &i2s_pins &i2c2_pins &i2c1_pins &i2c4_pins &dvp_pins>;
++
++    uart0_pins: iomux_uart0_pins {
++        pinctrl-k510,pins = <
++            (112) (FUNC_UART0_SIN)
++            (113) (FUNC_UART0_SOUT)
++        >;
++    };
++    uart1_pins: iomux_uart1_pins {
++        pinctrl-k510,pins = <
++            (114) (FUNC_UART1_SIN)
++            (115) (FUNC_UART1_SOUT)
++        >;
++    };
++
++    emac_rgmii_pins: iomux_emac_rgmii_pins {
++        pinctrl-k510,pins = <
++            (35) (FUNC_EMAC_MDC)
++            (36) (FUNC_EMAC_MDIO)
++            (29) (FUNC_EMAC_TX_CLK_OUT)
++            (38) (FUNC_EMAC_TX_CTL)
++            (46) (FUNC_EMAC_TX_D0)
++            (45) (FUNC_EMAC_TX_D1)
++            (44) (FUNC_EMAC_TX_D2)
++            (43) (FUNC_EMAC_TX_D3)
++            (30) (FUNC_EMAC_RX_CLK_IN)
++            (37) (FUNC_EMAC_RX_CTL)
++            (42) (FUNC_EMAC_RX_D0)
++            (41) (FUNC_EMAC_RX_D1)
++            (40) (FUNC_EMAC_RX_D2)
++            (39) (FUNC_EMAC_RX_D3)
++        >;
++    };
++
++    i2s_pins: iomux_i2s_pins {
++        pinctrl-k510,pins = <
++            (100)  (FUNC_AUDIO_INOUT_I2S_SCLK_GATE)
++            (101)  (FUNC_AUDIO_INOUT_I2S_WS)
++            (99) (FUNC_AUDIO_OUT0)
++            (98) (FUNC_AUDIO_IN0)
++        >;
++    };
++
++    /*MIPI_CSI_I2C_SCL, MIPI_CSI_I2C_SDA*/
++    i2c1_pins: iomux_i2c1_pins {
++        pinctrl-k510,pins = <
++            (120) (FUNC_I2C1_SCLK)
++            (121) (FUNC_I2C1_SDA)
++        >;
++    };
++
++    /*MIPI_DSI_I2C_SCL, MIPI_DSI_I2C_SDA*/
++    i2c2_pins: iomux_i2c2_pins {
++        pinctrl-k510,pins = <
++            (103) (FUNC_I2C2_SCLK)
++            (102) (FUNC_I2C2_SDA)
++        >;
++    };
++    
++    /*IIC_SDA, IIC_SCL*/
++    i2c3_pins: iomux_i2c3_pins {
++        pinctrl-k510,pins = <
++            (116) (FUNC_I2C3_SDA)
++            (117) (FUNC_I2C3_SCLK)
++        >;
++    };
++    
++    /*I2C_1V8_SCL1, I2C_1V8_SDA1 CSI*/
++    i2c4_pins: iomux_i2c4_pins {
++        pinctrl-k510,pins = <
++            (48) (FUNC_I2C4_SDA)
++            (47) (FUNC_I2C4_SCLK)
++        >;
++    };
++
++    dvp_pins:iomux_dvp_pins{
++        pinctrl-k510,pins = <
++            (51) (FUNC_DVP_D4   )
++            (52) (FUNC_DVP_D5   )
++            (53) (FUNC_DVP_D6   )
++            (54) (FUNC_DVP_D7   )
++            (55) (FUNC_DVP_D8   )
++            (56) (FUNC_DVP_D9   )
++            (57) (FUNC_DVP_D10  )
++            (58) (FUNC_DVP_D11  )
++            (59) (FUNC_DVP_D12  )
++            (60) (FUNC_DVP_D13  )
++            (61) (FUNC_DVP_D14  )
++            (62) (FUNC_DVP_D15  )
++            (63) (FUNC_DVP_VSYNC)
++            (64) (FUNC_DVP_HREF )
++            (66) (FUNC_DVP_PCLK )
++        >;
++    };
++
++
++    gpio_pins: iomux_gpio_pins {
++        pinctrl-k510,pins = <
++            (32) (FUNC_GPIO22) /*OEB*/
++            (34) (FUNC_GPIO21) /*SEL*/
++            (69) (FUNC_GPIO2) /*WIFI_WAKE_OUT*/
++            (70) (FUNC_GPIO3) /*BT_RST_IN*/
++            (71) (FUNC_GPIO4) /*KEY_1*/
++            (75) (FUNC_GPIO5) /*HP_INSERT_DET*/
++            (76) (FUNC_GPIO6) /*KEY_2*/
++            (77) (FUNC_GPIO7) /*SYS_LED*/
++            (78) (FUNC_GPIO19) /*MIPI_DSI_D_RST*/
++            (79) (FUNC_GPIO20) /*MIPI_DSI_LCD_EN*/
++            (80) (FUNC_GPIO10) /*MIPI_DSI_T_RST*/
++            (81) (FUNC_GPIO11) /*BT_WAKE_OUT*/
++            (83) (FUNC_GPIO12) /*MIPI_DSI_T_INT*/
++            (84) (FUNC_GPIO13) /*BT_WAKE_IN*/
++            (85) (FUNC_GPIO14) /*WIFI_EN*/
++            (97) (FUNC_GPIO15) /*RSTN*/
++            (123) (FUNC_GPIO16) /*USB_OTG_EN*/
++        >;
++    };
++
++    pwm0_pins: iomux_pwm0_pins {
++        pinctrl-k510,pins = <
++            (126) (FUNC_PWM_PINS_1_IO_PINS_PWM_1_O_OVAL)  
++        >;
++    };
++
++    pwm1_pins: iomux_pwm1_pins {
++        pinctrl-k510,pins = <
++            (127) (FUNC_PWM_PINS_1_IO_PINS_PWM_5_O_OVAL)    
++        >;
++    };
++
++    spi0_pins: iomux_spi0_pins {
++        pinctrl-k510,pins = <
++          (86) (FUNC_SPI0_CLK)
++          (87) (FUNC_SPI0_CS)
++          (88) (FUNC_SPI0_D0)
++          (89) (FUNC_SPI0_D1)
++          (90) (FUNC_SPI0_D2)
++          (91) (FUNC_SPI0_D3)
++        >;
++    };
++
++    spi1_pins: iomux_spi1_pins {
++        pinctrl-k510,pins = <
++            (104) (FUNC_SPI1_SS0)    
++            (105) (FUNC_SPI1_SCLK)   
++            (106) (FUNC_SPI1_D0) 
++            (107) (FUNC_SPI1_D1) 
++        >;
++    };
++
++    spi2_pins: iomux_spi2_pins {
++        pinctrl-k510,pins = <
++            (122) (FUNC_SPI2_D0)
++        >;
++    };
++
++    mmc1_pins: iomux_mmc1_pins {
++        pinctrl-k510,pins = <
++          (17) (FUNC_MMC1_CLK)
++          (18) (FUNC_MMC1_CMD)
++          (19) (FUNC_MMC1_DATA3)
++          (20) (FUNC_MMC1_DATA2)
++          (21) (FUNC_MMC1_DATA1)
++          (22) (FUNC_MMC1_DATA0)
++        >;
++    };
++};
++
++&serial0 {
++    pinctrl-names = "default";
++    pinctrl-0 = <&uart0_pins>;
++
++};
++
++&serial1 {
++    pinctrl-names = "default";
++    pinctrl-0 = <&uart1_pins>;
++};
++&emac {
++    phy-mode = "rgmii";
++    pinctrl-names = "default";
++    pinctrl-0 = <&emac_rgmii_pins>;
++};
++
++
++&i2c0 {
++    status = "disable";
++};
++
++&i2c1 {
++    status = "okay";
++    pinctrl-names = "default";
++    pinctrl-0 = <&i2c1_pins>;
++};
++
++&i2c2 {
++    status = "okay";
++    #address-cells  = <1>;
++    #size-cells     = <0>;
++    pinctrl-names = "default";
++    pinctrl-0 = <&i2c2_pins>;
++
++    gt911: touchscreen@5d {
++	compatible = "goodix,gt911";
++	reg = <0x5d>;
++
++	interrupt-parent = <&porta>;
++        interrupts = <12 4>; /*IRQ_TYPE_LEVEL_HIGH*/
++	irq-gpios = <&porta 12 GPIO_ACTIVE_HIGH>;
++	reset-gpios = <&porta 10  GPIO_ACTIVE_HIGH>;
++
++        touchscreen-size-x = <1080>;
++        touchscreen-size-y = <1920>;
++
++        goodix,cfg-group0 = [
++	42 38 04 80 07 05 35 00 01 08
++	28 08 50 32 03 05 00 00 00 00
++	11 11 05 18 1A 1E 14 89 29 0C
++	3D 3F 0C 08 00 00 00 2A 02 2C
++	32 00 00 00 00 03 64 32 00 00
++	00 2D 5A 94 D5 02 00 00 00 04
++	8E 30 00 80 37 00 74 3F 00 69
++	49 00 60 54 00 60 00 00 00 00
++	00 00 00 00 00 00 00 00 00 00
++	00 00 00 00 00 00 00 00 00 00
++	00 00 00 00 00 00 00 00 00 00
++	00 00 18 16 14 12 10 0E 0C 0A
++	08 06 04 02 FF FF 00 00 00 00
++	00 00 00 00 00 00 00 00 00 00
++	00 00 00 02 04 06 08 0A 0F 10
++	12 22 21 20 1F 1E 1D 1C 18 16
++	FF FF FF FF FF FF FF FF 00 00
++	00 00 00 00 00 00 00 00 00 00
++	00 00 00 00 36 01
++        ];
++        status = "okay";
++    };
++};
++
++
++&sysctl_boot {
++    osc26m: osc26m {
++        #clock-cells                            = <0>;
++        compatible                              = "fixed-clock";
++        clock-frequency                         = <26000000>;
++        clock-accuracy                          = <0>;
++    };
++};
++
++&i2c3 {
++    status = "okay";
++    #address-cells  = <1>;
++    #size-cells     = <0>;
++    pinctrl-names = "default";
++    pinctrl-0 = <&i2c3_pins>;
++
++    nau8822: nau8822@1a {
++        compatible = "nuvoton,nau8822";
++        reg = <0x1a>;
++        clock-names = "mclk";
++        clocks = <&osc26m>;
++        interrupt-parent = <&porta>;
++        interrupts = <5 2>;
++    };
++
++    lt9611: hdmi-bridge@3b {
++        compatible = "lontium,lt9611";
++        reg = <0x3b>;
++        reset-gpios = <&porta 15 GPIO_ACTIVE_HIGH>;
++	interrupt-parent = <&porta>;
++	interrupts = <22 2>;
++
++	ports {
++		#address-cells  = <1>;
++		#size-cells     = <0>;
++		port@0 {
++			reg = <0>;
++			lt9611_in: enpoint {
++				remote-endpoint = <&dsi_out_lt9611>;
++			};
++		};
++
++		port@1 {
++			reg = <1>;
++			lt9611_out: endpoint {
++				remote-endpoint = <&hdmi_connector_in>;
++			};
++		};
++	};
++    };
++};
++
++&i2c4 {
++    status = "okay";
++    pinctrl-names = "default";
++    pinctrl-0 = <&i2c4_pins>;
++};
++
++&i2c5 {
++    status = "disable";
++};
++
++&i2c6 {
++    status = "disable";
++};
++
++&sdio0 {
++    status    = "okay";
++    bus-width = <8>;
++
++    pinctrl-names = "default";
++    pinctrl-0 = <&mmc0_pins>;
++};
++
++&sdio1 {
++    status = "okay";
++    pinctrl-names = "default";
++    pinctrl-0 = <&mmc1_pins>;
++
++    mmc-pwrseq = <&wifi_pwrseq>;
++    bus-width = <4>;
++    #address-cells = <1>;
++    #size-cells = <0>;
++    brcmf: wifi@1 {
++        reg = <1>;
++        compatible = "brcm,bcm4329-fmac";
++	/*
++        interrupt-parent = <&porta>;
++        interrupt-names = "host-wake";
++        interrupts = <2 2>;
++	*/
++    };
++};
++
++&sdio2 {
++    status    = "okay";                    
++    bus-width = <4>;
++    cap-sd-highspeed;
++    cdns,phy-input-delay-legacy = <15>;
++    cdns,phy-input-delay-sd-highspeed = <15>;
++
++    pinctrl-names = "default";
++    pinctrl-0 = <&mmc2_pins>;
++
++};
++
++&spi0 {
++    status = "okay";
++};
++
++&spi1 {
++    status = "okay";
++    pinctrl-names = "default";
++    pinctrl-0 = <&spi1_pins>;  
++
++    spidev@0 {
++        compatible = "spidev";
++        reg = <0 0 0 0>;
++        spi-max-frequency = <50000000>;
++    };
++};
++
++&spi2 {
++    status = "okay";
++    pinctrl-names = "default";
++    pinctrl-0 = <&spi2_pins>;
++
++    #address-cells = <1>;
++    #size-cells = <0>; 
++    ranges = <0 0 0x960a0000>;
++
++    ws2812b@0 {
++        compatible = "ws2812b";
++        reg = <0>;
++        spi-max-frequency = <50000000>;
++    };
++};
++
++&spis {
++    status = "disable";
++};
++
++&porta {
++    snps,nr-gpios = <32>;
++};
++
++&gpio {
++    pinctrl-names = "default";
++    pinctrl-0 = <&gpio_pins>;
++};
++
++&isp {
++    status = "okay";
++    compatible = "canaan,k510-isp";
++    reg = <0x0 0x92600000 0x0 0x200000>;
++
++    dsi_en-gpios = <&porta 20 GPIO_ACTIVE_HIGH>;
++    dsi_rest-gpios = <&porta 19 GPIO_ACTIVE_LOW>;
++
++    pinctrl-names = "default";
++    pinctrl-0 = <&dvp_pins>;
++
++};
++
++&isp1 {
++    status = "okay";
++    compatible = "canaan,k510-isp1";
++    reg = <0x0 0x92600000 0x0 0x200000>;
++
++//    dsi_en-gpios = <&pca6416_0 14 GPIO_ACTIVE_HIGH>;
++//    dsi_rest-gpios = <&pca6416_0 15 GPIO_ACTIVE_LOW>;
++
++//    pinctrl-names = "default";
++//    pinctrl-0 = <&dvp_pins>;
++
++};
++
++&mipi_dsi {
++
++    ports {
++        #address-cells = <1>;
++        #size-cells = <0>;
++
++        port@1 {
++                reg = <1>;
++                dsi_out_lt9611: endpoint {
++                        remote-endpoint = <&lt9611_in>;
++                };
++        };
++    };
++
++};
++
++&vop {
++    status    = "okay";
++
++};
++
++&display_subsystem {
++
++   status = "okay";
++};
++
++&gnne {
++    compatible = "k510-gnne";
++    reg = <0x0 0x94180000 0x0 0x80000>;
++};
++
++&h264 {
++    compatible = "al,al5r";
++    reg = <0x0 0x92740000 0x0 0x10000>;
++};
++
++&dsp {
++    compatible = "k510-dsp";
++    sysctl-phy-addr = <0x97000000>;
++};
++
++&usb {
++    reg = <0x0 0x93060000 0x0 0x10000>;
++    otg_power_supply-gpios = <&porta 16 GPIO_ACTIVE_HIGH>;
++};
++
++&pwm0 {
++    pinctrl-names = "default";
++    pinctrl-0 = <&pwm0_pins>;
++
++};
++
++&pwm1 {
++    pinctrl-names = "default";
++    pinctrl-0 = <&pwm1_pins>;
++
++};
++
++&i2s {
++    pinctrl-names = "default";
++    pinctrl-0 = <&i2s_pins>;
++
++};
++
++/{
++    sound {
++        compatible = "canaan,canaan-audio-nau8822";
++        canaan,model = "CANAAN-I2S";
++        canaan,i2s-controller = <&i2s>;
++        canaan,audio-codec = <&nau8822>;
++    };
++};
++
++&manage_subsys {
++    wifi_pwrseq: wifi-pwrseq {
++        compatible = "mmc-pwrseq-simple";
++        reset-gpios = <&porta 14 GPIO_ACTIVE_LOW>;
++    };
++};
++
++&mailbox {
++    #mbox-cells = <1>;
++};
++
++/* 
++ * mboxes = <&mailbox channel_number tx/rx>
++ *          channel_number: 0-15
++ *          rx: 0-7
++ *          tx: 8-15
++ */
++&manage_subsys {
++    mailbox_client: mailbox_client@0 {
++        compatible = "mailbox-client";
++        mboxes =    <&mailbox 0>, <&mailbox 1>, <&mailbox 2>, <&mailbox 3>,
++                    <&mailbox 4>, <&mailbox 5>, <&mailbox 6>, <&mailbox 7>,
++                    <&mailbox 8>, <&mailbox 9>, <&mailbox 10>, <&mailbox 11>,
++                    <&mailbox 12>, <&mailbox 13>, <&mailbox 14>, <&mailbox 15>;
++        mbox-names = "tx_chan_0", "tx_chan_1", "tx_chan_2", "tx_chan_3", 
++                    "tx_chan_4", "tx_chan_5", "tx_chan_6", "tx_chan_7", 
++                    "rx_chan_0", "rx_chan_1", "rx_chan_2", "rx_chan_3", 
++                    "rx_chan_4", "rx_chan_5", "rx_chan_6", "rx_chan_7";                    
++        reg =   <0x1 0x087ffe00 0x0 0x20>, /* cpu2dsp channel 0 */
++                <0x1 0x087ffe20 0x0 0x20>, /* cpu2dsp channel 1 */
++                <0x1 0x087ffe40 0x0 0x20>, /* cpu2dsp channel 2 */
++                <0x1 0x087ffe60 0x0 0x20>, /* cpu2dsp channel 3 */
++                <0x1 0x087ffe80 0x0 0x20>, /* cpu2dsp channel 4 */
++                <0x1 0x087ffea0 0x0 0x20>, /* cpu2dsp channel 5 */
++                <0x1 0x087ffec0 0x0 0x20>, /* cpu2dsp channel 6 */
++                <0x1 0x087ffee0 0x0 0x20>, /* cpu2dsp channel 7 */
++
++                <0x1 0x087fff00 0x0 0x20>, /* dsp2cpu channel 0 */
++                <0x1 0x087fff20 0x0 0x20>, /* dsp2cpu channel 1 */
++                <0x1 0x087fff40 0x0 0x20>, /* dsp2cpu channel 2 */
++                <0x1 0x087fff60 0x0 0x20>, /* dsp2cpu channel 3 */
++                <0x1 0x087fff80 0x0 0x20>, /* dsp2cpu channel 4 */
++                <0x1 0x087fffa0 0x0 0x20>, /* dsp2cpu channel 5 */
++                <0x1 0x087fffc0 0x0 0x20>, /* dsp2cpu channel 6 */
++                <0x1 0x087fffe0 0x0 0x20>; /* dsp2cpu channel 7 */
++    };
++};
++
++&noc_bus {
++    gpio-keys {
++        compatible = "gpio-keys";
++
++        key1 {
++            label = "KEY 1";
++            linux,code = <30>;
++            gpios = <&porta 4 3>;
++	    /*
++            interrupt-parent = <&porta>;
++            interrupts = <4 3>;
++	    */
++        };
++
++        key2 {
++            label = "KEY 2";
++            linux,code = <48>;
++            gpios = <&porta 6 3>;
++            /*
++            interrupt-parent = <&porta>;
++            interrupts = <6 3>;
++	    */
++        };
++    };
++
++	hdmi: connector {
++		compatible = "hdmi-connector";
++		label = "hdmi";
++		type = "a";
++
++		port {
++			hdmi_connector_in: endpoint {
++				remote-endpoint = <&lt9611_out>;
++			};
++		};
++	};
++};
+diff --git a/arch/riscv/boot/dts/canaan/k510_crb_lp3_v1_2.dts b/arch/riscv/boot/dts/canaan/k510_crb_lp3_v1_2.dts
+index 5cb19dbb..66ceff61 100755
+--- a/arch/riscv/boot/dts/canaan/k510_crb_lp3_v1_2.dts
++++ b/arch/riscv/boot/dts/canaan/k510_crb_lp3_v1_2.dts
+@@ -582,18 +582,18 @@
+             native-mode = <&timing0>;
+ 
+             timing0: timing0 {
+-                    clock-frequency = <60000000>;
++                    clock-frequency = <74250000>;
+                     hactive = <1080>;
+                     vactive = <1920>;
+-                    hback-porch = <42>;
+-                    hfront-porch = <44>;
++                    hsync-len = <10>;
++                    hfront-porch = <10>;
++                    hback-porch = <200>;
++                    vsync-len = <5>;
++                    vfront-porch = <5>;
+                     vback-porch = <10>;
+-                    vfront-porch = <14>;
+-                    hsync-len = <2>;
+-                    vsync-len = <2>;
+                     hsync-active = <0>;
+                     vsync-active = <0>;
+-                    de-active = <0>;
++                    de-active = <1>;
+                     pixelclk-active = <0>;
+             };
+         };
+diff --git a/arch/riscv/configs/k510_defconfig b/arch/riscv/configs/k510_defconfig
+index e631a1a9..c3c549ed 100755
+--- a/arch/riscv/configs/k510_defconfig
++++ b/arch/riscv/configs/k510_defconfig
+@@ -123,28 +123,20 @@ CONFIG_DW_WATCHDOG=y
+ CONFIG_MEDIA_SUPPORT=y
+ CONFIG_MEDIA_CAMERA_SUPPORT=y
+ CONFIG_MEDIA_CONTROLLER=y
+-CONFIG_VIDEO_DEV=y
+ CONFIG_VIDEO_V4L2_SUBDEV_API=y
+-CONFIG_VIDEO_V4L2=y
+-CONFIG_V4L2_FWNODE=y
+ CONFIG_V4L_PLATFORM_DRIVERS=y
+-
+ CONFIG_SOC_CAMERA=y
+ CONFIG_SOC_CAMERA_PLATFORM=y
+ CONFIG_K510_ISP_TEST_DRIVER=y
+ CONFIG_ALLEGRO_CODEC_DRIVER=y
+ CONFIG_VIDEO_CANAAN_K510=y
+-CONFIG_VIDEOBUF2_CORE=y
+-CONFIG_VIDEOBUF2_V4L2=y
+-CONFIG_VIDEOBUF2_MEMOPS=y
+-CONFIG_VIDEOBUF2_DMA_CONTIG=y
+-CONFIG_MEDIA_SUBDRV_AUTOSELECT=y
+ CONFIG_VIDEO_IMX219_0=y
+ CONFIG_VIDEO_IMX219_1=y
+ CONFIG_DRM=y
+ CONFIG_DRM_KENDRYTE=y
+ CONFIG_KENDRYTE_CADENCE_MIPI_DSI=y
+ CONFIG_DRM_PANEL_SIMPLE=y
++CONFIG_DRM_LONTIUM_LT9611=y
+ CONFIG_FB_FTLCDC100=y
+ CONFIG_BACKLIGHT_LCD_SUPPORT=y
+ CONFIG_LCD_CLASS_DEVICE=y
+diff --git a/drivers/gpu/drm/bridge/Kconfig b/drivers/gpu/drm/bridge/Kconfig
+index 684ac626..55fc9b31 100644
+--- a/drivers/gpu/drm/bridge/Kconfig
++++ b/drivers/gpu/drm/bridge/Kconfig
+@@ -110,6 +110,17 @@ config DRM_TI_TFP410
+ 	---help---
+ 	  Texas Instruments TFP410 DVI/HDMI Transmitter driver
+ 
++config DRM_LONTIUM_LT9611
++        tristate "Lontium LT9611 DSI/HDMI bridge"
++        depends on OF
++        select DRM_KMS_HELPER
++        select REGMAP_I2C
++        help
++          Driver for Lontium LT9611 DSI to HDMI bridge
++          chip driver that converts dual DSI and I2S to
++          HDMI signals
++          Please say Y if you have such hardware.
++
+ source "drivers/gpu/drm/bridge/analogix/Kconfig"
+ 
+ source "drivers/gpu/drm/bridge/adv7511/Kconfig"
+diff --git a/drivers/gpu/drm/bridge/Makefile b/drivers/gpu/drm/bridge/Makefile
+index 373eb28f..383653f5 100644
+--- a/drivers/gpu/drm/bridge/Makefile
++++ b/drivers/gpu/drm/bridge/Makefile
+@@ -12,4 +12,5 @@ obj-$(CONFIG_DRM_TOSHIBA_TC358767) += tc358767.o
+ obj-$(CONFIG_DRM_ANALOGIX_DP) += analogix/
+ obj-$(CONFIG_DRM_I2C_ADV7511) += adv7511/
+ obj-$(CONFIG_DRM_TI_TFP410) += ti-tfp410.o
++obj-y += lontium-lt9611.o
+ obj-y += synopsys/
+diff --git a/drivers/gpu/drm/bridge/lontium-lt9611.c b/drivers/gpu/drm/bridge/lontium-lt9611.c
+new file mode 100644
+index 00000000..61366be3
+--- /dev/null
++++ b/drivers/gpu/drm/bridge/lontium-lt9611.c
+@@ -0,0 +1,1219 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * Copyright (c) 2018, The Linux Foundation. All rights reserved.
++ * Copyright (c) 2019-2020. Linaro Limited.
++ */
++
++#include <linux/gpio/consumer.h>
++#include <linux/interrupt.h>
++#include <linux/module.h>
++#include <linux/of_graph.h>
++#include <linux/platform_device.h>
++#include <linux/regmap.h>
++#include <linux/regulator/consumer.h>
++#include <linux/i2c.h>
++
++#include <drm/drm_atomic_helper.h>
++#include <drm/drm_bridge.h>
++#include <drm/drm_mipi_dsi.h>
++#include <drm/drm_print.h>
++#include <drm/drm_crtc_helper.h>
++//#include <drm/drm_probe_helper.h>
++
++#define EDID_SEG_SIZE	256
++#define EDID_LEN	32
++#define EDID_LOOP	8
++#define KEY_DDC_ACCS_DONE 0x02
++#define DDC_NO_ACK	0x50
++
++#define LT9611_4LANES	0
++
++struct lt9611 {
++	struct device *dev;
++	struct drm_bridge bridge;
++	struct drm_connector connector;
++	struct drm_display_mode mode;
++
++	struct regmap *regmap;
++
++	struct device_node *dsi0_node;
++	struct device_node *dsi1_node;
++	struct mipi_dsi_device *dsi0;
++	struct mipi_dsi_device *dsi1;
++	struct platform_device *audio_pdev;
++
++	bool ac_mode;
++
++	struct gpio_desc *reset_gpio;
++	struct gpio_desc *enable_gpio;
++
++	bool power_on;
++	bool sleep;
++
++	struct regulator_bulk_data supplies[2];
++
++	struct i2c_client *client;
++
++	enum drm_connector_status status;
++
++	u8 edid_buf[EDID_SEG_SIZE];
++	u32 vic;
++};
++
++#define LT9611_PAGE_CONTROL	0xff
++
++static const struct regmap_range_cfg lt9611_ranges[] = {
++	{
++		.name = "register_range",
++		.range_min =  0,
++		.range_max = 0x85ff,
++		.selector_reg = LT9611_PAGE_CONTROL,
++		.selector_mask = 0xff,
++		.selector_shift = 0,
++		.window_start = 0,
++		.window_len = 0x100,
++	},
++};
++
++static const struct regmap_config lt9611_regmap_config = {
++	.reg_bits = 8,
++	.val_bits = 8,
++	.max_register = 0xffff,
++	.ranges = lt9611_ranges,
++	.num_ranges = ARRAY_SIZE(lt9611_ranges),
++};
++
++struct lt9611_mode {
++	u16 hdisplay;
++	u16 vdisplay;
++	u8 vrefresh;
++	u8 lanes;
++	u8 intfs;
++};
++
++static struct lt9611_mode lt9611_modes[] = {
++	//{ 3840, 2160, 30, 4, 2 }, /* 3840x2160 24bit 30Hz 4Lane 2ports */
++	//{ 1920, 1080, 60, 4, 1 }, /* 1080P 24bit 60Hz 4lane 1port */
++	{ 1920, 1080, 30, 4, 1 }, /* 1080P 24bit 30Hz 4lane 1port */
++	{ 1280, 720, 60, 4, 1 },
++	{ 1280, 720, 50, 4, 1 },
++	{ 720, 480, 60, 4, 1 },
++	{ 720, 576, 50, 2, 1 },
++	{ 640, 480, 60, 2, 1 },
++};
++
++static struct lt9611 *bridge_to_lt9611(struct drm_bridge *bridge)
++{
++	return container_of(bridge, struct lt9611, bridge);
++}
++
++static struct lt9611 *connector_to_lt9611(struct drm_connector *connector)
++{
++	return container_of(connector, struct lt9611, connector);
++}
++
++static int lt9611_mipi_input_analog(struct lt9611 *lt9611)
++{
++	const struct reg_sequence reg_cfg[] = {
++		{ 0x8106, 0x60 }, /* port A rx current */
++		{ 0x8107, 0x3f }, /* port A rx current */
++		{ 0x8108, 0x3f }, /* port A rx current */
++		{ 0x810a, 0xfe }, /* port A ldo voltage set */
++		{ 0x810b, 0xbf }, /* enable port A lprx */
++		{ 0x8111, 0x60 }, /* port B rx current */
++		{ 0x8112, 0x3f }, /* port B rx current */
++		{ 0x8113, 0x3f }, /* port B rx current */
++		{ 0x8115, 0xfe }, /* port B ldo voltage set */
++		{ 0x8116, 0xbf }, /* enable port B lprx */
++
++		{ 0x811c, 0x03 }, /* PortA clk lane no-LP mode */
++		{ 0x8120, 0x03 }, /* PortB clk lane with-LP mode */
++	};
++
++	return regmap_multi_reg_write(lt9611->regmap, reg_cfg, ARRAY_SIZE(reg_cfg));
++}
++
++static int lt9611_mipi_input_digital(struct lt9611 *lt9611,
++				     const struct drm_display_mode *mode)
++{
++	struct reg_sequence reg_cfg[] = {
++		{ 0x8300, LT9611_4LANES },
++		{ 0x830a, 0x00 },
++		{ 0x824f, 0x80 },
++		{ 0x8250, 0x10 },
++		{ 0x8303, 0x00 },
++		{ 0x8302, 0x08 },
++		{ 0x8306, 0x08 },
++	};
++
++	if (mode->hdisplay == 3840)
++		reg_cfg[1].def = 0x03;
++
++	return regmap_multi_reg_write(lt9611->regmap, reg_cfg, ARRAY_SIZE(reg_cfg));
++}
++
++static void lt9611_mipi_video_setup(struct lt9611 *lt9611,
++				    const struct drm_display_mode *mode)
++{
++	u32 h_total, hactive, hsync_len, hfront_porch, hsync_porch;
++	u32 v_total, vactive, vsync_len, vfront_porch, vsync_porch;
++
++	h_total = mode->htotal;
++	v_total = mode->vtotal;
++
++	hactive = mode->hdisplay;
++	hsync_len = mode->hsync_end - mode->hsync_start;
++	hfront_porch = mode->hsync_start - mode->hdisplay;
++	hsync_porch = hsync_len + mode->htotal - mode->hsync_end;
++
++	vactive = mode->vdisplay;
++	vsync_len = mode->vsync_end - mode->vsync_start;
++	vfront_porch = mode->vsync_start - mode->vdisplay;
++	vsync_porch = vsync_len + mode->vtotal - mode->vsync_end;
++
++	regmap_write(lt9611->regmap, 0x830d, (u8)(v_total / 256));
++	regmap_write(lt9611->regmap, 0x830e, (u8)(v_total % 256));
++
++	regmap_write(lt9611->regmap, 0x830f, (u8)(vactive / 256));
++	regmap_write(lt9611->regmap, 0x8310, (u8)(vactive % 256));
++
++	regmap_write(lt9611->regmap, 0x8311, (u8)(h_total / 256));
++	regmap_write(lt9611->regmap, 0x8312, (u8)(h_total % 256));
++
++	regmap_write(lt9611->regmap, 0x8313, (u8)(hactive / 256));
++	regmap_write(lt9611->regmap, 0x8314, (u8)(hactive % 256));
++
++	regmap_write(lt9611->regmap, 0x8315, (u8)(vsync_len % 256));
++	regmap_write(lt9611->regmap, 0x8316, (u8)(hsync_len % 256));
++
++	regmap_write(lt9611->regmap, 0x8317, (u8)(vfront_porch % 256));
++
++	regmap_write(lt9611->regmap, 0x8318, (u8)(vsync_porch % 256));
++
++	regmap_write(lt9611->regmap, 0x8319, (u8)(hfront_porch % 256));
++
++	regmap_write(lt9611->regmap, 0x831a, (u8)((hfront_porch / 256)<<4 + hsync_porch / 256));
++	regmap_write(lt9611->regmap, 0x831b, (u8)(hsync_porch % 256));
++}
++
++static void lt9611_pcr_setup(struct lt9611 *lt9611, const struct drm_display_mode *mode)
++{
++	const struct reg_sequence reg_cfg[] = {
++		{ 0x830b, 0x01 },
++		{ 0x830c, 0x10 },
++		{ 0x8348, 0x00 },
++		{ 0x8349, 0x81 },
++
++		/* stage 1 */
++		{ 0x8321, 0x4a },
++		{ 0x8324, 0x71 },
++		{ 0x8325, 0x30 },
++		{ 0x832a, 0x01 },
++
++		/* stage 2 */
++		{ 0x834a, 0x40 },
++		{ 0x831d, 0x10 },
++
++		/* MK limit */
++		{ 0x832d, 0x40 },
++		{ 0x8331, 0x08 },
++	};
++	const struct reg_sequence reg_cfg2[] = {
++		{ 0x830b, 0x03 },
++		{ 0x830c, 0xd0 },
++		{ 0x8348, 0x03 },
++		{ 0x8349, 0xe0 },
++		{ 0x8324, 0x72 },
++		{ 0x8325, 0x00 },
++		{ 0x832a, 0x01 },
++		{ 0x834a, 0x10 },
++		{ 0x831d, 0x10 },
++		{ 0x8326, 0x37 },
++	};
++
++	regmap_multi_reg_write(lt9611->regmap, reg_cfg, ARRAY_SIZE(reg_cfg));
++
++	switch (mode->hdisplay) {
++	case 640:
++		regmap_write(lt9611->regmap, 0x8326, 0x14);
++		break;
++	case 1920:
++		regmap_write(lt9611->regmap, 0x8326, 0x36);
++		break;
++	case 3840:
++		regmap_multi_reg_write(lt9611->regmap, reg_cfg2, ARRAY_SIZE(reg_cfg2));
++		break;
++	}
++	regmap_write(lt9611->regmap, 0x8326, 0x36);
++
++	/* pcr rst */
++	regmap_write(lt9611->regmap, 0x8011, 0x5a);
++	regmap_write(lt9611->regmap, 0x8011, 0xfa);
++}
++
++static int lt9611_pll_setup(struct lt9611 *lt9611, const struct drm_display_mode *mode)
++{
++	unsigned int pclk = mode->clock;
++	const struct reg_sequence reg_cfg[] = {
++		/* txpll init */
++		{ 0x8123, 0x40 },
++		{ 0x8124, 0x62 },
++		{ 0x8125, 0x80 },
++		{ 0x8126, 0x55 },
++		{ 0x812c, 0x37 },
++		{ 0x812f, 0x01 },
++		{ 0x8126, 0x55 },
++		{ 0x8127, 0x66 },
++		{ 0x8128, 0x88 },
++		{ 0x812a, 0x20 },
++	};
++
++	regmap_multi_reg_write(lt9611->regmap, reg_cfg, ARRAY_SIZE(reg_cfg));
++
++	if (pclk > 150000)
++		regmap_write(lt9611->regmap, 0x812d, 0x88);
++	else if (pclk > 80000)
++		regmap_write(lt9611->regmap, 0x812d, 0x99);
++	else
++		regmap_write(lt9611->regmap, 0x812d, 0xaa);
++
++	regmap_write(lt9611->regmap, 0x832d, 0x40);
++	regmap_write(lt9611->regmap, 0x8331, 0x08);
++	regmap_write(lt9611->regmap, 0x8326, 0x80|0x36);
++	/*
++	 * first divide pclk by 2 first
++	 *  - write divide by 64k to 19:16 bits which means shift by 17
++	 *  - write divide by 256 to 15:8 bits which means shift by 9
++	 *  - write remainder to 7:0 bits, which means shift by 1
++	 */
++	regmap_write(lt9611->regmap, 0x82e3, pclk >> 17); /* pclk[19:16] */
++	regmap_write(lt9611->regmap, 0x82e4, 145);  /* pclk[15:8]  */
++	regmap_write(lt9611->regmap, 0x82e5, 5);  /* pclk[7:0]   */
++
++	regmap_write(lt9611->regmap, 0x82de, 0x20);
++	regmap_write(lt9611->regmap, 0x82de, 0xe0);
++
++	regmap_write(lt9611->regmap, 0x8018, 0xdc);
++	regmap_write(lt9611->regmap, 0x8018, 0xfc);
++
++	regmap_write(lt9611->regmap, 0x8016, 0xf1);
++	regmap_write(lt9611->regmap, 0x8016, 0xf3);
++
++	regmap_write(lt9611->regmap, 0x8011, 0x5a);
++	regmap_write(lt9611->regmap, 0x8011, 0xfa);
++	return 0;
++}
++
++static int lt9611_read_video_check(struct lt9611 *lt9611, unsigned int reg)
++{
++	unsigned int temp, temp2;
++	int ret;
++
++	ret = regmap_read(lt9611->regmap, reg, &temp);
++	if (ret)
++		return ret;
++	temp <<= 8;
++	ret = regmap_read(lt9611->regmap, reg + 1, &temp2);
++	if (ret)
++		return ret;
++
++	return (temp + temp2);
++}
++
++static int lt9611_video_check(struct lt9611 *lt9611)
++{
++	u32 v_total, vactive, hactive_a, hactive_b, h_total_sysclk;
++	int temp;
++
++	/* top module video check */
++
++	/* vactive */
++	temp = lt9611_read_video_check(lt9611, 0x8282);
++	if (temp < 0)
++		goto end;
++	vactive = temp;
++
++	/* v_total */
++	temp = lt9611_read_video_check(lt9611, 0x826c);
++	if (temp < 0)
++		goto end;
++	v_total = temp;
++
++	/* h_total_sysclk */
++	temp = lt9611_read_video_check(lt9611, 0x8286);
++	if (temp < 0)
++		goto end;
++	h_total_sysclk = temp;
++
++	/* hactive_a */
++	temp = lt9611_read_video_check(lt9611, 0x8382);
++	if (temp < 0)
++		goto end;
++	hactive_a = temp / 3;
++
++	/* hactive_b */
++	temp = lt9611_read_video_check(lt9611, 0x8386);
++	if (temp < 0)
++		goto end;
++	hactive_b = temp / 3;
++
++	dev_info(lt9611->dev,
++		 "video check: hactive_a=%d, hactive_b=%d, vactive=%d, v_total=%d, h_total_sysclk=%d\n",
++		 hactive_a, hactive_b, vactive, v_total, h_total_sysclk);
++
++	return 0;
++
++end:
++	dev_err(lt9611->dev, "read video check error\n");
++	return temp;
++}
++
++static void lt9611_hdmi_tx_digital(struct lt9611 *lt9611)
++{
++	regmap_write(lt9611->regmap, 0x8443, 0x46 - lt9611->vic);
++	regmap_write(lt9611->regmap, 0x8447, lt9611->vic);
++	regmap_write(lt9611->regmap, 0x843d, 0x0a); /* UD1 infoframe */
++
++	regmap_write(lt9611->regmap, 0x82d6, 0x8c);
++	regmap_write(lt9611->regmap, 0x82d7, 0x04);
++}
++
++static void lt9611_hdmi_tx_phy(struct lt9611 *lt9611)
++{
++	struct reg_sequence reg_cfg[] = {
++		{ 0x8130, 0x6a },
++		{ 0x8131, 0x44 }, /* HDMI DC mode */
++		{ 0x8132, 0x4a },
++		{ 0x8133, 0x0b },
++		{ 0x8134, 0x00 },
++		{ 0x8135, 0x00 },
++		{ 0x8136, 0x00 },
++		{ 0x8137, 0x44 },
++		{ 0x813f, 0x0f },
++		{ 0x8140, 0x98 },
++		{ 0x8141, 0x98 },
++		{ 0x8142, 0x98 },
++		{ 0x8143, 0x98 },
++		{ 0x8144, 0x0a },
++	};
++
++	/* HDMI AC mode */
++	if (lt9611->ac_mode)
++		reg_cfg[2].def = 0x73;
++
++	regmap_multi_reg_write(lt9611->regmap, reg_cfg, ARRAY_SIZE(reg_cfg));
++}
++
++static irqreturn_t lt9611_irq_thread_handler(int irq, void *dev_id)
++{
++	struct lt9611 *lt9611 = dev_id;
++	unsigned int irq_flag0 = 0;
++	unsigned int irq_flag3 = 0;
++
++	regmap_read(lt9611->regmap, 0x820f, &irq_flag3);
++	regmap_read(lt9611->regmap, 0x820c, &irq_flag0);
++
++	/* hpd changed low */
++	if (irq_flag3 & 0x80) {
++		dev_info(lt9611->dev, "hdmi cable disconnected\n");
++
++		regmap_write(lt9611->regmap, 0x8207, 0xbf);
++		regmap_write(lt9611->regmap, 0x8207, 0x3f);
++	}
++
++	/* hpd changed high */
++	if (irq_flag3 & 0x40) {
++		dev_info(lt9611->dev, "hdmi cable connected\n");
++
++		regmap_write(lt9611->regmap, 0x8207, 0x7f);
++		regmap_write(lt9611->regmap, 0x8207, 0x3f);
++	}
++
++	//if (irq_flag3 & 0xc0 && lt9611->bridge.dev)
++		//drm_kms_helper_hotplug_event(lt9611->bridge.dev);
++
++	/* video input changed */
++	if (irq_flag0 & 0x01) {
++		dev_info(lt9611->dev, "video input changed\n");
++		regmap_write(lt9611->regmap, 0x829e, 0xff);
++		regmap_write(lt9611->regmap, 0x829e, 0xf7);
++		regmap_write(lt9611->regmap, 0x8204, 0xff);
++		regmap_write(lt9611->regmap, 0x8204, 0xfe);
++	}
++
++	return IRQ_HANDLED;
++}
++
++static void lt9611_enable_hpd_interrupts(struct lt9611 *lt9611)
++{
++	unsigned int val;
++
++	regmap_read(lt9611->regmap, 0x8203, &val);
++
++	val &= ~0xc0;
++	regmap_write(lt9611->regmap, 0x8203, val);
++	regmap_write(lt9611->regmap, 0x8207, 0xff); /* clear */
++	regmap_write(lt9611->regmap, 0x8207, 0x3f);
++}
++
++static void lt9611_sleep_setup(struct lt9611 *lt9611)
++{
++	const struct reg_sequence sleep_setup[] = {
++		{ 0x8024, 0x76 },
++		{ 0x8023, 0x01 },
++		{ 0x8157, 0x03 }, /* set addr pin as output */
++		{ 0x8149, 0x0b },
++		{ 0x8151, 0x30 }, /* disable IRQ */
++		{ 0x8102, 0x48 }, /* MIPI Rx power down */
++		{ 0x8123, 0x80 },
++		{ 0x8130, 0x00 },
++		{ 0x8100, 0x01 }, /* bandgap power down */
++		{ 0x8101, 0x00 }, /* system clk power down */
++	};
++
++	regmap_multi_reg_write(lt9611->regmap,
++			       sleep_setup, ARRAY_SIZE(sleep_setup));
++	lt9611->sleep = true;
++}
++
++static int lt9611_power_on(struct lt9611 *lt9611)
++{
++	int ret;
++	const struct reg_sequence seq[] = {
++		/* LT9611_System_Init */
++		{ 0x8101, 0x18 }, /* sel xtal clock */
++
++		/* timer for frequency meter */
++		{ 0x821b, 0x69 }, /* timer 2 */
++		{ 0x821c, 0x78 },
++		{ 0x82cb, 0x69 }, /* timer 1 */
++		{ 0x82cc, 0x78 },
++
++		/* irq init */
++		{ 0x8251, 0x11 },
++		{ 0x8258, 0x0a }, /* hpd irq */
++		{ 0x8259, 0x00 }, /* hpd debounce width */
++		{ 0x829e, 0xf7 }, /* video check irq */
++
++		/* power consumption for work */
++		{ 0x8004, 0xf0 },
++		{ 0x8006, 0xf0 },
++		{ 0x800a, 0x80 },
++		{ 0x800b, 0x46 },
++		{ 0x800d, 0xef },
++		{ 0x8011, 0xfa },
++	};
++
++	if (lt9611->power_on)
++		return 0;
++
++	ret = regmap_multi_reg_write(lt9611->regmap, seq, ARRAY_SIZE(seq));
++	if (!ret)
++		lt9611->power_on = true;
++
++	return ret;
++}
++
++static int lt9611_power_off(struct lt9611 *lt9611)
++{
++	int ret;
++
++	ret = regmap_write(lt9611->regmap, 0x8130, 0x6a);
++	if (!ret)
++		lt9611->power_on = false;
++
++	return ret;
++}
++
++static void lt9611_reset(struct lt9611 *lt9611)
++{
++	gpiod_set_value_cansleep(lt9611->reset_gpio, 1);
++	msleep(20);
++
++	gpiod_set_value_cansleep(lt9611->reset_gpio, 0);
++	msleep(20);
++
++	gpiod_set_value_cansleep(lt9611->reset_gpio, 1);
++	msleep(100);
++}
++
++static void lt9611_assert_5v(struct lt9611 *lt9611)
++{
++	if (!lt9611->enable_gpio)
++		return;
++
++	gpiod_set_value_cansleep(lt9611->enable_gpio, 1);
++	msleep(20);
++}
++
++static int lt9611_regulator_init(struct lt9611 *lt9611)
++{
++	int ret;
++
++	lt9611->supplies[0].supply = "vdd";
++	lt9611->supplies[1].supply = "vcc";
++
++	ret = devm_regulator_bulk_get(lt9611->dev, 2, lt9611->supplies);
++	if (ret < 0)
++		return ret;
++
++	return regulator_set_load(lt9611->supplies[0].consumer, 300000);
++}
++
++static int lt9611_regulator_enable(struct lt9611 *lt9611)
++{
++	int ret;
++
++	ret = regulator_enable(lt9611->supplies[0].consumer);
++	if (ret < 0)
++		return ret;
++
++	usleep_range(1000, 10000);
++
++	ret = regulator_enable(lt9611->supplies[1].consumer);
++	if (ret < 0) {
++		regulator_disable(lt9611->supplies[0].consumer);
++		return ret;
++	}
++
++	return 0;
++}
++
++static struct lt9611_mode *lt9611_find_mode(const struct drm_display_mode *mode)
++{
++	int i;
++
++	for (i = 0; i < ARRAY_SIZE(lt9611_modes); i++) {
++		if (lt9611_modes[i].hdisplay == mode->hdisplay &&
++		    lt9611_modes[i].vdisplay == mode->vdisplay &&
++		    lt9611_modes[i].vrefresh == drm_mode_vrefresh(mode)) {
++			return &lt9611_modes[i];
++		}
++	}
++
++	return NULL;
++}
++
++/* connector funcs */
++static enum drm_connector_status
++lt9611_connector_detect(struct drm_connector *connector, bool force)
++{
++	struct lt9611 *lt9611 = connector_to_lt9611(connector);
++	unsigned int reg_val = 0;
++	int connected = 0;
++
++	regmap_read(lt9611->regmap, 0x825e, &reg_val);
++	connected  = (reg_val & BIT(2));
++
++	lt9611->status = connected ?  connector_status_connected :
++				connector_status_disconnected;
++	printk("lt9611_connect_detect %d\n", lt9611->status);
++	return lt9611->status;
++}
++
++static int lt9611_read_edid(struct lt9611 *lt9611)
++{
++	unsigned int temp;
++	int ret = 0;
++	int i, j;
++
++	/* memset to clear old buffer, if any */
++	memset(lt9611->edid_buf, 0, sizeof(lt9611->edid_buf));
++
++	regmap_write(lt9611->regmap, 0x8503, 0xc9);
++
++	/* 0xA0 is EDID device address */
++	regmap_write(lt9611->regmap, 0x8504, 0xa0);
++	/* 0x00 is EDID offset address */
++	regmap_write(lt9611->regmap, 0x8505, 0x00);
++
++	/* length for read */
++	regmap_write(lt9611->regmap, 0x8506, EDID_LEN);
++	regmap_write(lt9611->regmap, 0x8514, 0x7f);
++
++	for (i = 0; i < EDID_LOOP; i++) {
++		/* offset address */
++		regmap_write(lt9611->regmap, 0x8505, i * EDID_LEN);
++		regmap_write(lt9611->regmap, 0x8507, 0x36);
++		regmap_write(lt9611->regmap, 0x8507, 0x31);
++		regmap_write(lt9611->regmap, 0x8507, 0x37);
++		usleep_range(5000, 10000);
++
++		regmap_read(lt9611->regmap, 0x8540, &temp);
++
++		if (temp & KEY_DDC_ACCS_DONE) {
++			for (j = 0; j < EDID_LEN; j++) {
++				regmap_read(lt9611->regmap, 0x8583, &temp);
++				lt9611->edid_buf[i * EDID_LEN + j] = temp;
++			}
++
++		} else if (temp & DDC_NO_ACK) { /* DDC No Ack or Abitration lost */
++			dev_err(lt9611->dev, "read edid failed: no ack\n");
++			ret = -EIO;
++			goto end;
++
++		} else {
++			dev_err(lt9611->dev, "read edid failed: access not done\n");
++			ret = -EIO;
++			goto end;
++		}
++	}
++
++end:
++	regmap_write(lt9611->regmap, 0x8507, 0x1f);
++	return ret;
++}
++
++static int
++lt9611_get_edid_block(void *data, u8 *buf, unsigned int block, size_t len)
++{
++	struct lt9611 *lt9611 = data;
++	int ret;
++
++	if (len > 128)
++		return -EINVAL;
++
++	/* supports up to 1 extension block */
++	/* TODO: add support for more extension blocks */
++	if (block > 1)
++		return -EINVAL;
++
++	if (block == 0) {
++		ret = lt9611_read_edid(lt9611);
++		if (ret) {
++			dev_err(lt9611->dev, "edid read failed\n");
++			return ret;
++		}
++	}
++
++	block %= 2;
++	memcpy(buf, lt9611->edid_buf + (block * 128), len);
++
++	return 0;
++}
++
++static int lt9611_connector_get_modes(struct drm_connector *connector)
++{
++	struct lt9611 *lt9611 = connector_to_lt9611(connector);
++	unsigned int count;
++	struct edid *edid;
++
++	printk("lt9611_connector_get_modes \n");
++	lt9611_power_on(lt9611);
++	edid = drm_do_get_edid(connector, lt9611_get_edid_block, lt9611);
++	drm_mode_connector_update_edid_property(connector, edid);
++	count = drm_add_edid_modes(connector, edid);
++	kfree(edid);
++
++	return count;
++}
++
++static enum drm_mode_status
++lt9611_connector_mode_valid(struct drm_connector *connector,
++			    struct drm_display_mode *mode)
++{
++	struct lt9611_mode *lt9611_mode = lt9611_find_mode(mode);
++
++	return lt9611_mode ? MODE_OK : MODE_BAD;
++}
++
++/* bridge funcs */
++static void lt9611_bridge_enable(struct drm_bridge *bridge)
++{
++	struct lt9611 *lt9611 = bridge_to_lt9611(bridge);
++
++	printk("lt9611_bridge_enable \n");
++	if (lt9611_power_on(lt9611)) {
++		dev_err(lt9611->dev, "power on failed\n");
++		return;
++	}
++
++	lt9611_mipi_input_analog(lt9611);
++	lt9611_hdmi_tx_digital(lt9611);
++	lt9611_hdmi_tx_phy(lt9611);
++
++	msleep(500);
++
++	lt9611_video_check(lt9611);
++
++	/* Enable HDMI output */
++	regmap_write(lt9611->regmap, 0x8123, 0x40);
++	regmap_write(lt9611->regmap, 0x82de, 0x20);
++	regmap_write(lt9611->regmap, 0x82de, 0xe0);
++	regmap_write(lt9611->regmap, 0x8018, 0xdc);
++	regmap_write(lt9611->regmap, 0x8018, 0xfc);
++	regmap_write(lt9611->regmap, 0x8016, 0xf1);
++	regmap_write(lt9611->regmap, 0x8016, 0xf3);
++	regmap_write(lt9611->regmap, 0x8011, 0x5a);
++	regmap_write(lt9611->regmap, 0x8011, 0xfa);
++	regmap_write(lt9611->regmap, 0x8130, 0xea);
++}
++
++static void lt9611_bridge_disable(struct drm_bridge *bridge)
++{
++	struct lt9611 *lt9611 = bridge_to_lt9611(bridge);
++	int ret;
++
++	printk("lt9611_bridge_disable \n");
++	/* Disable HDMI output */
++	ret = regmap_write(lt9611->regmap, 0x8130, 0x6a);
++	if (ret) {
++		dev_err(lt9611->dev, "video on failed\n");
++		return;
++	}
++
++	if (lt9611_power_off(lt9611)) {
++		dev_err(lt9611->dev, "power on failed\n");
++		return;
++	}
++}
++
++static struct
++drm_connector_helper_funcs lt9611_bridge_connector_helper_funcs = {
++	.get_modes = lt9611_connector_get_modes,
++	.mode_valid = lt9611_connector_mode_valid,
++};
++
++static const struct drm_connector_funcs lt9611_bridge_connector_funcs = {
++	.fill_modes = drm_helper_probe_single_connector_modes,
++	.detect = lt9611_connector_detect,
++	.destroy = drm_connector_cleanup,
++	.reset = drm_atomic_helper_connector_reset,
++	.atomic_duplicate_state = drm_atomic_helper_connector_duplicate_state,
++	.atomic_destroy_state = drm_atomic_helper_connector_destroy_state,
++};
++
++static struct mipi_dsi_device *lt9611_attach_dsi(struct lt9611 *lt9611,
++						 struct device_node *dsi_node)
++{
++	const struct mipi_dsi_device_info info = { .type = "lt9611",
++							.channel = 0,
++							.node = NULL,
++						};
++	struct mipi_dsi_device *dsi;
++	struct mipi_dsi_host *host;
++	int ret;
++
++	printk("lt9611_attach_dsi \n");
++	host = of_find_mipi_dsi_host_by_node(dsi_node);
++	if (!host) {
++		dev_err(lt9611->dev, "failed to find dsi host\n");
++		return ERR_PTR(-EPROBE_DEFER);
++	}
++	of_node_put(dsi_node);
++
++	dsi = mipi_dsi_device_register_full(host, &info);
++	if (IS_ERR(dsi)) {
++		dev_err(lt9611->dev, "failed to create dsi device\n");
++		return dsi;
++	}
++
++	dsi->lanes = 4;
++	dsi->format = MIPI_DSI_FMT_RGB888;
++	dsi->mode_flags = MIPI_DSI_MODE_VIDEO | MIPI_DSI_MODE_VIDEO_SYNC_PULSE |
++			  MIPI_DSI_MODE_VIDEO_HSE;
++
++	ret = mipi_dsi_attach(dsi);
++	if (ret < 0) {
++		dev_err(lt9611->dev, "failed to attach dsi to host\n");
++		mipi_dsi_device_unregister(dsi);
++		return ERR_PTR(ret);
++	}
++
++	return dsi;
++}
++
++static void lt9611_bridge_detach(struct drm_bridge *bridge)
++{
++	struct lt9611 *lt9611 = bridge_to_lt9611(bridge);
++
++	if (lt9611->dsi1) {
++		mipi_dsi_detach(lt9611->dsi1);
++		mipi_dsi_device_unregister(lt9611->dsi1);
++	}
++
++	mipi_dsi_detach(lt9611->dsi0);
++	mipi_dsi_device_unregister(lt9611->dsi0);
++}
++
++static int lt9611_connector_init(struct drm_bridge *bridge, struct lt9611 *lt9611)
++{
++	int ret;
++
++	ret = drm_connector_init(bridge->dev, &lt9611->connector,
++				 &lt9611_bridge_connector_funcs,
++				 DRM_MODE_CONNECTOR_HDMIA);
++	if (ret) {
++		DRM_ERROR("Failed to initialize connector with drm\n");
++		return ret;
++	}
++
++	drm_connector_helper_add(&lt9611->connector,
++				 &lt9611_bridge_connector_helper_funcs);
++	drm_mode_connector_attach_encoder(&lt9611->connector, bridge->encoder);
++
++	if (!bridge->encoder) {
++		DRM_ERROR("Parent encoder object not found");
++		return -ENODEV;
++	}
++
++	return 0;
++}
++
++static int lt9611_bridge_attach(struct drm_bridge *bridge)
++{
++	struct lt9611 *lt9611 = bridge_to_lt9611(bridge);
++	int ret;
++
++	//if (!(flags & DRM_BRIDGE_ATTACH_NO_CONNECTOR)) {
++		ret = lt9611_connector_init(bridge, lt9611);
++		if (ret < 0)
++			return ret;
++	//}
++
++	/* Attach primary DSI */
++	lt9611->dsi0 = lt9611_attach_dsi(lt9611, lt9611->dsi0_node);
++	if (IS_ERR(lt9611->dsi0))
++		return PTR_ERR(lt9611->dsi0);
++
++	/* Attach secondary DSI, if specified */
++	if (lt9611->dsi1_node) {
++		lt9611->dsi1 = lt9611_attach_dsi(lt9611, lt9611->dsi1_node);
++		if (IS_ERR(lt9611->dsi1)) {
++			ret = PTR_ERR(lt9611->dsi1);
++			goto err_unregister_dsi0;
++		}
++	}
++
++	return 0;
++
++err_unregister_dsi0:
++	lt9611_bridge_detach(bridge);
++	drm_connector_cleanup(&lt9611->connector);
++	mipi_dsi_device_unregister(lt9611->dsi0);
++
++	return ret;
++}
++
++static enum drm_mode_status lt9611_bridge_mode_valid(struct drm_bridge *bridge,
++						     const struct drm_display_mode *mode)
++{
++	struct lt9611_mode *lt9611_mode = lt9611_find_mode(mode);
++	struct lt9611 *lt9611 = bridge_to_lt9611(bridge);
++
++	if (!lt9611_mode) {
++		return MODE_BAD;
++	} else if (lt9611_mode->intfs > 1 && !lt9611->dsi1) {
++		return MODE_PANEL;
++	} else {
++		return MODE_OK;
++	}
++}
++
++static void lt9611_bridge_pre_enable(struct drm_bridge *bridge)
++{
++	struct lt9611 *lt9611 = bridge_to_lt9611(bridge);
++
++	if (!lt9611->sleep)
++		return;
++
++	lt9611_reset(lt9611);
++	regmap_write(lt9611->regmap, 0x80ee, 0x01);
++
++	lt9611->sleep = false;
++}
++
++static void lt9611_bridge_post_disable(struct drm_bridge *bridge)
++{
++	struct lt9611 *lt9611 = bridge_to_lt9611(bridge);
++
++	lt9611_sleep_setup(lt9611);
++}
++
++static void lt9611_bridge_mode_set(struct drm_bridge *bridge,
++				   struct drm_display_mode *mode,
++				   struct drm_display_mode *adj_mode)
++{
++	struct lt9611 *lt9611 = bridge_to_lt9611(bridge);
++	struct hdmi_avi_infoframe avi_frame;
++	int ret;
++
++	printk("adj_mode hdisplay %d\n", adj_mode->hdisplay);
++	printk("adj_mode vdisplay %d\n", adj_mode->vdisplay);
++	printk("adj_mode clock %d\n", adj_mode->clock);
++	printk("adj_mode crtc_hdisplay %d\n", adj_mode->crtc_hdisplay);
++	printk("adj_mode crtc_vdisplay %d\n", adj_mode->crtc_vdisplay);
++	printk("adj_mode crtc_clock %d\n", adj_mode->crtc_clock);
++	lt9611_bridge_pre_enable(bridge);
++
++	lt9611_mipi_input_digital(lt9611, mode);
++	lt9611_pll_setup(lt9611, mode);
++	lt9611_mipi_video_setup(lt9611, mode);
++	lt9611_pcr_setup(lt9611, mode);
++	drm_mode_copy(&lt9611->mode, mode);
++
++	ret = drm_hdmi_avi_infoframe_from_display_mode(&avi_frame,
++						       adj_mode,
++						       false);
++	if (!ret)
++		lt9611->vic = avi_frame.video_code;
++}
++
++static enum drm_connector_status lt9611_bridge_detect(struct drm_bridge *bridge)
++{
++	struct lt9611 *lt9611 = bridge_to_lt9611(bridge);
++	unsigned int reg_val = 0;
++	int connected;
++
++	regmap_read(lt9611->regmap, 0x825e, &reg_val);
++	connected  = reg_val & BIT(2);
++
++	lt9611->status = connected ?  connector_status_connected :
++				connector_status_disconnected;
++
++	return lt9611->status;
++}
++
++static struct edid *lt9611_bridge_get_edid(struct drm_bridge *bridge,
++					   struct drm_connector *connector)
++{
++	struct lt9611 *lt9611 = bridge_to_lt9611(bridge);
++
++	lt9611_power_on(lt9611);
++	return drm_do_get_edid(connector, lt9611_get_edid_block, lt9611);
++}
++
++static void lt9611_bridge_hpd_enable(struct drm_bridge *bridge)
++{
++	struct lt9611 *lt9611 = bridge_to_lt9611(bridge);
++
++	lt9611_enable_hpd_interrupts(lt9611);
++}
++
++static const struct drm_bridge_funcs lt9611_bridge_funcs = {
++	.attach = lt9611_bridge_attach,
++	.detach = lt9611_bridge_detach,
++	.mode_valid = lt9611_bridge_mode_valid,
++	.enable = lt9611_bridge_enable,
++	.disable = lt9611_bridge_disable,
++	.post_disable = lt9611_bridge_post_disable,
++	.mode_set = lt9611_bridge_mode_set,
++	//.detect = lt9611_bridge_detect,
++	//.get_edid = lt9611_bridge_get_edid,
++	//.hpd_enable = lt9611_bridge_hpd_enable,
++};
++
++static int lt9611_parse_dt(struct device *dev,
++			   struct lt9611 *lt9611)
++{
++	struct device_node *np = dev->of_node;
++	struct device_node *node, *np1;
++	lt9611->dsi0_node = of_graph_get_remote_node(dev->of_node, 0, -1);
++	if (!lt9611->dsi0_node) {
++		dev_err(lt9611->dev, "failed to get remote node for primary dsi\n");
++		return -ENODEV;
++	}
++	printk("dsi0_node name 1%s\n", lt9611->dsi0_node->name);
++	node = of_graph_get_endpoint_by_regs(dev->of_node, 0, 0);
++	np1 = of_graph_get_remote_port(node);
++	printk("get_remote_port name 1%s\n", np1->name);
++	np1 = of_graph_get_remote_port_parent(node);
++	printk("get_remote_por_parent name 1%s\n", np1->name);
++
++	//lt9611->dsi1_node = of_graph_get_remote_node(dev->of_node, 1, -1);
++
++	lt9611->ac_mode = of_property_read_bool(dev->of_node, "lt,ac-mode");
++
++	return 0;
++}
++
++static int lt9611_gpio_init(struct lt9611 *lt9611)
++{
++	struct device *dev = lt9611->dev;
++
++	lt9611->reset_gpio = devm_gpiod_get(dev, "reset", GPIOD_OUT_HIGH);
++	if (IS_ERR(lt9611->reset_gpio)) {
++		dev_err(dev, "failed to acquire reset gpio\n");
++		return PTR_ERR(lt9611->reset_gpio);
++	}
++
++	//lt9611->enable_gpio = devm_gpiod_get_optional(dev, "enable",
++	//					      GPIOD_OUT_LOW);
++	//if (IS_ERR(lt9611->enable_gpio)) {
++	//	dev_err(dev, "failed to acquire enable gpio\n");
++	//	return PTR_ERR(lt9611->enable_gpio);
++	//}
++
++	return 0;
++}
++
++static int lt9611_read_device_rev(struct lt9611 *lt9611)
++{
++	unsigned int rev;
++	int ret;
++
++	ret = regmap_write(lt9611->regmap, 0x80ee, 0x01);
++	printk("ret %d\n", ret);
++	ret = regmap_read(lt9611->regmap, 0x8000, &rev);
++	printk("LT9611 rev1 %02x\n", rev);
++	ret = regmap_read(lt9611->regmap, 0x8001, &rev);
++	printk("LT9611 ret %d rev1 %02x\n", ret, rev);
++	if (ret)
++		dev_err(lt9611->dev, "failed to read revision: %d\n", ret);
++	else
++		dev_info(lt9611->dev, "LT9611 revision: 0x%x\n", rev);
++
++	return ret;
++}
++
++static int lt9611_probe(struct i2c_client *client,
++			const struct i2c_device_id *id)
++{
++	struct lt9611 *lt9611;
++	struct device *dev = &client->dev;
++	int ret;
++
++	printk("lt9611_probe success \n");
++	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
++		dev_err(dev, "device doesn't support I2C\n");
++		return -ENODEV;
++	}
++	printk("lt9611 check success \n");
++
++	lt9611 = devm_kzalloc(dev, sizeof(*lt9611), GFP_KERNEL);
++	if (!lt9611)
++		return -ENOMEM;
++
++	lt9611->dev = &client->dev;
++	lt9611->client = client;
++	lt9611->sleep = false;
++
++	lt9611->regmap = devm_regmap_init_i2c(client, &lt9611_regmap_config);
++	if (IS_ERR(lt9611->regmap)) {
++		dev_err(lt9611->dev, "regmap i2c init failed\n");
++		return PTR_ERR(lt9611->regmap);
++	}
++	printk("regmap_init success \n");
++
++	ret = lt9611_parse_dt(&client->dev, lt9611);
++	if (ret) {
++		dev_err(dev, "failed to parse device tree\n");
++		return ret;
++	}
++	printk("lt9611_parse success \n");
++
++	ret = lt9611_gpio_init(lt9611);
++	//if (ret < 0)
++		//goto err_of_put;
++
++	//ret = lt9611_regulator_init(lt9611);
++	//if (ret < 0)
++		//goto err_of_put;
++
++	//lt9611_assert_5v(lt9611);
++
++	//ret = lt9611_regulator_enable(lt9611);
++	//if (ret)
++		//goto err_of_put;
++
++	lt9611_reset(lt9611);
++	printk("lt9611_reset success \n");
++
++	ret = lt9611_read_device_rev(lt9611);
++	if (ret) {
++		dev_err(dev, "failed to read chip rev\n");
++		goto err_disable_regulators;
++	}
++	printk("lt9611_read_device success \n");
++
++	ret = devm_request_threaded_irq(dev, client->irq, NULL,
++					lt9611_irq_thread_handler,
++					IRQF_ONESHOT, "lt9611", lt9611);
++	if (ret) {
++		dev_err(dev, "failed to request irq\n");
++		goto err_disable_regulators;
++	}
++	printk("lt9611_irq success \n");
++
++	i2c_set_clientdata(client, lt9611);
++
++	lt9611->bridge.funcs = &lt9611_bridge_funcs;
++	lt9611->bridge.of_node = client->dev.of_node;
++	//lt9611->bridge.ops = DRM_BRIDGE_OP_DETECT | DRM_BRIDGE_OP_EDID |
++	//		     DRM_BRIDGE_OP_HPD | DRM_BRIDGE_OP_MODES;
++	//lt9611->bridge.type = DRM_MODE_CONNECTOR_HDMIA;
++
++	drm_bridge_add(&lt9611->bridge);
++	printk("drm_biidge succss ");
++
++	lt9611_enable_hpd_interrupts(lt9611);
++	return 0;
++
++
++err_disable_regulators:
++	regulator_bulk_disable(ARRAY_SIZE(lt9611->supplies), lt9611->supplies);
++
++err_of_put:
++	of_node_put(lt9611->dsi1_node);
++	of_node_put(lt9611->dsi0_node);
++
++	return ret;
++}
++
++static int lt9611_remove(struct i2c_client *client)
++{
++	struct lt9611 *lt9611 = i2c_get_clientdata(client);
++
++	disable_irq(client->irq);
++	//lt9611_audio_exit(lt9611);
++	drm_bridge_remove(&lt9611->bridge);
++
++	regulator_bulk_disable(ARRAY_SIZE(lt9611->supplies), lt9611->supplies);
++
++	of_node_put(lt9611->dsi1_node);
++	of_node_put(lt9611->dsi0_node);
++
++	return 0;
++}
++
++static const struct i2c_device_id lt9611_id[] = {
++	{ "lontium,lt9611", 0 },
++	{}
++};
++MODULE_DEVICE_TABLE(i2c, lt9611_id);
++
++#ifdef CONFIG_OF
++static const struct of_device_id lt9611_match_table[] = {
++	{ .compatible = "lontium,lt9611", },
++	{ }
++};
++MODULE_DEVICE_TABLE(of, lt9611_match_table);
++#endif
++
++static struct i2c_driver lt9611_driver = {
++	.driver = {
++		.name = "lt9611",
++		.of_match_table =of_match_ptr(lt9611_match_table),
++	},
++	.probe = lt9611_probe,
++	.remove = lt9611_remove,
++	.id_table = lt9611_id,
++};
++
++static int __init lt9611_init(void)
++{
++	printk("i2c_add_driver start \n");
++	return i2c_add_driver(&lt9611_driver);
++}
++
++static void __exit lt9611_exit(void)
++{
++	return i2c_del_driver(&lt9611_driver);
++}
++
++module_init(lt9611_init);
++module_exit(lt9611_exit);
++
++MODULE_DESCRIPTION("lontium bridge driver");
++MODULE_AUTHOR("lontium driver");
++MODULE_LICENSE("GPL v2");
+diff --git a/drivers/gpu/drm/canaan/kendryte_crtc.c b/drivers/gpu/drm/canaan/kendryte_crtc.c
+index db57fa43..1b06901f 100755
+--- a/drivers/gpu/drm/canaan/kendryte_crtc.c
++++ b/drivers/gpu/drm/canaan/kendryte_crtc.c
+@@ -454,7 +454,7 @@ static void kendryte_plane_atomic_update(struct drm_plane *plane,
+ 		// config yuv1
+ 		writel(0x11, vop->base + VO_LAYER0_PINGPANG_SEL_MODE);
+ 		kendryte_set_layer_uv_endian(vop, LAYER0, VO_VIDEO_LAYER_UV_ENDIAN_MODE3);
+-		kendryte_set_layer_postion(vop, LAYER0, actual_h, actual_w, dest->y1, dest->x1);
++		kendryte_set_layer_postion(vop, LAYER0, actual_h, actual_w, dest->y1, dest->x1, mode);
+ 		stride = (vop->layer[0].stride / 8 - 1) + ((actual_h) << 16);
+ 
+ 		//stride = (actual_w / 8 - 1) + ((actual_h) << 16);
+@@ -475,7 +475,7 @@ static void kendryte_plane_atomic_update(struct drm_plane *plane,
+ 		kendryte_layer_set_uv_swap(vop, LAYER1, 0);
+ 		kendryte_layer_set_in_offset(vop, LAYER1, 0);
+ 
+-		kendryte_set_layer_postion(vop, LAYER1, actual_h, actual_w, dest->y1, dest->x1);
++		kendryte_set_layer_postion(vop, LAYER1, actual_h, actual_w, dest->y1, dest->x1, mode);
+ 		stride = (vop->layer[1].stride / 8 -1) + ((actual_h - 1) << 16);
+ 		//stride = (actual_w / 8 - 1) + ((actual_h) << 16);
+ 		kendryte_set_layer_stride(vop, LAYER1, stride);
+@@ -492,7 +492,7 @@ static void kendryte_plane_atomic_update(struct drm_plane *plane,
+ 		kendryte_layer_set_uv_swap(vop, LAYER2, 0);
+ 		kendryte_layer_set_in_offset(vop, LAYER2, 0);
+ 
+-		kendryte_set_layer_postion(vop, LAYER2, actual_h, actual_w, dest->y1, dest->x1);
++		kendryte_set_layer_postion(vop, LAYER2, actual_h, actual_w, dest->y1, dest->x1, mode);
+ 		stride = (vop->layer[2].stride / 8 -1) + ((actual_h - 1) << 16);
+ 		//stride = (actual_w / 8 - 1) + ((actual_h) << 16);
+ 		kendryte_set_layer_stride(vop, LAYER2, stride);
+@@ -508,7 +508,7 @@ static void kendryte_plane_atomic_update(struct drm_plane *plane,
+ 		kendryte_layer_set_uv_swap(vop, LAYER3, 0);
+ 		kendryte_layer_set_in_offset(vop, LAYER3, 0);
+ 
+-		kendryte_set_layer_postion(vop, LAYER3, actual_h, actual_w, dest->y1, dest->x1);
++		kendryte_set_layer_postion(vop, LAYER3, actual_h, actual_w, dest->y1, dest->x1, mode);
+ 		stride = (vop->layer[3].stride / 8 -1) + ((actual_h - 1) << 16);
+ 		//stride = (actual_w / 8 - 1) + ((actual_h) << 16);
+ 		kendryte_set_layer_stride(vop, LAYER3, stride);
+@@ -523,7 +523,7 @@ static void kendryte_plane_atomic_update(struct drm_plane *plane,
+ 		kendryte_vo_osd_set_rgb2yuv_enable(vop, OSD0);
+ 		kendryte_layer_set_uv_swap(vop, OSD0, 1);
+ 		kendryte_vo_osd_set_format(vop, OSD0, vop_plane_state->format);
+-		kendryte_set_layer_postion(vop, OSD0, actual_h, actual_w, dest->y1, dest->x1);
++		kendryte_set_layer_postion(vop, OSD0, actual_h, actual_w, dest->y1, dest->x1, mode);
+ 		kendryte_set_layer_stride(vop, OSD0, (actual_w * 4) / 8);
+ 		kendryte_set_osd_addr(vop, OSD0, vop_plane_state->yrgb_mst, vop_plane_state->yrgb_mst, vop_plane_state->yrgb_mst, vop_plane_state->yrgb_mst);
+ 
+@@ -536,7 +536,7 @@ static void kendryte_plane_atomic_update(struct drm_plane *plane,
+ 		kendryte_layer_set_uv_swap(vop, OSD1, 1);
+ 		kendryte_vo_osd_set_rgb2yuv_enable(vop, OSD1);
+ 		kendryte_vo_osd_set_format(vop, OSD1, vop_plane_state->format);
+-		kendryte_set_layer_postion(vop, OSD1, actual_h, actual_w, dest->y1, dest->x1);
++		kendryte_set_layer_postion(vop, OSD1, actual_h, actual_w, dest->y1, dest->x1, mode);
+ 		kendryte_set_layer_stride(vop, OSD1, (actual_w * 4) / 8);
+ 		kendryte_set_osd_addr(vop, OSD1, vop_plane_state->yrgb_mst, vop_plane_state->yrgb_mst, vop_plane_state->yrgb_mst, vop_plane_state->yrgb_mst);
+ 	}
+@@ -548,7 +548,7 @@ static void kendryte_plane_atomic_update(struct drm_plane *plane,
+ 		kendryte_layer_set_uv_swap(vop, OSD2, 1);
+ 		kendryte_vo_osd_set_rgb2yuv_enable(vop, OSD2);
+ 		kendryte_vo_osd_set_format(vop, OSD2, vop_plane_state->format);
+-		kendryte_set_layer_postion(vop, OSD2, actual_h, actual_w, dest->y1, dest->x1);
++		kendryte_set_layer_postion(vop, OSD2, actual_h, actual_w, dest->y1, dest->x1, mode);
+ 		kendryte_set_layer_stride(vop, OSD2, (actual_w * 4) / 8);
+ 		kendryte_set_osd_addr(vop, OSD2, vop_plane_state->yrgb_mst, vop_plane_state->yrgb_mst, vop_plane_state->yrgb_mst, vop_plane_state->yrgb_mst);
+ 	}
+@@ -809,6 +809,7 @@ static void kendryte_crtc_atomic_enable(struct drm_crtc *crtc,
+ 	bool dclk_inv;
+ 
+ 	printk("***###***********************************vop_crtc_atomic_enable start ---------------- \n");
++    kendryte_vo_set_mode(vop, adjusted_mode);
+ 
+ #if 0 
+ 	rockchip_set_system_status(sys_status);
+diff --git a/drivers/gpu/drm/canaan/kendryte_dsi.c b/drivers/gpu/drm/canaan/kendryte_dsi.c
+index bbb02f3a..6f52013d 100755
+--- a/drivers/gpu/drm/canaan/kendryte_dsi.c
++++ b/drivers/gpu/drm/canaan/kendryte_dsi.c
+@@ -95,7 +95,7 @@ struct kendryte_dsi_timing dsi_timing =  {
+     .VACT=1920,
+     .HSA=20,
+     .HBP=20,
+-    .HFP=134,
++    .HFP=220,
+     .VSA=5,
+     .VBP=8,
+     .VFP=5,
+@@ -409,11 +409,20 @@ static void kendryte_dsi_set_timing(struct kendryte_dsi *dsi, struct drm_display
+     struct kendryte_dsi_timing *timing = dsi->timing;
+     struct mipi_dsi_device *device = dsi->device;
+     unsigned int Bpp = mipi_dsi_pixel_format_to_bpp(device->format) / 8;
+-    uint16_t hbp = 0, hfp = 0, hsa = 0, hblk = 0, vblk = 0;
++    uint32_t hdisplay = 0, hbp = 0, hfp = 0, hsa = 0;
++    uint32_t vdisplay = 0, vbp = 0, vfp = 0, vsa = 0;
+     uint32_t basic_ctl = 0;
+     size_t bytes;
+     uint8_t *buffer;
+ 
++    hdisplay = mode->hdisplay;
++    hsa     = mode->hsync_end - mode->hsync_start;
++    hbp     = mode->htotal - mode->hsync_end;
++    hfp     = mode->hsync_start - mode->hdisplay;
++    vdisplay = mode->vdisplay;
++    vsa     = mode->vsync_end - mode->vsync_start;
++    vbp     = mode->vtotal - mode->vsync_end;
++    vfp     = mode->vsync_start - mode->vdisplay;
+ #if 0
+     timing->HSA = (mode->hsync_end - mode->hsync_start) * Bpp ;
+     timing->HBP = (mode->htotal - mode->hsync_end) * Bpp ;
+@@ -433,7 +442,7 @@ static void kendryte_dsi_set_timing(struct kendryte_dsi *dsi, struct drm_display
+ #endif                         
+                           
+ 
+-    kendryte_dsi_dcs_write_reg(dsi, TVG_IMG_SIZE_OFFSET, (timing->VACT << 16 ) + timing->HACT * 3);
++    kendryte_dsi_dcs_write_reg(dsi, TVG_IMG_SIZE_OFFSET, (vdisplay << 16 ) + hdisplay * 3);
+     kendryte_dsi_dcs_write_reg(dsi, TVG_COLOR1_OFFSET, (0 << 12) +255)  ;  //[23:12] col1_green
+                                                             //[11:0]  col1_red
+     kendryte_dsi_dcs_write_reg(dsi, TVG_COLOR1_BIS_OFFSET, 0)  ; //[11:0]  col1_blue
+@@ -442,27 +451,27 @@ static void kendryte_dsi_set_timing(struct kendryte_dsi *dsi, struct drm_display
+     kendryte_dsi_dcs_write_reg(dsi, TVG_COLOR2_BIS_OFFSET,255) ;  //[11:0]  col2_blue
+ 
+ 
+-    kendryte_dsi_dcs_write_reg(dsi, VID_VSIZE1_OFFSET,(timing->VFP<<12)+(timing->VBP << 6) + timing->VSA);
++    kendryte_dsi_dcs_write_reg(dsi, VID_VSIZE1_OFFSET,(vfp<<12)+(vbp << 6) + vsa);
+                                         //[19:12] vfp_length
+                                         //[11:6]  vbp_length
+                                         //[5:0]   vsa_length
+     kendryte_dsi_dcs_write_reg(dsi, VID_MODE_STS_CTL_OFFSET,0);//0xffffffff);
+-    kendryte_dsi_dcs_write_reg(dsi, VID_VSIZE2_OFFSET, timing->VACT); //[12:0] vact_length
+-    kendryte_dsi_dcs_write_reg(dsi, VID_HSIZE1_OFFSET, ((timing->HBP * 3 - 12) << 16)+(timing->HSA * 3 - 14));
++    kendryte_dsi_dcs_write_reg(dsi, VID_VSIZE2_OFFSET, vdisplay); //[12:0] vact_length
++    kendryte_dsi_dcs_write_reg(dsi, VID_HSIZE1_OFFSET, ((hbp * 3 - 12) << 16)+(hsa * 3 - 14));
+                                             //[31:16] hbp_length  =(dpi_hbp*24/8-12)
+                                             //[9:0]   hsa_length  =(dpi_hsa*24/8-14)
+ 
+-    kendryte_dsi_dcs_write_reg(dsi, VID_HSIZE2_OFFSET, ((timing->HFP * 3 - 6) << 16)+(timing->HACT * 3));
++    kendryte_dsi_dcs_write_reg(dsi, VID_HSIZE2_OFFSET, ((hfp * 3 - 6) << 16)+(hdisplay * 3));
+                                             //[26:16] hfp_length  =(dpi_hfp*24/8-6) >hss+hsa+hse+hbp
+                                             //[14:0] rgb_size
+-    kendryte_dsi_dcs_write_reg(dsi, VID_BLKSIZE2_OFFSET, (timing->HSA + timing->HBP + timing->HFP + timing->HACT) * 3 - 20-(timing->HSA * 3 - 14));
++    kendryte_dsi_dcs_write_reg(dsi, VID_BLKSIZE2_OFFSET, (hsa + hbp + hfp + hdisplay) * 3 - 20-(hsa * 3 - 14));
+                                             //[14:0] blkline_pulse_pck = (dpi_hsa+dpi_hbp+dpi_hact+dpi_hfp)*24/8-20-((dpi_hsa*24/8)-14)=3342
+                                                 //  (1080+20+15+72)*3-20= 3541
+-    kendryte_dsi_dcs_write_reg(dsi, VID_DPHY_TIME_OFFSET, (0x38 << 17)+((timing->HSA + timing->HBP + timing->HFP + timing->HACT)* 3 / 4)-((timing->HSA * 3 - 14) / 4));
++    kendryte_dsi_dcs_write_reg(dsi, VID_DPHY_TIME_OFFSET, (0x38 << 17)+((hsa + hbp + hfp + hdisplay)* 3 / 4)-((hsa * 3 - 14) / 4));
+                                             //[16:0] reg_line_duration =(line_total_)
+                                             //[27:17] reg_wakeup_time
+     kendryte_dsi_dcs_write_reg(dsi, VID_VCA_SETTING1_OFFSET, (0x000000));
+-    kendryte_dsi_dcs_write_reg(dsi, VID_VCA_SETTING2_OFFSET, ((timing->HSA + timing->HBP + timing->HFP + timing->HACT) * 3 - 20 - (timing->HSA * 3 - 14) - 6) <<16 );
++    kendryte_dsi_dcs_write_reg(dsi, VID_VCA_SETTING2_OFFSET, ((hsa + hbp + hfp + hdisplay) * 3 - 20 - (hsa * 3 - 14) - 6) <<16 );
+ 
+ }
+ 
+@@ -513,6 +522,75 @@ static void kendryte_dsi_setup_format(struct kendryte_dsi *dsi, struct drm_displ
+ #endif
+ }
+ 
++static void kendryte_txdphy_set_pll(struct kendryte_dsi *dsi, uint32_t fbdiv, uint32_t refdiv, uint32_t outdiv)
++{ 
++    uint32_t wdata, rdata;
++    uint32_t bwadj = fbdiv/2;
++
++    uint32_t vco = 25*(fbdiv+1)/(refdiv+1);
++    if(vco < 720 || vco > 3600)
++    {
++        return;
++    }
++
++    //assert dphy reset
++    wdata = readl(dsi->base + 0x10); 
++    wdata &= (~(1 << 20));       
++    writel(wdata, dsi->base + 0x10);
++
++    //power-down mipi pll and reset pll
++    wdata = (1 << 31) /*pll reset */
++                | (1 << 30) /*pwr down */
++                | (1 << 28) /*PLL fast-lock */
++                | (1 << 27) /* ENSAT*/
++                | (1 << 25) /* PLL Override*/
++                | (outdiv << 21) /*PLL D */
++                | (0 << 19) /*lane0_sel */
++                | (1 << 17) /*lane1_sel */
++                | (2 << 15) /*lane2_sel */    
++                | (3 << 13) /*lane3_sel */;
++    writel(wdata, dsi->txdphy_base + 0x8);
++
++    wdata = (refdiv << 25) /* CLKR */
++                | (fbdiv << 12) /* CLKF*/
++                | (bwadj) /*BWADJ*/; 
++    writel(wdata, dsi->txdphy_base + 0x4);
++                
++    //power-on mipi pll   
++    wdata = readl(dsi->txdphy_base + 0x8);
++    wdata &= (~(1 << 30));
++    writel(wdata, dsi->txdphy_base + 0x8);
++    udelay(5);
++    
++    //de-assert pll reset 
++    wdata = readl(dsi->txdphy_base + 0x8);
++    wdata &= (~(1 << 31));
++    writel(wdata, dsi->txdphy_base + 0x8);
++
++    //wait for pll lock
++    rdata = 0;
++    while((rdata & 0x4) != 0x4)
++    {
++        rdata =readl(dsi->txdphy_base + 0x14);
++    }
++
++    //de-assert dphy reset
++    wdata = readl(dsi->base + 0x10); 
++    wdata |= (1 << 20);       
++    writel(wdata, dsi->base + 0x10);
++}
++
++static void kendryte_txdphy_init(struct kendryte_dsi *dsi, struct drm_display_mode *mode)
++{
++    uint32_t reg_val;
++
++    reg_val = (1 << 14);
++    writel(reg_val, dsi->txdphy_base);
++    kendryte_txdphy_set_pll(dsi, 1781, 24, 3);
++    reg_val = 0x0f5000c0;
++    writel(reg_val, dsi->txdphy_base + 0xc);
++}
++
+ static void kendryte_dsi_init(struct kendryte_dsi *dsi, struct drm_display_mode *mode)   
+ {
+ 
+@@ -527,7 +605,7 @@ static void kendryte_dsi_init(struct kendryte_dsi *dsi, struct drm_display_mode
+         // config 2 lan
+     }
+ #endif
+-    kendryte_dsi_dcs_write_reg(dsi, DPI_IRQ_EN_OFFSET, 0); //enable dpi overflow int
++    kendryte_dsi_dcs_write_reg(dsi, DPI_IRQ_EN_OFFSET, 1); //enable dpi overflow int
+     kendryte_dsi_dcs_write_reg(dsi, MCTL_MAIN_PHY_CTL_OFFSET, 0x3C17);    //[6]  lane1_ulp_en = 1   正常的   0x3C17 clk_continuous  
+                                                                //[4]  clk_continuous  =1
+                                                                //[2]  lane4_en =1
+@@ -623,6 +701,11 @@ static void kendryte_dsi_encoder_enable(struct drm_encoder *encoder)
+ 
+ */
+     // config dsi timing format init
++    printk("dsi hdisplay %d\n", mode->hdisplay);
++    printk("dsi vdisplay %d\n", mode->vdisplay);
++    printk("dsi pclk %d\n", mode->clock);
++    printk("dsi refresh %d\n", drm_mode_vrefresh(mode));
++    kendryte_txdphy_init(dsi, mode);
+     kendryte_dsi_init(dsi, mode);
+ 
+ 
+@@ -767,12 +850,11 @@ static int kendryte_dsi_bind(struct device *dev, struct device *master,
+     printk("kendryte_dsi_bind is start  \n");
+ 
+ 
+-    if (!dsi->panel)
+-            return -EPROBE_DEFER;
+-
+     dsi->drv = drv;
+ 
+     ret = drm_of_find_panel_or_bridge(dev->of_node, 1, -1, &dsi->panel, &dsi->bridge);// 
++    if (!dsi->panel && !dsi->bridge)
++            return -EPROBE_DEFER;
+                                 
+ #if 0
+     dsi->encoder.possible_crtcs = drm_of_find_possible_crtcs(drm, dev->of_node);
+@@ -797,6 +879,7 @@ static int kendryte_dsi_bind(struct device *dev, struct device *master,
+ 
+ //    printk("drm_encoder_init encode id is %d \n", encoder->base.id);
+                                                            
++	if (dsi->panel) {
+     drm_connector_helper_add(&dsi->connector,
+                                 &kendryte_dsi_connector_helper_funcs);
+ 
+@@ -812,6 +895,10 @@ static int kendryte_dsi_bind(struct device *dev, struct device *master,
+ 
+     drm_mode_connector_attach_encoder(&dsi->connector, &dsi->encoder);
+     drm_panel_attach(dsi->panel, &dsi->connector);
++    }
++
++    if (dsi->bridge)
++	    drm_bridge_attach(&dsi->encoder, dsi->bridge, NULL);
+ 
+     // enable dsi encode
+ //    kendryte_dsi_enc_helper_funcs.enable(&dsi->encoder);
+@@ -829,7 +916,8 @@ static void kendryte_dsi_unbind(struct device *dev, struct device *master,
+ {
+     struct kendryte_dsi *dsi = dev_get_drvdata(dev);
+ 
+-    drm_panel_detach(dsi->panel);
++    if (dsi->panel)
++    	drm_panel_detach(dsi->panel);
+ }
+ 
+ static const struct component_ops  kendryte_dsi_ops = {
+@@ -902,6 +990,12 @@ static int kendryte_dsi_probe(struct platform_device *pdev)
+         return PTR_ERR(dsi->base);
+     }
+ 
++    dsi->txdphy_base = devm_ioremap(dev, 0x92718000, 0x100);
++    if (IS_ERR(dsi->txdphy_base)) {
++        dev_err(dev, "Couldn't map the DSI dphy registers\n");
++        return PTR_ERR(dsi->txdphy_base);
++    }
++
+     of_property_read_u32(np, "framerate", &dsi->frame_rate);
+ 
+     dsi->dsi_apb = devm_clk_get(&pdev->dev, "dsi_apb");
+diff --git a/drivers/gpu/drm/canaan/kendryte_dsi.h b/drivers/gpu/drm/canaan/kendryte_dsi.h
+index d31f8f0c..c13a8485 100755
+--- a/drivers/gpu/drm/canaan/kendryte_dsi.h
++++ b/drivers/gpu/drm/canaan/kendryte_dsi.h
+@@ -52,6 +52,7 @@ struct kendryte_dsi {
+     struct device                               *dev;
+     struct device_node                          *client;
+     void __iomem                                *base;
++    void __iomem                                *txdphy_base;
+     struct kendryte_drv                         *drv;
+     struct mipi_dsi_device                      *device;
+     
+diff --git a/drivers/gpu/drm/canaan/kendryte_vo.c b/drivers/gpu/drm/canaan/kendryte_vo.c
+index cab05f2c..6ab76124 100755
+--- a/drivers/gpu/drm/canaan/kendryte_vo.c
++++ b/drivers/gpu/drm/canaan/kendryte_vo.c
+@@ -132,7 +132,59 @@ void kendryte_vo_software_reset(struct kendryte_vo *vo)
+     writel(0x0f, vo->base + VO_SOFT_RST_CTL);
+ }
+ 
+-
++
++void kendryte_vo_set_mode(struct kendryte_vo *vo, struct drm_display_mode *mode)
++{
++    uint32_t reg_val = 0x00;
++    uint32_t htotal, hdisplay, hbp = 0, hfp = 0, hsa = 0;
++    uint32_t vtotal, vdisplay, vbp = 0, vfp = 0, vsa = 0;
++    uint32_t xzone_start, xzone_stop;
++    uint32_t yzone_start, yzone_stop;
++
++    htotal      = mode->htotal;
++    hdisplay    = mode->hdisplay;
++    hsa         = mode->hsync_end - mode->hsync_start;
++    hbp         = mode->htotal - mode->hsync_end;
++    hfp         = mode->hsync_start - mode->hdisplay;
++    vtotal      = mode->vtotal;
++    vdisplay    = mode->vdisplay;
++    vsa         = mode->vsync_end - mode->vsync_start;
++    vbp         = mode->vtotal - mode->vsync_end;
++    vfp         = mode->vsync_start - mode->vdisplay;
++    xzone_start = hsa + hbp;
++    xzone_stop  = hdisplay + hsa + hbp;
++    yzone_start = vsa + vbp + 1;
++    yzone_stop  = vdisplay + vsa + vbp + 1;
++
++    printk("crtc htotal %d\n", htotal);
++    printk("crtc hdisplay %d\n", hdisplay);
++    printk("crtc xzone_start %d\n", xzone_start);
++    printk("crtc xzone_stop %d\n", xzone_stop);
++    printk("crtc vtotal %d\n", vtotal);
++    printk("crtc vdisplay %d\n", vdisplay);
++    printk("crtc yzone_start %d\n", yzone_start);
++    printk("crtc yzone_stop %d\n", yzone_stop);
++
++    reg_val = 0x05 + (0x19 << 16);
++    writel(reg_val, vo->base + VO_DISP_HSYNC_CTL);
++
++    reg_val = 0x01 + (0x05 << 16);
++    writel(reg_val, vo->base + VO_DISP_HSYNC1_CTL);
++
++    reg_val = 0x01 + (0x01 << 16);
++    writel(reg_val, vo->base + VO_DISP_VSYNC1_CTL);
++
++    reg_val = htotal + (vtotal << 16);
++    writel(reg_val, vo->base + VO_DISP_TOTAL_SIZE);
++
++    reg_val = xzone_start + ((xzone_stop -1) << 16);
++    writel(reg_val, vo->base + VO_DISP_XZONE_CTL);
++
++    reg_val = yzone_start + ((yzone_stop -1) << 16);
++    writel(reg_val, vo->base + VO_DISP_YZONE_CTL);
++
++}
++
+ void kendryte_vo_timing_init(struct kendryte_vo *vo, struct kendryte_vo_timing *vo_timing)
+ {
+     uint32_t reg = 0;
+@@ -356,9 +408,14 @@ void kendryte_set_layer_enable(struct kendryte_vo *vo, enum VO_LAYER layer, uint
+ 
+ }
+ 
+-void kendryte_set_layer_postion(struct kendryte_vo *vo, enum VO_LAYER layer, uint32_t vpos, uint32_t hpos, uint32_t v_offset, uint32_t h_offset)
++void kendryte_set_layer_postion(struct kendryte_vo *vo, enum VO_LAYER layer, uint32_t vpos, uint32_t hpos, uint32_t v_offset, uint32_t h_offset, struct drm_display_mode *mode)
+ {
+     uint32_t val ;
++    uint32_t hsa = mode->crtc_hsync_end - mode->crtc_hsync_start;
++    uint32_t hbp = mode->crtc_htotal - mode->crtc_hsync_end;
++    uint32_t vsa = mode->crtc_vsync_end - mode->crtc_vsync_start;
++    uint32_t vbp = mode->crtc_vtotal - mode->crtc_vsync_end;
++
+ 
+     switch(layer)
+     {
+@@ -370,10 +427,10 @@ void kendryte_set_layer_postion(struct kendryte_vo *vo, enum VO_LAYER layer, uin
+             writel(val, vo->base + VO_DISP_LAYER0_OUT_ACT_SIZE);
+ 
+             // set layer0 x start and stop
+-            val = (h_offset + 0x2e) + ((hpos + (h_offset + 0x2e) - 1) << 16);
++            val = (h_offset + hsa + hbp) + ((hpos + (h_offset + hsa + hbp) - 1) << 16);
+             writel(val, vo->base + VO_DISP_LAYER0_XCTL);
+             // set layer0 y start and stop
+-            val = (v_offset + 0x0e) + ((vpos + (v_offset + 0x0e) ) << 16);
++            val = (v_offset + vsa + vbp + 1) + ((vpos + (v_offset + vsa + vbp + 1)) << 16);
+             writel(val, vo->base + VO_DISP_LAYER0_YCTL);
+             break;
+ 
+@@ -382,10 +439,10 @@ void kendryte_set_layer_postion(struct kendryte_vo *vo, enum VO_LAYER layer, uin
+             val = ((vpos -1 ) << 16) + (hpos - 1);
+             writel(val, vo->base + VO_DISP_LAYER1_ACT_SIZE);
+             // set layer1 x start and stop
+-            val = (h_offset + 0x2e) + ((hpos + (h_offset + 0x2e) - 1) << 16);
++            val = (h_offset + hsa + hbp) + ((hpos + (h_offset + hsa + hbp) - 1) << 16);
+             writel(val, vo->base + VO_DISP_LAYER1_XCTL);
+             // set layer1 y start and stop
+-            val = (v_offset + 0x0e) + ((vpos + (v_offset + 0x0e) ) << 16);
++            val = (v_offset + vsa + vbp + 1) + ((vpos + (v_offset + vsa + vbp + 1)) << 16);
+             writel(val, vo->base + VO_DISP_LAYER1_YCTL);
+             break;
+         
+@@ -394,10 +451,10 @@ void kendryte_set_layer_postion(struct kendryte_vo *vo, enum VO_LAYER layer, uin
+             val = ((vpos -1 ) << 16) + (hpos - 1);
+             writel(val, vo->base + VO_DISP_LAYER2_ACT_SIZE);
+             // set layer2 x start and stop
+-            val = (h_offset + 0x2e) + ((hpos + (h_offset + 0x2e) - 1) << 16);
++            val = (h_offset + hsa + hbp) + ((hpos + (h_offset + hsa + hbp) - 1) << 16);
+             writel(val, vo->base + VO_DISP_LAYER2_XCTL);
+             // set layer2 y start and stop
+-            val = (v_offset + 0x0e) + ((vpos + (v_offset + 0x0e) ) << 16);
++            val = (v_offset + vsa + vbp + 1) + ((vpos + (v_offset + vsa + vbp + 1)) << 16);
+             writel(val, vo->base + VO_DISP_LAYER2_YCTL);
+ 
+             break;
+@@ -407,10 +464,10 @@ void kendryte_set_layer_postion(struct kendryte_vo *vo, enum VO_LAYER layer, uin
+             val = ((vpos -1 ) << 16) + (hpos - 1);
+             writel(val, vo->base + VO_DISP_LAYER3_ACT_SIZE);
+             // set layer3 x start and stop
+-            val = (h_offset + 0x2e) + ((hpos + (h_offset + 0x2e) - 1) << 16);
++            val = (h_offset + hsa + hbp) + ((hpos + (h_offset + hsa + hbp) - 1) << 16);
+             writel(val, vo->base + VO_DISP_LAYER3_XCTL);
+             // set layer3 y start and stop
+-            val = (v_offset + 0x0e) + ((vpos + (v_offset + 0x0e) ) << 16);
++            val = (v_offset + vsa + vbp + 1) + ((vpos + (v_offset + vsa + vbp + 1)) << 16);
+             writel(val, vo->base + VO_DISP_LAYER3_YCTL);
+             break;
+ 
+@@ -419,10 +476,10 @@ void kendryte_set_layer_postion(struct kendryte_vo *vo, enum VO_LAYER layer, uin
+             val = (vpos << 16) + hpos;
+             writel(val, vo->base + VO_DISP_OSD0_ACT_SIZE);
+             // set osd0 x start and stop
+-            val = (h_offset + 0x2e) + ((hpos + (h_offset + 0x2e) - 1) << 16);
++            val = (h_offset + hsa + hbp) + ((hpos + (h_offset + hsa + hbp) - 1) << 16);
+             writel(val, vo->base + VO_DISP_LAYER4_XCTL);
+             // set osd0 y start and stop
+-            val = (v_offset + 0x0e) + ((vpos + (v_offset + 0x0e) ) << 16);
++            val = (v_offset + vsa + vbp + 1) + ((vpos + (v_offset + vsa + vbp + 1)) << 16);
+             writel(val, vo->base + VO_DISP_LAYER4_YCTL);
+             break;
+         case OSD1 :
+@@ -430,10 +487,10 @@ void kendryte_set_layer_postion(struct kendryte_vo *vo, enum VO_LAYER layer, uin
+             val = (vpos << 16) + hpos;
+             writel(val, vo->base + VO_DISP_OSD1_ACT_SIZE);
+             // set osd1 x start and stop
+-            val = (h_offset + 0x2e) + ((hpos + (h_offset + 0x2e) - 1) << 16);
++            val = (h_offset + hsa + hbp) + ((hpos + (h_offset + hsa + hbp) - 1) << 16);
+             writel(val, vo->base + VO_DISP_LAYER5_XCTL);
+             // set osd1 y start and stop
+-            val = (v_offset + 0x0e) + ((vpos + (v_offset + 0x0e) ) << 16);
++            val = (v_offset + vsa + vbp + 1) + ((vpos + (v_offset + vsa + vbp + 1)) << 16);
+             writel(val, vo->base + VO_DISP_LAYER5_YCTL);
+ 
+             break;
+@@ -442,10 +499,10 @@ void kendryte_set_layer_postion(struct kendryte_vo *vo, enum VO_LAYER layer, uin
+             val = (vpos << 16) + hpos;
+             writel(val, vo->base + VO_DISP_OSD2_ACT_SIZE);
+             // set osd2 x start and stop
+-            val = (h_offset + 0x2e) + ((hpos + (h_offset + 0x2e) - 1) << 16);
++            val = (h_offset + hsa + hbp) + ((hpos + (h_offset + hsa + hbp) - 1) << 16);
+             writel(val, vo->base + VO_DISP_LAYER6_XCTL);
+             // set osd2 y start and stop
+-            val = (v_offset + 0x0e) + ((vpos + (v_offset + 0x0e) ) << 16);
++            val = (v_offset + vsa + vbp + 1) + ((vpos + (v_offset + vsa + vbp + 1)) << 16);
+             writel(val, vo->base + VO_DISP_LAYER6_YCTL);
+             break;
+         default:
+diff --git a/drivers/gpu/drm/canaan/kendryte_vo.h b/drivers/gpu/drm/canaan/kendryte_vo.h
+index 58c774ff..0de2eb9e 100755
+--- a/drivers/gpu/drm/canaan/kendryte_vo.h
++++ b/drivers/gpu/drm/canaan/kendryte_vo.h
+@@ -460,7 +460,8 @@ void kendryte_vo_blenth_init(struct kendryte_vo *vo);
+ void kendryte_display_crtl(struct kendryte_vo *vo, int status);
+ void kendryte_vo_set_config_done(struct kendryte_vo *vo);
+ void kendryte_vo_set_config_mix(struct kendryte_vo *vo);
+-void kendryte_set_layer_postion(struct kendryte_vo *vo, enum VO_LAYER layer, uint32_t vpos, uint32_t hpos, uint32_t v_offset, uint32_t h_offset);
++void kendryte_set_layer_postion(struct kendryte_vo *vo, enum VO_LAYER layer, uint32_t vpos, uint32_t hpos, uint32_t v_offset, uint32_t h_offset, struct drm_display_mode *mode);
++void kendryte_vo_set_mode(struct kendryte_vo *vo, struct drm_display_mode *mode);
+ void kendryte_set_layer_stride(struct kendryte_vo *vo, enum VO_LAYER layer, uint32_t stride);
+ void kendryte_vo_get_reg_val(struct kendryte_vo *vop);
+ void kendryte_vo_clear_intr(struct kendryte_vo *vop);
+-- 
+2.17.1
+
