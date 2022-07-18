@@ -905,10 +905,6 @@ static void cfg_noc_prior(void)
     system("devmem 0x970E00fc 32 0x0fffff00");
     system("devmem 0x970E0100 32 0x00000000");
     system("devmem 0x970E0104 32 0x00000000");
-
-    system("devmem 0x9990038c 32 0x00000000");
-    system("devmem 0x9990048c 32 0x00000001");
-    system("devmem 0x98000504 32 0x00010303");
 }
 
 /**
@@ -1158,18 +1154,17 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
     drm_dev.camera_num = camera_num;
     struct camera_info* used_cam;
 
-    //need to start r2k at first to fix dma error
-	if(dev_info[1].video_used) {
-		if (init_isp(&camera[1]) < 0) {
-			goto cleanup;
-		}
-        used_cam = &camera[1];
-	}
 	if(dev_info[0].video_used) {
 		if (init_isp(&camera[0]) < 0) {
-            goto cleanup;
+			goto cleanup;
 		}
         used_cam = &camera[0];
+	}
+	if(dev_info[1].video_used) {
+		if (init_isp(&camera[1]) < 0) {
+            goto cleanup;
+		}
+        used_cam = &camera[1];
 	}
 
     if (dev_info[0].video_used && dev_info[1].video_used) {
