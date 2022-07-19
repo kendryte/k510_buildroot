@@ -615,6 +615,7 @@ int main(int argc, char *argv[]) {
                             PROT_READ | PROT_WRITE, MAP_SHARED,
                             mem_fd, (uint64_t)mem_yuv_phy_addr | 0x100000000);
   assert(mem_yuv_logic_addr != MAP_FAILED);
+  fprintf(stderr, "map share mem phy addr: 0x%08X, size: %u\n", mem_yuv_phy_addr, mem_yuv_map_size);
 
   if (argc > 1 && strcmp(argv[1], "-j") == 0) {
     // open encoder
