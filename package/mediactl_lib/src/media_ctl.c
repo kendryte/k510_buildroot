@@ -836,7 +836,7 @@ static int  isp_share_memory_alloc(void)
         return 1 ;
     }
 
-    allocAlignMem[0].size      = MEMORY_TEST_BLOCK_SIZE * 1024 ;//MEMORY_TEST_BLOCK_SIZE; 1920x1080*3/2+1920*1080
+    allocAlignMem[0].size      = MEMORY_TEST_BLOCK_SIZE * 1024 * 3;//MEMORY_TEST_BLOCK_SIZE; 1920x1080*3/2+1920*1080
     allocAlignMem[0].alignment = MEMORY_TEST_BLOCK_ALIGN;
     allocAlignMem[0].phyAddr   = 0;
 
@@ -848,7 +848,7 @@ static int  isp_share_memory_alloc(void)
         printf("main block alloc:0x%08x,size:%d,align %d\r\n",allocAlignMem[0].phyAddr,allocAlignMem[0].size,allocAlignMem[0].alignment);
     }
 
-    allocAlignMem[1].size      = MEMORY_TEST_BLOCK_SIZE * 1024 ;//MEMORY_TEST_BLOCK_SIZE; 1920x1080*3/2+1920*1080
+    allocAlignMem[1].size      = MEMORY_TEST_BLOCK_SIZE * 1024 * 3;//MEMORY_TEST_BLOCK_SIZE; 1920x1080*3/2+1920*1080
     allocAlignMem[1].alignment = MEMORY_TEST_BLOCK_ALIGN;
     allocAlignMem[1].phyAddr   = 0;
 
@@ -1004,14 +1004,6 @@ int mediactl_all_set_ae(enum isp_pipeline_e pipeline)
 	 
 	if(ISP_F2K_PIPELINE == pipeline)
 	{
-		// FIXME: lantency, skip 3 frames
-		static uint32_t counter = 0;
-		counter += 1;
-		if (counter % 3) {
-			// do nothing
-			return ret;
-		}
-
 		pipe = v4l_isp.f2k;
 		ret = v4l2_subdev_open(pipe);
 		if (ret < 0)
@@ -1073,14 +1065,6 @@ int mediactl_all_set_ae(enum isp_pipeline_e pipeline)
 
 	if(ISP_R2K_PIPELINE == pipeline)
 	{
-		// lantency
-		static uint32_t counter = 0;
-		counter += 1;
-		if (counter % 3) {
-			// do nothing
-			return ret;
-		}
-
 		pipe = v4l_isp.r2k;
 		ret = v4l2_subdev_open(pipe);
 		if (ret < 0)
