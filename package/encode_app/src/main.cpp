@@ -56,7 +56,6 @@ using namespace std;
 #include "alsa/asoundlib.h"
 #include "G711Codec.h"
 
-#define SET_AE_WORKARROUND   1   //in the future, set AE in seperated thread for r2k/f2k
 //#define ISP_OUTPUT_DUMP 1
 #define TEST_ISP        1
 
@@ -503,12 +502,8 @@ static void *v4l2_output(void *arg)
     buf.memory = V4L2_MEMORY_USERPTR;
         
     res = ioctl(pCtx->fd_v4l2[channel], VIDIOC_DQBUF, &buf);
-#ifdef SET_AE_WORKARROUND    
-    if(pCtx->set_ae[channel])
-#endif
-    {
-      set_ae(pCtx->dev_name[channel], pCtx->ae_enable);
-    }
+
+    set_ae(pCtx->dev_name[channel], pCtx->ae_enable);
     
     if (res < 0 || errno == EINTR)
     {
@@ -532,6 +527,13 @@ static void *v4l2_output(void *arg)
       {
           printf("v4l2 buffer overflow\n");
           enqueue_buf(buf.index, channel);
+      }
+      else if(time - start_time < 100000000)
+      {
+          if(pCtx->v4l2_pic_cnt[channel] == 0)
+          {
+            enqueue_buf(buf.index, channel);
+          }
       }
       else
       {
@@ -624,7 +626,7 @@ static void *encode_ch(void *arg)
       input.height = pCtx->height[channel];
       input.stride = stride;
       input.data = (unsigned char *)pCtx->yuv_phyAddr[channel] + frame_size*(src_index % pCtx->input_frames[channel]);
-      printf("%s>src_index %d, addr 0x%x\n", __FUNCTION__, src_index, input.data);
+      //printf("%s>src_index %d, addr 0x%x\n", __FUNCTION__, src_index, input.data);
       src_index++;
     }
 
@@ -1190,50 +1192,6 @@ int init_v4l2()
       sem_init(&pCtx->pSemGetData[i],0,0);
     }
 
-#ifdef SET_AE_WORKARROUND
-    for(int i = 0; i < pCtx->ch_cnt; i++)
-    {
-      if(pCtx->ae_enable)
-      { 
-        char* dev_name;
-
-        dev_name = pCtx->dev_name[i];
-      
-        if(i == 0)
-        {
-          pCtx->set_ae[i] = 1;
-          
-          if((dev_name[10] >= '2') && (dev_name[10] <= '5'))
-          {
-            f2k = 1;
-          }
-          else
-          {
-            r2k = 1;
-          }
-        }
-        else
-        {
-          if(f2k == 1)
-          {
-            if((dev_name[10] >= '6') && (dev_name[10] <= '9'))
-            {
-              pCtx->set_ae[i] = 1;
-            }
-          }
-          
-          if(r2k == 1)
-          {
-            if((dev_name[10] >= '2') && (dev_name[10] <= '5'))
-            {
-              pCtx->set_ae[i] = 1;
-            }
-          }
-          break;
-        }
-      }
-    }
-#endif
     if(mediactl_init(REAL_CONF_FILENAME, &(pCtx->dev_info[0])) < 0)
     {
         printf("mediactl_init error!\n");
@@ -1891,6 +1849,7 @@ int parse_cmd(int argc, char *argv[])
       printf("-ar: audio sample rate\n");
       printf("-af: auido sample format\n");
       printf("-ad: audio device");
+      printf("-lossless: enable jpeg lossless encode");
       // printf("-aof: audio output frames\n");
       return 1;
     }
@@ -2072,6 +2031,12 @@ int parse_cmd(int argc, char *argv[])
       int nqp = atoi(argv[i+1]);
       pCtx->Cfg[cur_ch].SliceQP = nqp;
       printf("sliceqp %d\n", nqp);
+    }
+    else if (strcmp(argv[i],"-lossless") == 0 )
+    {
+      int lossless = atoi(argv[i+1]);
+      pCtx->Cfg[cur_ch].lossless = lossless;
+      printf("lossless %d\n", lossless);
     }
     else if (strcmp(argv[i],"-minqp") == 0 )
     {
@@ -2261,7 +2226,7 @@ int main(int argc, char *argv[])
         if(strcmp(ptr, ".jpg") == 0 || strcmp(ptr, ".mjpeg") == 0)
         {
           pCtx->Cfg[i].profile = JPEG;
-          pCtx->Cfg[i].rcMode = CONST_QP; 
+          pCtx->Cfg[i].rcMode = CONST_QP;          
           printf("JPEG encode\n");
         }
       }
