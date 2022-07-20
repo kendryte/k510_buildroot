@@ -74,6 +74,7 @@ unsigned offset_in_page = 0;
 unsigned map_size = 1048576;
 void* map_base = MAP_FAILED;
 EncoderHandle* henc = NULL;
+EncoderHandle* henc_h264 = NULL;
 uint8_t pic_write_buffer_select = 0;
 uint8_t pic_write_buffer[2][PIC_YUV_SIZE + 6] = {
     {0x99, 0x9a, PIC_YUV_SIZE & 0xff, (PIC_YUV_SIZE >> 8) & 0xff,
@@ -319,6 +320,26 @@ void on_encode_jpeg_done(void) {
   broadcast(buffer, sizeof(buffer), 0);
 }
 
+void on_encode_h264_done(void) {
+  printf("encode h264 done.\n");
+  EncOutputStream output;
+  VideoEncoder_GetStream(henc_h264, &output);
+  uint32_t buf_size = output.bufSize;
+  uint8_t buffer[buf_size + 6];
+  const uint8_t buffer_header[6] = {
+    0x99,
+    0x41,
+    buf_size & 0xff,
+    (buf_size >> 8) & 0xff,
+    (buf_size >> 16) & 0xff,
+    (buf_size >> 24) & 0xff
+  };
+  memcpy(buffer, buffer_header, 6);
+  memcpy(buffer + 6, output.bufAddr, buf_size);
+  VideoEncoder_ReleaseStream(henc, &output);
+  broadcast(buffer, sizeof(buffer), 0);
+}
+
 struct file_data {
   uint32_t ser;
   uint32_t path_len;
@@ -332,6 +353,7 @@ struct file_data {
 #define CMD_PAUSE 0x9A
 #define CMD_FILE 0xBC
 #define CMD_JPEG 0x31
+#define CMD_H264 0x41
 uint8_t state = 0;
 uint8_t* data;
 uint32_t data_cap = 0;
@@ -413,11 +435,31 @@ void exec_cmd(void) {
       };
       // FIXME: async
       printf("encode jpeg start...\n");
-      // VideoEncoder_EncodeOneFrame_Async(henc, &frame, on_encode_jpeg_done);
+      // FIXME: VideoEncoder_EncodeOneFrame_Async(henc, &frame, on_encode_jpeg_done);
       VideoEncoder_EncodeOneFrame(henc, &frame);
       on_encode_jpeg_done();
     } else {
       fprintf(stderr, "JPEG codec is disabled, enable by -j\n");
+    }
+  } else if (cmd == CMD_H264) {
+    // encode h264
+    if (henc_h264 != NULL) {
+      // encode h264
+      uint8_t *pic_nv12_buffer =
+          pic_write_buffer[pic_write_buffer_select ^ 1] + 6;
+      memcpy(mem_yuv_logic_addr, pic_nv12_buffer, PIC_YUV_SIZE);
+      EncInputFrame frame = {
+        .width = PIC_YUV_WIDTH,
+        .height = PIC_YUV_HEIGHT,
+        .stride = (PIC_YUV_WIDTH + 0x1F) & (~0x1F),
+        .data = (unsigned char *)mem_yuv_phy_addr
+      };
+      // FIXME: async
+      printf("encode jpeg start...\n");
+      VideoEncoder_EncodeOneFrame(henc_h264, &frame);
+      on_encode_h264_done();
+    } else {
+      fprintf(stderr, "H264 codec is disabled, enable by -j\n");
     }
   } else {
     // unknown cmd
@@ -620,11 +662,11 @@ int main(int argc, char *argv[]) {
   if (argc > 1 && strcmp(argv[1], "-j") == 0) {
     // open encoder
     EncSettings encoder_settings = {
-        .channel = 0, // TODO
+        .channel = 0,
         .width = PIC_YUV_WIDTH,
         .height = PIC_YUV_HEIGHT,
         .FrameRate = 30,
-        .BitRate = 4000000, // TODO
+        .BitRate = 4000000,
         .MaxBitRate = 4000000,
         .level = 42,
         .profile = JPEG,
@@ -641,6 +683,28 @@ int main(int argc, char *argv[]) {
         .roiCtrlMode = ROI_QP_TABLE_NONE,
     };
     henc = VideoEncoder_Create(&encoder_settings);
+    EncSettings encoder_settings_h264 = {
+        .channel = 1,
+        .width = PIC_YUV_WIDTH,
+        .height = PIC_YUV_HEIGHT,
+        .FrameRate = 30,
+        .BitRate = 4000000,
+        .MaxBitRate = 4000000,
+        .level = 42,
+        .profile = AVC_HIGH,
+        .rcMode = CBR,
+        .SliceQP = 25,
+        .FreqIDR = 25,
+        .gopLen = 1,
+        .AspectRatio = ASPECT_RATIO_AUTO,
+        .MinQP = 0,
+        .MaxQP = 51,
+        .bEnableGDR = 0,
+        .gdrMode = GDR_VERTICAL,
+        .bEnableLTR = 0,
+        .roiCtrlMode = ROI_QP_TABLE_NONE,
+    };
+    henc_h264 = VideoEncoder_Create(&encoder_settings_h264);
   }
 #endif
 
