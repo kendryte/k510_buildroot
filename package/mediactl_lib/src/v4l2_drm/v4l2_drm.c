@@ -48,6 +48,7 @@
 
 #include <linux/videodev2.h>
 
+#include "drm/k510_drm.h"
 #include "media_ctl.h"
 #include "k510_drm.h"
 #include <semaphore.h>
@@ -125,166 +126,6 @@ static int xioctl(int fh, int request, void *arg)
 
     return r;
 }
-/**
- * @brief 
- * 
- * @param camera 
- * @return int 
- */
-static int read_frame(struct camera_info *camera,unsigned int camera_seq)
-{
-    struct v4l2_buffer buf;
-    unsigned int i;
-    int fd = camera->fd;
-    cam_fd[0] = fd;
-    unsigned int n_buffers = camera->n_buffers;
-
-    //printf("%s: called!\n", __func__);
-    CLEAR(buf);
-    buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-    buf.memory = V4L2_MEMORY_DMABUF;//drm //V4L2_MEMORY_MMAP;
-    
-    if (-1 == xioctl(fd, VIDIOC_DQBUF, &buf)) {
-        perror("readframe: DQBUF");
-        switch (errno) {
-        case EAGAIN:
-        {
-            printf("%s: DQBUFERR! EAGAIN ret(%d)\n", __func__,EAGAIN);
-            return 0;
-        }    
-        case EIO:
-            printf("%s: DQBUFERR! EIO ret(%d)\n", __func__,EIO);
-            /* Could ignore EIO, see spec. */
-
-            /* fall through */
-
-        default:
-            //errno_exit("VIDIOC_DQBUF");
-            printf("%s: DQBUFERR! errno ret(%d)\n", __func__,errno);
-            return -1;
-        }
-    }
-    //assert(buf.index < n_buffers);
-
-    // process_image(&buffers[buf.index]);
-    //printf("%s:buf.index(%d)\n",__func__,buf.index);
-    // EnQueue(f2k_queue,buf.index);
-    static struct v4l2_buffer old_buffer;
-    fprintf(stderr, "cam0: p %d\n", buf.index);
-    pthread_mutex_lock(&frame_mutex[0]);
-    if (sem_trywait(&frame_sem[0]) == 0) {
-        fprintf(stderr, "cam0: d %d\n", old_buffer.index);
-        if (xioctl(fd, VIDIOC_QBUF, &old_buffer) < 0) {
-            // pthread_mutex_unlock(&mutex);
-            perror("readframe: QBUF");
-            //errno_exit("VIDIOC_QBUF");
-            done = true;
-            return -1;
-        }
-    }
-    out_buffer[0] = buf;
-    sem_post(&frame_sem[0]);
-    pthread_mutex_unlock(&frame_mutex[0]);
-    old_buffer = buf;
-
-    if(isp_ae_status == 1 || isp_ae_status == 3)
-    {
-        mediactl_set_ae(ISP_F2K_PIPELINE);
-    }
-    return 0;
-}
-/**
- * @brief 
- * 
- * @param camera 
- * @return int 
- */
-static int read_frame1(struct camera_info *camera,unsigned int camera_seq)
-{
-    struct v4l2_buffer buf;
-    unsigned int i;
-    int fd = camera->fd;
-    cam_fd[1] = fd;
-    unsigned int n_buffers = camera->n_buffers;
-
-    //printf("%s: called!\n", __func__); 
-    CLEAR(buf);
-    buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-    buf.memory = V4L2_MEMORY_DMABUF;//drm //V4L2_MEMORY_MMAP;
-    //printf("%s:called 1! \n", __func__);
-    // pthread_mutex_lock(&mutex);
-    if (-1 == xioctl(fd, VIDIOC_DQBUF, &buf)) {
-        printf("%s: DQBUFERR!\n", __func__);
-        switch (errno) {
-        case EAGAIN:            
-        {
-            printf("%s: DQBUFERR! EAGAIN ret(%d)\n", __func__,EAGAIN);
-            return 0;
-        }    
-        case EIO:
-            printf("%s: DQBUFERR! EIO ret(%d)\n", __func__,EIO);
-            /* Could ignore EIO, see spec. */
-
-            /* fall through */
-
-        default:
-            //errno_exit("VIDIOC_DQBUF");
-            printf("%s: DQBUFERR! errno ret(%d)\n", __func__,errno);
-            return -1;
-        }
-    }
-    // pthread_mutex_unlock(&mutex);
-    //assert(buf.index < n_buffers);
-    //printf("%s:called 2! \n", __func__);
-    // process_image(&buffers[buf.index]);
-    //printf("%s:buf.index1(%d)\n",__func__,buf.index);
-    // EnQueue(r2k_queue,buf.index);
-    static struct v4l2_buffer old_buffer;
-    fprintf(stderr, "cam1: p %d\n", buf.index);
-    pthread_mutex_lock(&frame_mutex[1]);
-    if (sem_trywait(&frame_sem[1]) == 0) {
-        fprintf(stderr, "cam1: d %d\n", old_buffer.index);
-        if (xioctl(fd, VIDIOC_QBUF, &old_buffer) < 0) {
-            // pthread_mutex_unlock(&mutex);
-            perror("readframe: QBUF");
-            done = true;
-            //errno_exit("VIDIOC_QBUF");
-            return -1;
-        }
-    }
-    out_buffer[1] = buf;
-    sem_post(&frame_sem[1]);
-    pthread_mutex_unlock(&frame_mutex[1]);
-    old_buffer = buf;
-
-    struct drm_buffer *fbuf;
-    static int screen_init_flag = 0;
-#if 0
-   //printf("%s: show!\n", __func__);
-    pthread_mutex_lock(&mutex);
-    if(screen_init_flag && !flag) // inited  //drm
-    {
-        /* Requeue the buffer */
-        if (-1 == xioctl(fd, VIDIOC_QBUF, &old_buffer))
-        {
-            pthread_mutex_unlock(&mutex);
-            perror("readframe1: QBUF");
-            // printf("%s:camera (%d) VIDIOC_QBUF failed!\n",__func__,camera_seq);
-            //errno_exit("VIDIOC_QBUF");
-            return -1;
-        }            
-    }
-    pthread_mutex_unlock(&mutex);
-
-    old_buffer = buf;
-#endif
-    if(screen_init_flag == 0) // not init
-    {
-        screen_init_flag = 1;
-    }
-
-    return 0;
-}
 
 int readframe(int fd, struct v4l2_buffer* vbuf) {
     memset(vbuf, 0, sizeof(struct v4l2_buffer));
@@ -293,131 +134,6 @@ int readframe(int fd, struct v4l2_buffer* vbuf) {
     return xioctl(fd, VIDIOC_DQBUF, vbuf);
 }
 
-/**
- * @brief 
- * 
- * @param camera 
- */
-static int mainloop(struct camera_info *camera,unsigned int camera_seq)
-{  
-    int fd = camera->fd;
-    fd_set fds;
-    struct timeval tv;
-    int r;
-    int ret;
-    struct drm_buffer *fbuf = &drm_dev.drm_bufs[0];
-
-    printf("%s: camera %d fd(%d) mainloop called!\n", __func__,camera_seq,fd);
-    
-    for(int i= 0;i < BUFFERS_COUNT;i++)
-    {
-        fbuf[i].width = camera->size.width;
-        fbuf[i].height = camera->size.height; 
-    }
-
-    FD_ZERO(&fds);
-    FD_SET(fd, &fds);
-    while (!done) { 
-        /* Timeout. */
-        tv.tv_sec = 2;
-        tv.tv_usec = 0;
-
-        r = select(fd + 1, &fds, NULL, NULL, &tv);        
-        if (-1 == r) {
-            if (EINTR == errno)
-                continue;
-            //errno_exit("select");
-            //done = true;
-            printf("error: camera%d select failed with %d\n", camera_seq,errno);
-            ret =  -1;
-            break;
-        }
-
-        if (0 == r) {
-            //done = true;
-            printf("%s:camera%d select timeout\n",__func__,camera_seq);
-            //exit(EXIT_FAILURE);
-            ret =  -1;
-            break;
-        }
-
-        //mediactl_set_ae();
-        ret = read_frame(camera,camera_seq);
-        if (ret < 0 )
-        {
-            printf("%s:camera%d read_frame failed\n",__func__,camera_seq);
-            //done = true;
-            break;
-        } 
- 
-        /* EAGAIN - continue select loop. */
-    }
-    //printf("%s: camera %d fd(%d) mainloop end ret(%d)!\n", __func__,camera_seq,fd,ret);
-    return ret;
-}
-/**
- * @brief 
- * 
- * @param camera 
- */
-static int mainloop1(struct camera_info *camera,unsigned int camera_seq)
-{  
-    int fd = camera->fd;
-    fd_set fds;
-    struct timeval tv;
-    int r;
-    int ret =0;
-    struct drm_buffer *fbuf = &drm_dev.drm_bufs[BUFFERS_COUNT];
-
-    printf("%s: camera %d fd(%d) mainloop1 called!\n", __func__,camera_seq,fd);
-    
-    for(int i= 0;i < BUFFERS_COUNT;i++)
-    {
-        fbuf[i].width = camera->size.width;
-        fbuf[i].height = camera->size.height; 
-    }
-
-    FD_ZERO(&fds);
-    FD_SET(fd, &fds);
-    while (!done) { 
-        /* Timeout. */
-        tv.tv_sec = 2;
-        tv.tv_usec = 0;
-
-        r = select(fd + 1, &fds, NULL, NULL, &tv);        
-        if (-1 == r) {
-            if (EINTR == errno)
-                continue;
-            //errno_exit("select");
-            //done = true;
-            printf("error: camera%d select failed with %d\n", camera_seq,errno);
-            ret = -1;
-            break;
-        }
-
-        if (0 == r) {
-            //done = true;
-            printf("%s:camera%d select timeout\n",__func__,camera_seq);
-            //exit(EXIT_FAILURE);
-            ret = -1;
-            break;
-        }
-
-        //mediactl_set_ae();
-
-        ret = read_frame1(camera,camera_seq);
-        if (ret<0)
-        {
-            printf("%s:camera%d read_frame failed \n",__func__,camera_seq);
-            break;
-        } 
-
-        /* EAGAIN - continue select loop. */
-    }
-
-    printf("%s: camera %d fd(%d) mainloop1 end ret(%d)!\n", __func__,camera_seq,fd,ret);
-    return ret;
-}
 /**
  * @brief 
  * 
@@ -786,91 +502,6 @@ void sighand(int signo)
     return; 
 }
 
-/**
- * @brief 
- * 
- * @param info 
- * @return void* 
- */
-void *run_f2k_video(void *info)
-{
-    struct camera_info *camera = (struct camera_info *)info;
-    int ret = 0;
-    pthread_mutex_lock(&mutex);
-    open_device(camera);
-
-    ret = init_device(camera,&drm_dev.drm_bufs[camera->buffer_start]);  //0
-    if(ret <0 )
-    {
-        pthread_mutex_unlock(&mutex);
-        goto f2k_cleanup;
-    }
-
-    ret= start_capturing(camera);
-    if(ret <0 )
-    {
-        pthread_mutex_unlock(&mutex);
-        goto f2k_cleanup;
-    } 
-    pthread_mutex_unlock(&mutex);  
-//
-    ret = mainloop(camera,0);
-    if(ret <0 )
-    {
-        printf("%s:mainloop failed!\n",__func__);
-        goto f2k_cleanup;
-    } 
-//
-f2k_cleanup:
-    stop_capturing(camera);
-
-    uninit_device(camera,&drm_dev.drm_bufs[camera->buffer_start]); //0
-    close_device(camera);
-    //
-}
-
-/**
- * @brief 
- * 
- * @param info 
- * @return void* 
- */
-void *run_r2k_video(void *info)
-{
-    struct camera_info *camera = (struct camera_info *)info;
-    int ret = 0;
-    pthread_mutex_lock(&mutex);
-    open_device(camera);
-
-    ret = init_device(camera,&drm_dev.drm_bufs[camera->buffer_start]); //BUFFERS_COUNT
-    if(ret <0 )
-    {
-        pthread_mutex_unlock(&mutex);
-        goto r2k_cleanup;
-    }
-
-    ret= start_capturing(camera);
-    if(ret <0 )
-    {
-        pthread_mutex_unlock(&mutex);
-        goto r2k_cleanup;
-    } 
-    pthread_mutex_unlock(&mutex);  
-//
-    ret = mainloop1(camera,1);
-    if(ret <0 )
-    {
-        printf("%s:mainloop1 failed!\n",__func__);
-        goto r2k_cleanup;
-    } 
-//
-r2k_cleanup:
-    stop_capturing(camera);
-
-    uninit_device(camera,&drm_dev.drm_bufs[camera->buffer_start]);//BUFFERS_COUNT
-    close_device(camera);
-}
-
 int init_isp(struct camera_info *camera) {
     int ret = 0;
     open_device(camera);
@@ -907,103 +538,6 @@ static void cfg_noc_prior(void)
     system("devmem 0x970E0104 32 0x00000000");
 }
 
-/**
- * @brief 
- * 
- * @return void* 
- */
-void *drm_show(void *info)
-{
-    struct video_info *dev_info = (struct video_info *)info;
-    struct drm_buffer *fbuf,*fbuf2;
-    static struct v4l2_buffer vbuf[2];
-    unsigned int index = 0,index1 = 0;
-    printf("%s:start!\n",__func__);
-    if(dev_info[0].video_used) {
-        sem_wait(&frame_sem[0]);
-        pthread_mutex_lock(&frame_mutex[0]);
-        vbuf[0] = out_buffer[0];
-        pthread_mutex_unlock(&frame_mutex[0]);
-    }
-    if(dev_info[1].video_used) {
-        sem_wait(&frame_sem[1]);
-        pthread_mutex_lock(&frame_mutex[1]);
-        vbuf[1] = out_buffer[1];
-        pthread_mutex_unlock(&frame_mutex[1]);
-    }
-    while(!done)
-    {
-        /* drm show */
-        if (drm_dev.req)
-            drm_wait_vsync();
-        if(dev_info[0].video_used) {
-            sem_wait(&frame_sem[0]);
-            pthread_mutex_lock(&frame_mutex[0]);
-            if (xioctl(cam_fd[0], VIDIOC_QBUF, &vbuf[0]) < 0) {
-                // printf("%s:camera (0) VIDIOC_QBUF failed!\n",__func__);
-                perror("drm_show: camera (0) VIDIOC_QBUF failed");
-                break;
-            }
-            vbuf[0] = out_buffer[0];
-            pthread_mutex_unlock(&frame_mutex[0]);
-            index = vbuf[0].index;
-            fprintf(stderr, "cam0: g %d\n", index);
-        }
-        if(dev_info[1].video_used) {
-            sem_wait(&frame_sem[1]);
-            pthread_mutex_lock(&frame_mutex[1]);
-            if (xioctl(cam_fd[1], VIDIOC_QBUF, &vbuf[1]) < 0) {
-                // printf("%s:camera (1) VIDIOC_QBUF failed!\n",__func__);
-                perror("drm_show: camera (1) VIDIOC_QBUF failed");
-                break;
-            }
-            vbuf[1] = out_buffer[1];
-            pthread_mutex_unlock(&frame_mutex[1]);
-            index1 = vbuf[1].index;
-            fprintf(stderr, "cam1: g %d\n", index1);
-        }
-        if((dev_info[0].video_used == 1)&& (dev_info[1].video_used == 1))
-        {
-            //printf("%s:index(%d) index1(%d)\n",__func__,index,index1);  
-            fbuf = &drm_dev.drm_bufs[index];
-            fbuf2 = &drm_dev.drm_bufs[index1+BUFFERS_COUNT];
-            if (drm_dmabuf_set_2plane(fbuf,fbuf2)) {
-                printf("Flush fail\n");
-                break;
-            }
-        } 
-        else if(dev_info[0].video_used == 1)
-        { 
-            //printf("%s:index(%d)\n",__func__,index);
-            fbuf = &drm_dev.drm_bufs[index];
-            if (drm_dmabuf_set_plane(fbuf)) {
-                printf("Flush fail\n");
-                break;
-            }
-        }
-        else if(dev_info[1].video_used == 1)
-        {
-            //printf("%s:index(%d)\n",__func__,index);
-            fbuf = &drm_dev.drm_bufs[index1];
-            if (drm_dmabuf_set_plane(fbuf)) {
-                printf("Flush fail\n");
-                break;
-            }
-        }    
-    }
-    done = true;
-    //
-#if 0
-    if(drm_dev.fd)
-    {
-        printf("%s:drm_destory_dumb!\n",__func__);
-        for(int i = 0; i < BUFFERS_COUNT*BUFFERS_NUM; i++) {        
-            drm_destory_dumb(&drm_dev.drm_bufs[i]);
-        }
-    }
-#endif
-    //
-}
 /**
  * @brief 
  * 
@@ -1347,7 +881,10 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
             if (done) {
                 goto cleanup;
             }
-        } while (bit_mask_w && (!done));
+        } while (bit_mask_w);
+        if (done) {
+            goto cleanup;
+        }
 
         // fps stat
 #define DEBUG_FPS 0
@@ -1396,18 +933,16 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
             vbuf_ptr[i] ^= 1;
         }
     }
-
 cleanup:
+    if(drm_dev.fd) {
+        fprintf(stderr, "drm_exit\n");
+        drm_exit(); 
+    }
     if(dev_info[0].video_used) {
         deinit_isp(&camera[0]);
     }
     if(dev_info[1].video_used) {
         deinit_isp(&camera[1]);
-    }
-	fprintf(stderr, "main completed\n");
-    if(drm_dev.fd) {
-        fprintf(stderr, "drm_exit\n");
-        drm_exit(); 
     }
     mediactl_exit();
     return 0;
