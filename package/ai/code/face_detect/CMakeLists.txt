@@ -1,4 +1,4 @@
-set(SRC main.cc cv2_utils.cc anchors_320.cc anchors_640.cc retinaface.cc ../common/k510_drm.c ../common/v4l2.c)
+set(SRC main.cc cv2_utils.cc anchors_320.cc anchors_640.cc retinaface.cc ../common/k510_drm.c ../common/v4l2.c ../common/buf_mgt.cc)
 set(bin face_detect)
 set(script ../shell/face_detect.sh)
 set(input ../imx219_0.conf ../imx219_1.conf ../video_object_detect_320.conf ../video_object_detect_640.conf)

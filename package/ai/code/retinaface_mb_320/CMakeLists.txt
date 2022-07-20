@@ -1,4 +1,4 @@
-set(SRC main.cc anchors_320.cc retinaface.cc ../common/k510_drm.c cv2_utils.cc ../common/v4l2.c)
+set(SRC main.cc anchors_320.cc retinaface.cc ../common/k510_drm.c cv2_utils.cc ../common/v4l2.c ../common/buf_mgt.cc)
 set(bin retinaface_mb_320)
 set(script ../shell/retinaface_mb_320_bf16.sh ../shell/retinaface_mb_320_uint8.sh)
 set(input ../imx219_0.conf ../imx219_1.conf ../video_192x320.conf)
