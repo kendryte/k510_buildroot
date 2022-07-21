@@ -635,7 +635,7 @@ void before_exit(int sig) {
     munmap(mem_yuv_logic_addr, mem_yuv_map_size);
   }
   if (mem_yuv_map_size != 0) {
-    ioctl(share_mem_fd, SHARE_MEMORY_FREE, mem_yuv_phy_addr);
+    ioctl(share_mem_fd, SHARE_MEMORY_FREE, &mem_yuv_phy_addr);
     close(share_mem_fd);
   }
   fprintf(stderr, "capture signal %d, exit\n", sig);
