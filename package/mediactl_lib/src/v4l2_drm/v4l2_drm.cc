@@ -778,7 +778,6 @@ int video_resolution_adaptation(void)
 /**
  * @brief 
  * 
->>>>>>> add v4l2_drm resolution auto adaptation:package/mediactl_lib/src/v4l2_drm/v4l2_drm.cc
  * @param __attribute__ 
  * @param __attribute__ 
  * @return int 
