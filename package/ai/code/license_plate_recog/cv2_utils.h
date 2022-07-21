@@ -105,7 +105,7 @@ typedef struct ai_worker_args
 float minf(float v1, float v2);
 float maxf(float v1, float v2);
 box_t get_box_from_landmarks(cv::Mat mat, int valid_width, int valid_height, float *cur_pts, int fk_num);
-frame_coordinate_info get_frame_coord(box_t r, int valid_width, int valid_height);
+frame_coordinate_info get_frame_coord(box_t r, int valid_width, int valid_height, int display_width, int display_height);
 class ScopedTiming
 {
 public:

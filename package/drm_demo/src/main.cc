@@ -46,6 +46,7 @@ using namespace cv;
 #define DRM_DEV_NAME_DEFAULT "/dev/dri/card0"
 
 static struct drm_dev drm_dev;
+static uint32_t screen_width, screen_height;
 #define DRM_BUF_COUNT 7
 static struct plane_cfg {
 	bool enable;
@@ -246,8 +247,8 @@ static void draw_pic(void)
 		img.setTo(plane_cfg[i].color);
 		char str[128];
 		snprintf(str, 128, "layer %d", i);
-		putText_center(img, str, Point(-1, 0), FONT_HERSHEY_COMPLEX, 3,
-			       Scalar(0, 0, 0, 0), 5, 8);
+		putText_center(img, str, Point(-1, 0), FONT_HERSHEY_COMPLEX, screen_height * 0.002,
+			       Scalar(0, 0, 0, 0), 2, LINE_8);
 		if (plane_cfg[i].buf.fourcc == DRM_FORMAT_NV12) {
 			Mat img_dst = Mat(buf->height, buf->width, CV_8UC(3),
 					  plane_cfg[i].buf.map);
@@ -256,10 +257,58 @@ static void draw_pic(void)
 	}
 }
 
+static int video_resolution_adaptation(void)
+{
+	plane_cfg[0].buf.width = ALIGNED_UP_POWER_OF_TWO(screen_width, 3);
+	plane_cfg[0].buf.height = ALIGNED_DOWN_POWER_OF_TWO(screen_height, 2);
+	plane_cfg[0].buf.offset_x = 0;
+	plane_cfg[0].buf.offset_y = 0;
+
+	plane_cfg[1].buf.width = ALIGNED_UP_POWER_OF_TWO(screen_width * 80 / 100, 3);
+	plane_cfg[1].buf.height = ALIGNED_DOWN_POWER_OF_TWO(screen_height * 26 / 100, 2);
+	plane_cfg[1].buf.offset_x = (screen_width - plane_cfg[1].buf.width) / 2;
+	plane_cfg[1].buf.offset_y = screen_height * 10 / 100;
+
+	plane_cfg[2].buf.width = ALIGNED_UP_POWER_OF_TWO(screen_width * 80 / 100, 3);
+	plane_cfg[2].buf.height = ALIGNED_DOWN_POWER_OF_TWO(screen_height * 26 / 100, 2);
+	plane_cfg[2].buf.offset_x = (screen_width - plane_cfg[2].buf.width) / 2;
+	plane_cfg[2].buf.offset_y = screen_height * 40 / 100;
+
+	plane_cfg[3].buf.width = ALIGNED_UP_POWER_OF_TWO(screen_width * 80 / 100, 3);
+	plane_cfg[3].buf.height = ALIGNED_DOWN_POWER_OF_TWO(screen_height * 26 / 100, 2);
+	plane_cfg[3].buf.offset_x = (screen_width - plane_cfg[3].buf.width) / 2;
+	plane_cfg[3].buf.offset_y = screen_height * 70 / 100;
+
+	plane_cfg[4].buf.width = ALIGNED_UP_POWER_OF_TWO(screen_width * 60 / 100, 3);
+	plane_cfg[4].buf.height = ALIGNED_DOWN_POWER_OF_TWO(screen_height * 15 / 100, 2);
+	plane_cfg[4].buf.offset_x = (screen_width - plane_cfg[4].buf.width) / 2;
+	plane_cfg[4].buf.offset_y = screen_height * 20 / 100;
+
+	plane_cfg[5].buf.width = ALIGNED_UP_POWER_OF_TWO(screen_width * 60 / 100, 3);
+	plane_cfg[5].buf.height = ALIGNED_DOWN_POWER_OF_TWO(screen_height * 15 / 100, 2);
+	plane_cfg[5].buf.offset_x = (screen_width - plane_cfg[5].buf.width) / 2;
+	plane_cfg[5].buf.offset_y = screen_height * 50 / 100;
+
+	plane_cfg[6].buf.width = ALIGNED_UP_POWER_OF_TWO(screen_width * 60 / 100, 3);
+	plane_cfg[6].buf.height = ALIGNED_DOWN_POWER_OF_TWO(screen_height * 15 / 100, 2);
+	plane_cfg[6].buf.offset_x = (screen_width - plane_cfg[6].buf.width) / 2;
+	plane_cfg[6].buf.offset_y = screen_height * 80 / 100;
+
+	return 0;
+}
+
 static int display_init(void)
 {
 	if (drm_dev_setup(&drm_dev, DRM_DEV_NAME_DEFAULT))
 		return -1;
+
+	drm_get_resolution(&drm_dev, &screen_width, &screen_height);
+	printf("screen resolution: %dx%d\n", screen_width, screen_height);
+
+	if (video_resolution_adaptation() < 0) {
+		printf("resolution not support!\n");
+		return -1;
+	}
 
 	if (alloc_drm_buff()) {
 		drm_dev_cleanup(&drm_dev);
