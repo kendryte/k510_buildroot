@@ -104,6 +104,6 @@ ntpdate  ntp.aliyun.com >/dev/null 2>&1 &
 i2ctransfer -f -y 0 w3@0x10 0x01 0x00 0x00
 
 cd /app/mediactl_lib/
-./v4l2_drm.out -f video_drm_1080x1920.conf -e 1 &
+./v4l2_drm.out -f video_drm_1920x1080.conf -e 1 -s &
 cd /
 /usr/sbin/ifplugd -d 0 -u 0 -n -p  -I -i eth0 -r /etc/network/ifplug.sh &

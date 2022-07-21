@@ -516,3 +516,11 @@ void drm_dev_cleanup(struct drm_dev *dev)
 	free(dev->planes_id);
 	close(dev->fd);
 }
+
+int drm_get_resolution(struct drm_dev *dev, uint32_t *width, uint32_t *height)
+{
+	*width = dev->mode.hdisplay;
+	*height = dev->mode.vdisplay;
+
+	return 0;
+}

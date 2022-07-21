@@ -113,6 +113,7 @@ void drm_wait_vsync(void);
 int  drm_init(void);
 void drm_destory_dumb(struct drm_buffer *buf);
 void drm_exit(void);
+int drm_get_resolution(struct drm_dev *dev, uint32_t *width, uint32_t *height);
 #if defined(__cplusplus)
 }
 #endif
