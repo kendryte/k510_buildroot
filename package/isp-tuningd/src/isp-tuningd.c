@@ -301,10 +301,16 @@ void on_open(uv_fs_t* open_req) {
 }
 
 void on_encode_jpeg_done(void) {
-  printf("encode jpeg done.\n");
   EncOutputStream output;
   VideoEncoder_GetStream(henc, &output);
   uint32_t buf_size = output.bufSize;
+  if (buf_size == 0) {
+    // error
+    fprintf(stderr, "encode jpeg error\n");
+    return;
+  } else {
+    fprintf(stderr, "encode jpeg done, size: %u\n", buf_size);
+  }
   uint8_t buffer[buf_size + 6];
   const uint8_t buffer_header[6] = {
     0x99,
@@ -321,10 +327,16 @@ void on_encode_jpeg_done(void) {
 }
 
 void on_encode_h264_done(void) {
-  printf("encode h264 done.\n");
   EncOutputStream output;
   VideoEncoder_GetStream(henc_h264, &output);
   uint32_t buf_size = output.bufSize;
+  if (buf_size == 0) {
+    // error
+    fprintf(stderr, "encode h264 error\n");
+    return;
+  } else {
+    fprintf(stderr, "encode h264 done, size: %u\n", buf_size);
+  }
   uint8_t buffer[buf_size + 6];
   const uint8_t buffer_header[6] = {
     0x99,
@@ -336,7 +348,7 @@ void on_encode_h264_done(void) {
   };
   memcpy(buffer, buffer_header, 6);
   memcpy(buffer + 6, output.bufAddr, buf_size);
-  VideoEncoder_ReleaseStream(henc, &output);
+  VideoEncoder_ReleaseStream(henc_h264, &output);
   broadcast(buffer, sizeof(buffer), 0);
 }
 
@@ -455,7 +467,7 @@ void exec_cmd(void) {
         .data = (unsigned char *)mem_yuv_phy_addr
       };
       // FIXME: async
-      printf("encode jpeg start...\n");
+      printf("encode h264 start...\n");
       VideoEncoder_EncodeOneFrame(henc_h264, &frame);
       on_encode_h264_done();
     } else {
@@ -575,7 +587,7 @@ void stdin_read(uv_stream_t *stream, ssize_t nread, const uv_buf_t* buf)
       // broadcast
       broadcast(pic_write_buffer[pic_write_buffer_select], sizeof(pic_write_buffer[0]), 1);
       static uint32_t pic_num = 0;
-      printf("\rreceived pictures, #%d", pic_num++);
+      printf("received pictures, #%d\r", pic_num++);
       fflush(stdout);
       last_time = time(NULL);
     }
@@ -611,6 +623,9 @@ void before_exit(int sig) {
   if (henc != NULL) {
     VideoEncoder_Destroy(henc);
   }
+  if (henc_h264 != NULL) {
+    VideoEncoder_Destroy(henc_h264);
+  }
   uv_loop_close(loop);
   if (map_base != MAP_FAILED) {
     munmap(map_base, map_size);
@@ -620,7 +635,7 @@ void before_exit(int sig) {
     munmap(mem_yuv_logic_addr, mem_yuv_map_size);
   }
   if (mem_yuv_map_size != 0) {
-    ioctl(share_mem_fd, SHARE_MEMORY_FREE, mem_yuv_phy_addr);
+    ioctl(share_mem_fd, SHARE_MEMORY_FREE, &mem_yuv_phy_addr);
     close(share_mem_fd);
   }
   fprintf(stderr, "capture signal %d, exit\n", sig);
@@ -694,7 +709,7 @@ int main(int argc, char *argv[]) {
         .profile = AVC_HIGH,
         .rcMode = CBR,
         .SliceQP = 25,
-        .FreqIDR = 25,
+        .FreqIDR = 1,
         .gopLen = 1,
         .AspectRatio = ASPECT_RATIO_AUTO,
         .MinQP = 0,
