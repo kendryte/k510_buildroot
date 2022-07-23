@@ -88,8 +88,17 @@ int *virtual_addr[MEMORY_TEST_BLOCK_NUM]= {0};
 bool DualCamera_Sync = TRUE;
 bool Sensor1_Sync = FALSE;
 bool Awb_Sync_Init = TRUE;
+int f2k_anti_flicker_enable = 0;
+int r2k_anti_flicker_enable = 0;
+AE_ANTI_FLICKER_PARAM_T f2k_anti_flicker_param;
+AE_ANTI_FLICKER_PARAM_T r2k_anti_flicker_param;
+int f2k_base_et_line = 0;
+int r2k_base_et_line = 0;
+unsigned int f2k_itc_ttl_v = 0x0;
+unsigned int r2k_itc_ttl_v = 0x0;
 
-
+unsigned int ISPRegRead(unsigned int addr);
+unsigned int ISPRegWrite(unsigned int addr, unsigned int value);
 
 struct share_memory_alloc_align_args    allocAlignMem[MEMORY_TEST_BLOCK_NUM] = {0};
 //
@@ -724,6 +733,29 @@ static int isp_awb_sync_init()
 	return 0;
 }
 
+int base_et_lint_calc(enum isp_pipeline pipeline)
+{
+	if(pipeline == ISP_F2K_PIPELINE)
+	{
+		f2k_anti_flicker_param.nItcTtlV = ISPRegRead(0x92650404) + 1;
+		f2k_anti_flicker_param.nMaxExposure = ISPRegRead(0x92650484);
+		f2k_anti_flicker_param.nMinExposure = ISPRegRead(0x9265048C);
+		f2k_anti_flicker_param.nMaxGain = ISPRegRead(0x92650490);
+		f2k_anti_flicker_param.nMinGain = ISPRegRead(0x92650498);
+		f2k_anti_flicker_param.nBaseEtLine = 29.97 * f2k_anti_flicker_param.nItcTtlV / 100;
+	}
+	else if(pipeline == ISP_R2K_PIPELINE)
+	{
+		r2k_anti_flicker_param.nItcTtlV = ISPRegRead(0x92660404) + 1;
+		r2k_anti_flicker_param.nMaxExposure = ISPRegRead(0x92660484);
+		r2k_anti_flicker_param.nMinExposure = ISPRegRead(0x9266048C);
+		r2k_anti_flicker_param.nMaxGain = ISPRegRead(0x92660490);
+		r2k_anti_flicker_param.nMinGain = ISPRegRead(0x92660498);
+		r2k_anti_flicker_param.nBaseEtLine = 29.97 * r2k_anti_flicker_param.nItcTtlV / 100;
+	}
+	return 0;
+}
+
 /**
  * @brief 
  * 
@@ -996,14 +1028,40 @@ int mediactl_all_set_ae(enum isp_pipeline_e pipeline)
 	return 0;
 }
 #else
+
+int mediactl_anti_flicker_init(int scl)
+{
+	if(scl == 0)
+	{
+		f2k_anti_flicker_enable = 0;
+		r2k_anti_flicker_enable = 0;
+	}
+	else if (scl == 1)
+	{
+		f2k_anti_flicker_enable = 1;
+		r2k_anti_flicker_enable = 0;
+	}
+	else if (scl == 2)
+	{
+		f2k_anti_flicker_enable = 0;
+		r2k_anti_flicker_enable = 1;
+	}
+	else if (scl == 3)
+	{
+		f2k_anti_flicker_enable = 1;
+		r2k_anti_flicker_enable = 1;
+	}
+	return 0;
+}
+
 int mediactl_all_set_ae(enum isp_pipeline_e pipeline)
 {
 	int ret;
 	struct k510isp_ae_stats ae_stats;
 	struct media_entity *pipe;
-	 
 	if(ISP_F2K_PIPELINE == pipeline)
 	{
+
 		pipe = v4l_isp.f2k;
 		ret = v4l2_subdev_open(pipe);
 		if (ret < 0)
@@ -1023,13 +1081,19 @@ int mediactl_all_set_ae(enum isp_pipeline_e pipeline)
 
 		// no change
 		static int expl = 0, agco = 0;
+		AE_ANTI_FLICKER_CORRECTION_T anti_flicker_corr_param;
 		if (expl == ae_stats.ae_expl && agco == ae_stats.ae_agco) {
 			return ret;
 		} else {
 			expl = ae_stats.ae_expl;
 			agco = ae_stats.ae_agco;
+			anti_flicker_correction(pipeline, ae_stats.ae_agco, ae_stats.ae_expl, &anti_flicker_corr_param);
 		}
-
+		if(f2k_anti_flicker_enable == 0)
+		{
+			anti_flicker_corr_param.nCorrExposure = ae_stats.ae_expl;
+			anti_flicker_corr_param.nCorrGain = ae_stats.ae_agco;
+		}
 		struct media_entity *sensor0 = v4l_isp.sensor0;
 		if( ae_stats.ae_wren == 1)
 		{
@@ -1039,7 +1103,7 @@ int mediactl_all_set_ae(enum isp_pipeline_e pipeline)
 
 			struct v4l2_control  control_s;
 			control_s.id = V4L2_CID_EXPOSURE;
-			control_s.value = ae_stats.ae_expl ;
+			control_s.value = anti_flicker_corr_param.nCorrExposure;
 			ret = ioctl(sensor0->fd,VIDIOC_S_CTRL,&control_s);
 			if (ret < 0)
 			{
@@ -1050,7 +1114,7 @@ int mediactl_all_set_ae(enum isp_pipeline_e pipeline)
 			} 
 
 			control_s.id = V4L2_CID_GAIN;
-			control_s.value = ae_stats.ae_agco;
+			control_s.value = anti_flicker_corr_param.nCorrGain;
 			ret = ioctl(sensor0->fd,VIDIOC_S_CTRL,&control_s);
 			if (ret < 0)
 			{
@@ -1058,13 +1122,14 @@ int mediactl_all_set_ae(enum isp_pipeline_e pipeline)
 					  ret);
 				v4l2_subdev_close(sensor0);
 				return ret;
-			} 		
+			}
 			v4l2_subdev_close(sensor0);
 		}
 	}
 
 	if(ISP_R2K_PIPELINE == pipeline)
 	{
+
 		pipe = v4l_isp.r2k;
 		ret = v4l2_subdev_open(pipe);
 		if (ret < 0)
@@ -1083,11 +1148,18 @@ int mediactl_all_set_ae(enum isp_pipeline_e pipeline)
 		v4l2_subdev_close(pipe);
 
 		static int expl = 0, agco = 0;
+		AE_ANTI_FLICKER_CORRECTION_T anti_flicker_corr_param;
 		if (expl == ae_stats.ae_expl && agco == ae_stats.ae_agco) {
 			return ret;
 		} else {
 			expl = ae_stats.ae_expl;
 			agco = ae_stats.ae_agco;
+			anti_flicker_correction(pipeline, ae_stats.ae_agco, ae_stats.ae_expl, &anti_flicker_corr_param);
+		}
+		if(r2k_anti_flicker_enable == 0)
+		{
+			anti_flicker_corr_param.nCorrExposure = ae_stats.ae_expl;
+			anti_flicker_corr_param.nCorrGain = ae_stats.ae_agco;
 		}
 
 		struct media_entity *sensor1 = v4l_isp.sensor1;
@@ -1099,7 +1171,7 @@ int mediactl_all_set_ae(enum isp_pipeline_e pipeline)
 
 			struct v4l2_control  control_s;
 			control_s.id = V4L2_CID_EXPOSURE;
-			control_s.value = ae_stats.ae_expl;
+			control_s.value = anti_flicker_corr_param.nCorrExposure;
 			ret = ioctl(sensor1->fd,VIDIOC_S_CTRL,&control_s);
 			if (ret < 0)
 			{
@@ -1110,7 +1182,7 @@ int mediactl_all_set_ae(enum isp_pipeline_e pipeline)
 			} 
 
 			control_s.id = V4L2_CID_GAIN;
-			control_s.value = ae_stats.ae_agco;
+			control_s.value = anti_flicker_corr_param.nCorrGain;
 			ret = ioctl(sensor1->fd,VIDIOC_S_CTRL,&control_s);
 			if (ret < 0)
 			{
@@ -1569,6 +1641,7 @@ int mediactl_init(char *video_cfg_file,struct video_info *dev_info)
 			printf("%s:error: unable to f2k cfg video %d\n",__func__,ret);
 			return -1;
 		}
+		base_et_lint_calc(ISP_F2K_PIPELINE);
 	}
 
 	if( v4l_isp.isp_pipeline[ISP_R2K].pipeline_en == 1 )
@@ -1577,7 +1650,8 @@ int mediactl_init(char *video_cfg_file,struct video_info *dev_info)
 		if (ret < 0) {
 			printf("%s:error: unable to r2k cfg video %d\n",__func__,ret);
 			return -1;
-		}		
+		}
+		base_et_lint_calc(ISP_R2K_PIPELINE);
 	}
 	//
 	printf("%s:total_size.width(0x%x),total_size.height(0x%x)\n",__func__,vi_cfg.vi_pipe_cfg[0].total_size.width,vi_cfg.vi_pipe_cfg[0].total_size.height);
@@ -2011,5 +2085,82 @@ unsigned int ISPRegWrite(unsigned int addr, unsigned int value)
     return 1;
 }
 
+int anti_flicker_correction(enum isp_pipeline pipeline,int gain, int exp, AE_ANTI_FLICKER_CORRECTION_T * anti_flicker_corr_param)
+{
+	AE_ANTI_FLICKER_PARAM_T * anti_flicker_param_scl;
+    if(pipeline == ISP_F2K_PIPELINE)
+	{
+		anti_flicker_param_scl = &f2k_anti_flicker_param;
+	}
+	else if(pipeline == ISP_R2K_PIPELINE)
+	{
+		anti_flicker_param_scl = &r2k_anti_flicker_param;
+	}
 
+	/* ae stat */
+    int min_exp = anti_flicker_param_scl->nMinExposure;
+    int max_exp = anti_flicker_param_scl->nMaxExposure;
+    int min_gain = anti_flicker_param_scl->nMinGain;
+    int max_gain = anti_flicker_param_scl->nMaxGain;
+	int base_et_line = anti_flicker_param_scl->nBaseEtLine;
 
+    int multiple = max_exp / base_et_line;
+    int cur_et_lines = exp;
+    int cur_gain = gain;
+	int cur_ev = cur_et_lines * cur_gain;
+
+    int new_gain = 0;
+    int new_et_lines = 0;
+    int et_rate = 9999;
+    int correct_mutiple_sel = 0;
+
+	if(cur_et_lines <= base_et_line)
+	{
+		goto keep_value;
+	}
+
+    for(int mp = 0; mp <= multiple; mp++)
+    {
+        int delta = abs(cur_et_lines - mp * base_et_line);
+        if (delta <= et_rate)
+        {
+            correct_mutiple_sel = mp;
+            et_rate = delta;
+        }
+    }
+
+    if((correct_mutiple_sel < 1) || \
+    (cur_gain <= 256) || \
+    ((cur_et_lines >= max_exp)&&(cur_gain >= max_gain)))
+    {
+        goto keep_value;
+    }
+
+    new_et_lines = (correct_mutiple_sel) * base_et_line;
+    new_gain = cur_gain * cur_et_lines / new_et_lines;
+
+    if((new_gain <= max_gain + 8) && \
+    (new_gain > max_gain)
+    )
+    {
+        new_gain = max_gain;
+        goto correct_value;
+    }
+    else if(new_gain <= max_gain)
+    {
+        goto correct_value;
+    }
+    else
+    {
+        goto keep_value;
+    }
+
+correct_value:
+    anti_flicker_corr_param->nCorrExposure = new_et_lines;
+    anti_flicker_corr_param->nCorrGain = new_gain + 1;
+    return 0;
+keep_value:
+    anti_flicker_corr_param->nCorrExposure = exp;
+    anti_flicker_corr_param->nCorrGain = gain;
+    return 0;
+}

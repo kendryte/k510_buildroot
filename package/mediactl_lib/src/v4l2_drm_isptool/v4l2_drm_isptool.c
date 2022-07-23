@@ -759,17 +759,19 @@ static void usage(FILE *fp, int argc, char **argv)
          "-e | --ae config   0 close all, 1 open f-2k ae, 2 open r-2k ae, 3 open all\n"
          "-h | --help          Print this message\n"
          "-v | --verbose       Verbose output\n"
+         "-a | --anti-flicker-enable, 50Hz, default 0: all disable, 1: f2k enable, 2: r2k enable, 3: all enable\n"
          "",
          argv[0], video_cfg_file);
 }
 
-static const char short_options[] = "f:hv";// 短选项 ：表示带参数
+static const char short_options[] = "f:hva:";// 短选项 ：表示带参数
 
 static const struct option //长选项
 long_options[] = {
     { "device_cfg name", required_argument, NULL, 'f' },
     { "help",   no_argument,       NULL, 'h' },
     { "verbose", no_argument,      NULL, 'v' },
+    { "anti-flicker-enable", required_argument,      NULL, 'a' },
     { 0, 0, 0, 0 }
 };
 
@@ -1063,7 +1065,9 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
         case 'v':
             verbose = 1;
             break;
-
+		case 'a':
+			mediactl_anti_flicker_init(atoi(optarg)); // anti flicker 0: disable, 1: f2k enable, 2: r2k enable, 3: all enable
+			break;
         default:
             usage(stderr, argc, argv);
             exit(EXIT_FAILURE);

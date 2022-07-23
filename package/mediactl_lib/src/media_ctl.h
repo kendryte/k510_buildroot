@@ -78,12 +78,27 @@ struct video_info
 	unsigned int video_out_format[4];
 };
 
+typedef struct {
+	int nMaxExposure;
+	int nMinExposure;
+	int nMaxGain;
+	int nMinGain;
+	int nItcTtlV;
+	int nBaseEtLine;
+} AE_ANTI_FLICKER_PARAM_T;
+
+typedef struct {
+	int nCorrExposure;
+	int nCorrGain;
+} AE_ANTI_FLICKER_CORRECTION_T;
+
 int mediactl_init(char *video_cfg_file,struct video_info *dev_info);
 void mediactl_exit(void);
 int mediactl_set_ae(enum isp_pipeline_e pipeline);
 int mediactl_set_ae_single(enum isp_pipeline_e pipeline);
 int mediactl_set_ae_sync(enum isp_pipeline_e pipeline);
 int mediactl_set_awb_sync(enum isp_pipeline_e pipeline);
+int mediactl_anti_flicker_init(int scl);
 
 unsigned int mediactl_get_isp_modules(enum isp_pipeline_e pipeline,enum isp_modules module);
 #ifdef __cplusplus
