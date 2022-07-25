@@ -473,12 +473,14 @@ static int process_ds0_image(struct v4l2_device *vdev,unsigned int width,unsigne
 
     fbuf_yuv = &drm_dev.drm_bufs[buffer.index];
 
-    if (drm_dev.req)
-        drm_wait_vsync();
-    struct drm_buffer *fbuf_argb = &drm_dev.drm_bufs_argb[!drm_bufs_argb_index];
-    if (drm_dmabuf_set_plane(fbuf_yuv, fbuf_argb)) {
-        std::cerr << "Flush fail \n";
-        return 1;
+    if (screen_init_flag) {
+        if (drm_dev.req)
+            drm_wait_vsync();
+        struct drm_buffer *fbuf_argb = &drm_dev.drm_bufs_argb[!drm_bufs_argb_index];
+        if (drm_dmabuf_set_plane(fbuf_yuv, fbuf_argb)) {
+            std::cerr << "Flush fail \n";
+            return 1;
+        }
     }
 
     if(screen_init_flag) {
