@@ -680,7 +680,7 @@ int video_resolution_adaptation(void)
             video_height[0] = screen_height;
             break;
         case VIDEO_INPUT_1_ENABLE:
-            sensor0_cfg_file = "imx219_1.conf";
+            sensor1_cfg_file = "imx219_1.conf";
             video_width[1] = screen_width;
             video_height[1] = screen_height;
             break;
@@ -977,7 +977,6 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
         size[1].crtc_offset_h = video_in_cfg[1].offset_y;
     }
 
-    drm_reset();
     if(drm_init(&size[0])){
         mediactl_exit();
         return -1;
