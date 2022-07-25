@@ -16,7 +16,7 @@
 
 # K510 SDK
 
-Kanzhi K510 is de tweede generatie AI edge-side inferentiechips gelanceerd door Canaan, die hoogwaardige beeld- en spraakverwerkingsmogelijkheden biedt voor AI-toepassingen. De K510 is uitgerust met de zelfontwikkelde tweede generatie neurale netwerkprocessor KPU2.0, die de originele computergegevensstroomtechnologie overneemt, die de rekenkracht met 3 keer verhoogt in vergelijking met de vorige generatie en het stroomverbruik vermindert. Geïntegreerd met de nieuwste generatie beeldprocessor ISP, ondersteuning voor TOF-dieptecameratoegang, ondersteuning voor 2D / 3D-ruisonderdrukking, breed dynamisch bereik (WDR), hardware 3A en andere complete functies. 3D ISP's ondersteunen dieptecamera TOF-sensoren. Het kan op grote schaal worden gebruikt in verschillende toepassingsgebieden, zoals onbemande luchtvaartuigen, high-definition luchtfotografie, professionele camera's, videoconferenties, intelligente robots, educatieve STEAM en automatisch geassisteerd rijden.
+Kendryte K510 is de tweede generatie AI edge-side inferentiechips gelanceerd door Canaan, die hoogwaardige beeld- en spraakverwerkingsmogelijkheden biedt voor AI-toepassingen. De K510 is uitgerust met de zelfontwikkelde tweede generatie neurale netwerkprocessor KPU2.0, die de originele computergegevensstroomtechnologie overneemt, die de rekenkracht met 3 keer verhoogt in vergelijking met de vorige generatie en het stroomverbruik vermindert. Geïntegreerd met de nieuwste generatie beeldprocessor ISP, ondersteuning voor TOF-dieptecameratoegang, ondersteuning voor 2D / 3D-ruisonderdrukking, breed dynamisch bereik (WDR), hardware 3A en andere complete functies. 3D ISP's ondersteunen dieptecamera TOF-sensoren. Het kan op grote schaal worden gebruikt in verschillende toepassingsgebieden, zoals onbemande luchtvaartuigen, high-definition luchtfotografie, professionele camera's, videoconferenties, intelligente robots, educatieve STEAM en automatisch geassisteerd rijden.
 
 K510 SDK is een software development kit geleverd door Canaan voor K510 chip applicatie ontwikkeling, de standaard configuratie is gebaseerd op K510 CRB (klant referentie platform), de magazijn inhoud omvat de toolchain software, PC toolkit, Linux code, bootloader, bbl, buildroot build systeem software en gerelateerde hardware resource documenten die gebruikers kunnen gebruiken bij de ontwikkeling van K510 chip. Gebruikers kunnen de wijzigingsontwikkeling aanpassen aan hun eigen behoeften op basis van deze set softwarecodebasis en ten slotte het installatiekopiebestand bouwen en compileren dat wordt gebruikt voor implementatie.
 
@@ -27,8 +27,8 @@ K510 SDK is een software development kit geleverd door Canaan voor K510 chip app
 |1| / | De code compileert de werkmap |
 |2|[docs/](https://github.com/kendryte/k510_docs)| K510 systeem compilatie en applicatie ontwikkeling documentatie; Documentatie voor de introductie van hardwarebronnen
 |3|[pakket/](/package/)| Geef linux systeem randapparatuur ontwikkeling applicatie voorbeelden; Diverse AI demo applicatie broncode  |
-|4|[Kanaän Kanchi](https://canaan-creative.com/product/勘智k510)|Canaan Kanji officiële website|
-|5|[Ontwikkelaarscommunity](https://canaan-creative.com/developer)|Kanaän Kanchi Forum
+|4|[Kanaän Kendryte](https://canaan-creative.com/product/勘智k510)|Canaan Kendryte officiële website|
+|5|[Ontwikkelaarscommunity](https://canaan-creative.com/developer)|Kanaän Kendryte Forum
 |6|[Demo video](https://space.bilibili.com/677429436)|K510 development board out-of-the-box video en meerdere AI-applicatie demonstratie video's|
 |7|[K510 CRB-KIT](https://item.taobao.com/item.htm?spm=a230r.1.14.1.22714815bDh5ei&id=673510674381&ns=1&abbucket=0&mt=)|K510 Board Kit Online Aankoop Link|
 |8|Directe communicatie|  Community Mutual Aid QQ Group: 790699378</br>Telegram: nncase community |
@@ -107,7 +107,7 @@ Als u geïnteresseerd bent in dit project en feedback wilt over een probleem of 
 
 ## Neem contact met ons op
 
-Beijing Canaan Jiesi Information Technology Co, Ltd  
+Canaan Inc.  
 URL:[canaan-creative.com](https://canaan-creative.com)  
 Zakelijke vragen:[salesAI@canaan-creative.com](mailto:salesAI@canaan-creative.com)
 

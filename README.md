@@ -16,7 +16,7 @@
 
 # K510 SDK
 
-Kanzhi K510 is the second generation of AI edge-side inference chips launched by Canaan, which provides high-performance image and speech processing capabilities for AI applications. The K510 is equipped with the self-developed second-generation neural network processor KPU2.0, which adopts the original computing data flow technology, which increases the computing power by 3 times compared with the previous generation and reduces power consumption. Integrated with the latest generation of image processor ISP, support TOF depth camera access, support 2D/3D noise reduction, wide dynamic range (WDR), hardware 3A and other complete functions. 3D ISPs support depth camera TOF sensors. It can be widely used in different application fields such as unmanned aerial vehicles, high-definition aerial photography, professional cameras, video conferencing, intelligent robots, educational STEAM, and automatic assisted driving.
+Kendryte K510 is the second generation of AI edge-side inference chips launched by Canaan, which provides high-performance image and speech processing capabilities for AI applications. The K510 is equipped with the self-developed second-generation neural network processor KPU2.0, which adopts the original computing data flow technology, which increases the computing power by 3 times compared with the previous generation and reduces power consumption. Integrated with the latest generation of image processor ISP, support TOF depth camera access, support 2D/3D noise reduction, wide dynamic range (WDR), hardware 3A and other complete functions. 3D ISPs support depth camera TOF sensors. It can be widely used in different application fields such as unmanned aerial vehicles, high-definition aerial photography, professional cameras, video conferencing, intelligent robots, educational STEAM, and automatic assisted driving.
 
 K510 SDK is a software development kit provided by Canaan for K510 chip application development, its default configuration is based on K510 CRB (customer reference platform), the warehouse content includes the toolchain software, PC toolkit, Linux code, bootloader, bbl, buildroot build system software and related hardware resource documents that users may use in the development of K510 chip. Users can customize the change development according to their own needs based on this set of software code base, and finally build and compile the image file used for deployment.
 
@@ -27,8 +27,8 @@ K510 SDK is a software development kit provided by Canaan for K510 chip applicat
 |1| / | The code compiles the working directory |
 |2|[docs/](https://github.com/kendryte/k510_docs)| K510 system compilation and application development documentation; Hardware resource introduction documentation
 |3|[package/](/package/)| Provide Linux system peripheral development application examples; Various AI demo application source code  |
-|4|[Canaan Kanchi](https://canaan-creative.com/product/勘智k510)|Canaan Kanji official website|
-|5|[Developer community](https://canaan-creative.com/developer)|Canaan Kanchi Forum
+|4|[Canaan Kendryte](https://canaan-creative.com/product/勘智k510)|Canaan Kendryte official website|
+|5|[Developer community](https://canaan-creative.com/developer)|Canaan Kendryte Forum
 |6|[Demo video](https://space.bilibili.com/677429436)|K510 development board out-of-the-box video and multiple AI application demonstration videos|
 |7|[K510 CRB-KIT](https://item.taobao.com/item.htm?spm=a230r.1.14.1.22714815bDh5ei&id=673510674381&ns=1&abbucket=0&mt=)|K510 Board Kit Online Purchase Link|
 |8|Instant communication|  Community Mutual Aid QQ Group: 790699378</br>Telegram: nncase community |
@@ -107,7 +107,7 @@ If you are interested in this project and would like feedback on a problem or su
 
 ## Contact us
 
-Beijing Canaan Jiesi Information Technology Co., Ltd  
+Canaan Inc.  
 URL:[canaan-creative.com](https://canaan-creative.com)  
 Business Enquiries:[salesAI@canaan-creative.com](mailto:salesAI@canaan-creative.com)
 

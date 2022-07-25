@@ -16,7 +16,7 @@
 
 # K510 SDK
 
-Kanzhi K510 ist die zweite Generation von KI-Edge-Side-Inferenzchips, die von Canaan auf den Markt gebracht wurden und leistungsstarke Bild- und Sprachverarbeitungsfunktionen für KI-Anwendungen bieten. Der K510 ist mit dem selbst entwickelten neuronalen Netzwerkprozessor der zweiten Generation KPU2.0 ausgestattet, der die ursprüngliche Rechendatenflusstechnologie verwendet, die die Rechenleistung im Vergleich zur Vorgängergeneration um das 3-fache erhöht und den Stromverbrauch senkt. Integriert mit der neuesten Generation von Bildprozessor ISP, Unterstützung TOF Tiefenkamera Zugriff, Unterstützung 2D / 3D Rauschunterdrückung, Wide Dynamic Range (WDR), Hardware 3A und andere komplette Funktionen. 3D-ISPs unterstützen Tiefenkamera-TOF-Sensoren. Es kann in verschiedenen Anwendungsbereichen wie unbemannten Luftfahrzeugen, hochauflösenden Luftaufnahmen, professionellen Kameras, Videokonferenzen, intelligenten Robotern, pädagogischem STEAM und automatischem assistiertem Fahren eingesetzt werden.
+Kendryte K510 ist die zweite Generation von KI-Edge-Side-Inferenzchips, die von Canaan auf den Markt gebracht wurden und leistungsstarke Bild- und Sprachverarbeitungsfunktionen für KI-Anwendungen bieten. Der K510 ist mit dem selbst entwickelten neuronalen Netzwerkprozessor der zweiten Generation KPU2.0 ausgestattet, der die ursprüngliche Rechendatenflusstechnologie verwendet, die die Rechenleistung im Vergleich zur Vorgängergeneration um das 3-fache erhöht und den Stromverbrauch senkt. Integriert mit der neuesten Generation von Bildprozessor ISP, Unterstützung TOF Tiefenkamera Zugriff, Unterstützung 2D / 3D Rauschunterdrückung, Wide Dynamic Range (WDR), Hardware 3A und andere komplette Funktionen. 3D-ISPs unterstützen Tiefenkamera-TOF-Sensoren. Es kann in verschiedenen Anwendungsbereichen wie unbemannten Luftfahrzeugen, hochauflösenden Luftaufnahmen, professionellen Kameras, Videokonferenzen, intelligenten Robotern, pädagogischem STEAM und automatischem assistiertem Fahren eingesetzt werden.
 
 K510 SDK ist ein Software-Entwicklungskit, das von Canaan für die Entwicklung von K510-Chip-Anwendungen bereitgestellt wird, seine Standardkonfiguration basiert auf K510 CRB (Kundenreferenzplattform), der Lagerinhalt umfasst die Toolchain-Software, das PC-Toolkit, den Linux-Code, den Bootloader, den bbl, die Buildroot-Build-Systemsoftware und die zugehörigen Hardware-Ressourcendokumente, die Benutzer bei der Entwicklung des K510-Chips verwenden können. Benutzer können die Änderungsentwicklung basierend auf diesem Satz von Software-Codebasis an ihre eigenen Anforderungen anpassen und schließlich die für die Bereitstellung verwendete Image-Datei erstellen und kompilieren.
 
@@ -27,8 +27,8 @@ K510 SDK ist ein Software-Entwicklungskit, das von Canaan für die Entwicklung v
 |1| / | Der Code kompiliert das Arbeitsverzeichnis |
 |2|[docs/](https://github.com/kendryte/k510_docs)| K510-Systemkompilierungs- und Anwendungsentwicklungsdokumentation; Dokumentation zur Einführung in Hardwareressourcen
 |3|[Paket/](/package/)| Bereitstellung von Anwendungsbeispielen für die Entwicklung von Linux-Systemperipheriegeräten; Quellcode für verschiedene KI-Demoanwendungen  |
-|4|[Kanaan Kanchi](https://canaan-creative.com/product/勘智k510)|Offizielle Website von Canaan Kanji|
-|5|[Entwickler-Community](https://canaan-creative.com/developer)|Kanaan Kanchi Forum
+|4|[Kanaan Kendryte](https://canaan-creative.com/product/勘智k510)|Offizielle Website von Canaan Kendryte|
+|5|[Entwickler-Community](https://canaan-creative.com/developer)|Kanaan Kendryte Forum
 |6|[Demo-Video](https://space.bilibili.com/677429436)|Out-of-the-Box-Video zur K510-Entwicklungsplatine und mehrere Videos zur Demonstration von KI-Anwendungen|
 |7|[K510 CRB-KIT](https://item.taobao.com/item.htm?spm=a230r.1.14.1.22714815bDh5ei&id=673510674381&ns=1&abbucket=0&mt=)|K510 Board Kit Online-Kauflink|
 |8|Sofortige Kommunikation|  QQ-Gruppe für gegenseitige Hilfe der Gemeinschaft: 790699378</br>Telegramm: nncase community |
@@ -107,7 +107,7 @@ Wenn Sie an diesem Projekt interessiert sind und Feedback zu einem Problem wüns
 
 ## Kontaktieren Sie uns
 
-Peking Canaan Jiesi Informationstechnologie Co., Ltd  
+Canaan Inc.  
 URL:[canaan-creative.com](https://canaan-creative.com)  
 Geschäftliche Anfragen:[salesAI@canaan-creative.com](mailto:salesAI@canaan-creative.com)
 

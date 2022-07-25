@@ -16,7 +16,7 @@
 
 # K510 SDK
 
-Kanzhi K510 to druga generacja układów wnioskowania brzegowego AI wprowadzonych przez Canaan, która zapewnia wysokowydajne możliwości przetwarzania obrazu i mowy dla aplikacji AI. K510 jest wyposażony we samodzielnie opracowany procesor sieci neuronowej drugiej generacji KPU2.0, który przyjmuje oryginalną technologię przepływu danych obliczeniowych, która zwiększa moc obliczeniową o 3 razy w porównaniu z poprzednią generacją i zmniejsza zużycie energii. Zintegrowany z najnowszą generacją procesorów obrazu ISP, obsługuje dostęp do kamery głębi TOF, obsługuje redukcję szumów 2D / 3D, szeroki zakres dynamiki (WDR), sprzęt 3A i inne kompletne funkcje. Dostawcy usług internetowych 3D obsługują czujniki TOF kamery głębi. Może być szeroko stosowany w różnych dziedzinach zastosowań, takich jak bezzałogowe statki powietrzne, fotografia lotnicza o wysokiej rozdzielczości, profesjonalne kamery, wideokonferencje, inteligentne roboty, edukacyjny STEAM i automatyczna wspomagana jazda.
+Kendryte K510 to druga generacja układów wnioskowania brzegowego AI wprowadzonych przez Canaan, która zapewnia wysokowydajne możliwości przetwarzania obrazu i mowy dla aplikacji AI. K510 jest wyposażony we samodzielnie opracowany procesor sieci neuronowej drugiej generacji KPU2.0, który przyjmuje oryginalną technologię przepływu danych obliczeniowych, która zwiększa moc obliczeniową o 3 razy w porównaniu z poprzednią generacją i zmniejsza zużycie energii. Zintegrowany z najnowszą generacją procesorów obrazu ISP, obsługuje dostęp do kamery głębi TOF, obsługuje redukcję szumów 2D / 3D, szeroki zakres dynamiki (WDR), sprzęt 3A i inne kompletne funkcje. Dostawcy usług internetowych 3D obsługują czujniki TOF kamery głębi. Może być szeroko stosowany w różnych dziedzinach zastosowań, takich jak bezzałogowe statki powietrzne, fotografia lotnicza o wysokiej rozdzielczości, profesjonalne kamery, wideokonferencje, inteligentne roboty, edukacyjny STEAM i automatyczna wspomagana jazda.
 
 K510 SDK to zestaw programistyczny dostarczony przez Canaan do tworzenia aplikacji chipów K510, jego domyślna konfiguracja opiera się na K510 CRB (platforma referencyjna dla klientów), zawartość magazynu obejmuje oprogramowanie toolchain, zestaw narzędzi PC, kod Linux, bootloader, bbl, oprogramowanie systemu buildroot i powiązane dokumenty zasobów sprzętowych, które użytkownicy mogą wykorzystać do rozwoju układu K510. Użytkownicy mogą dostosować rozwój zmian zgodnie z własnymi potrzebami w oparciu o ten zestaw bazy kodu oprogramowania, a na koniec skompilować i skompilować plik obrazu użyty do wdrożenia.
 
@@ -27,8 +27,8 @@ K510 SDK to zestaw programistyczny dostarczony przez Canaan do tworzenia aplikac
 |1| / | Kod kompiluje katalog roboczy |
 |2|[dokumenty/](https://github.com/kendryte/k510_docs)| Kompilacja systemu K510 i dokumentacja rozwoju aplikacji; Dokumentacja wprowadzająca do zasobów sprzętowych
 |3|[pakiet/](/package/)| Podaj przykłady aplikacji do tworzenia urządzeń peryferyjnych systemu Linux; Różne kody źródłowe aplikacji demonstracyjnych AI  |
-|4|[Kanaan Kanchi](https://canaan-creative.com/product/勘智k510)|Oficjalna strona Canaan Kanji|
-|5|[Społeczność programistów](https://canaan-creative.com/developer)|Canaan Kanchi Forum
+|4|[Kanaan Kendryte](https://canaan-creative.com/product/勘智k510)|Oficjalna strona Canaan Kendryte|
+|5|[Społeczność programistów](https://canaan-creative.com/developer)|Canaan Kendryte Forum
 |6|[Film demonstracyjny](https://space.bilibili.com/677429436)|Gotowe do użycia płytki programistycznej K510 i wiele filmów demonstracyjnych aplikacji AI|
 |7|[K510 ZESTAW CRB](https://item.taobao.com/item.htm?spm=a230r.1.14.1.22714815bDh5ei&id=673510674381&ns=1&abbucket=0&mt=)|K510 Board Kit Link do zakupu online|
 |8|Natychmiastowa komunikacja|  Community Mutual Aid QQ Group: 790699378</br>Telegram: społeczność nncase |
@@ -107,7 +107,7 @@ Jeśli jesteś zainteresowany tym projektem i chciałbyś uzyskać opinię na te
 
 ## Skontaktuj się z nami
 
-Pekin Canaan Jiesi Information Technology Co Ltd  
+Canaan Inc.  
 Adres internetowy:[canaan-creative.com](https://canaan-creative.com)  
 Zapytania biznesowe:[salesAI@canaan-creative.com](mailto:salesAI@canaan-creative.com)
 
