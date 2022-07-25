@@ -107,7 +107,7 @@ cd /
 
 ## お問い合わせ下さい
 
-北京Jiayuan Jetth情報技術有限公司  
+Canaan Inc.  
 URL:[canaan-creative.com](https://canaan-creative.com)  
 ビジネスお問い合わせ:[salesAI@canaan-creative.com](mailto:salesAI@canaan-creative.com)
 
