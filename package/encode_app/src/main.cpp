@@ -56,7 +56,6 @@ using namespace std;
 #include "alsa/asoundlib.h"
 #include "G711Codec.h"
 
-#define SET_AE_WORKARROUND   1   //in the future, set AE in seperated thread for r2k/f2k
 //#define ISP_OUTPUT_DUMP 1
 #define TEST_ISP        1
 
@@ -187,7 +186,10 @@ typedef struct
   int isp_enabled;
   int v4l2_enabled;
   uint32_t *repeat;
+  uint32_t *repeat_en;
   uint32_t *drop;
+  uint32_t *drop_en;
+  uint32_t *framerate_mod;
   int *set_ae;
   unsigned char *out_framerate;
   int video_enabled;
@@ -503,12 +505,8 @@ static void *v4l2_output(void *arg)
     buf.memory = V4L2_MEMORY_USERPTR;
         
     res = ioctl(pCtx->fd_v4l2[channel], VIDIOC_DQBUF, &buf);
-#ifdef SET_AE_WORKARROUND    
-    if(pCtx->set_ae[channel])
-#endif
-    {
-      set_ae(pCtx->dev_name[channel], pCtx->ae_enable);
-    }
+
+    set_ae(pCtx->dev_name[channel], pCtx->ae_enable);
     
     if (res < 0 || errno == EINTR)
     {
@@ -532,6 +530,13 @@ static void *v4l2_output(void *arg)
       {
           printf("v4l2 buffer overflow\n");
           enqueue_buf(buf.index, channel);
+      }
+      else if(time - start_time < 100000000)
+      {
+          if(pCtx->v4l2_pic_cnt[channel] == 0)
+          {
+            enqueue_buf(buf.index, channel);
+          }
       }
       else
       {
@@ -596,6 +601,19 @@ static void *v4l2_output(void *arg)
   }
 }
 
+uint32_t queue_frame(int channel)
+{
+  if((pCtx->v4l2_rev[channel][pCtx->v4l2_rp[channel]].addr & V4L2_REPEAT_FLAG) == 0)
+  {
+    enqueue_buf(pCtx->v4l2_rev[channel][pCtx->v4l2_rp[channel]].addr, channel);
+  }
+  pCtx->v4l2_rev[channel][pCtx->v4l2_rp[channel]].addr = V4L2_INVALID_INDEX;
+  pCtx->v4l2_rp[channel]++;
+  pCtx->v4l2_rp[channel] %= ISP_ADDR_BUFFER_CNT; 
+
+  return 0;
+}
+
 static void *encode_ch(void *arg)
 {
   // printf("%s\n", __FUNCTION__);
@@ -609,7 +627,30 @@ static void *encode_ch(void *arg)
   int frame_size = stride*pCtx->Cfg[channel].height*3/2;
 
   uint32_t repeated = 0;
-  uint32_t droped = 0;
+  int32_t droped = 0;
+  uint32_t framerate_tail = 0;
+  uint32_t framerate_tail_cnt = 0;
+  uint32_t framerate_tail_gap = 0;
+  uint32_t in_framecnt = 0;
+  uint32_t out_framecnt = 0;
+  int tail_flag = 0;
+  int common_drop_flag = 0;
+
+  if(pCtx->framerate_mod[channel])
+  {
+    if(pCtx->drop_en[channel])
+    {
+      framerate_tail = (pCtx->framerate[channel]/(pCtx->drop[channel]+1))%pCtx->out_framerate[channel];
+      framerate_tail_cnt = framerate_tail;
+      framerate_tail_gap = (pCtx->framerate[channel]/framerate_tail) - 1;
+    }
+    else if(pCtx->repeat_en[channel])
+    {
+      framerate_tail = pCtx->framerate_mod[channel];
+      framerate_tail_cnt = framerate_tail;
+      framerate_tail_gap = pCtx->framerate[channel]/framerate_tail;
+    }
+  }
 
   pCtx->encoding[channel] = 1;
   while(pCtx->start)
@@ -624,7 +665,7 @@ static void *encode_ch(void *arg)
       input.height = pCtx->height[channel];
       input.stride = stride;
       input.data = (unsigned char *)pCtx->yuv_phyAddr[channel] + frame_size*(src_index % pCtx->input_frames[channel]);
-      printf("%s>src_index %d, addr 0x%x\n", __FUNCTION__, src_index, input.data);
+      //printf("%s>src_index %d, addr 0x%x\n", __FUNCTION__, src_index, input.data);
       src_index++;
     }
 
@@ -666,26 +707,73 @@ static void *encode_ch(void *arg)
         pCtx->start_time[channel] = time;
       }
 
-      if(pCtx->drop[channel])
+      if(pCtx->drop_en[channel])
       {
-        if(droped < pCtx->drop[channel])
+        if(pCtx->framerate_mod[channel]) //with framerate tail
         {
-          if((pCtx->v4l2_rev[channel][pCtx->v4l2_rp[channel]].addr & V4L2_REPEAT_FLAG) == 0)
+          if((in_framecnt % (framerate_tail_gap+1) == 0)  || tail_flag)
           {
-            enqueue_buf(pCtx->v4l2_rev[channel][pCtx->v4l2_rp[channel]].addr, channel);
+              tail_flag = 1;
+              queue_frame(channel);
+              in_framecnt++;
+              framerate_tail_cnt--;
+              if(in_framecnt >= pCtx->framerate[channel])
+              {
+                in_framecnt = 0;
+                framerate_tail_cnt = framerate_tail;
+              }
+              droped++;
+              if(droped >= pCtx->drop[channel] + 1)
+              {
+                droped = 0;
+                tail_flag = 0;
+              }
+              continue;
           }
-          pCtx->v4l2_rev[channel][pCtx->v4l2_rp[channel]].addr = V4L2_INVALID_INDEX;
-          pCtx->v4l2_rp[channel]++;
-          pCtx->v4l2_rp[channel] %= ISP_ADDR_BUFFER_CNT; 
-          droped++;
-          continue;
+          else if((pCtx->drop[channel] && (in_framecnt % (pCtx->drop[channel]+1) == 0)) || common_drop_flag)
+          {
+            common_drop_flag = 1;
+            queue_frame(channel);
+            in_framecnt++;
+            if(in_framecnt >= pCtx->framerate[channel])
+            {
+              in_framecnt = 0;
+              framerate_tail_cnt = framerate_tail;
+            }
+            droped++;
+            if(droped >= pCtx->drop[channel])
+            {
+              droped = 0;
+              common_drop_flag = 0;
+            }
+            continue;
+          }
+          else
+          {
+            in_framecnt++;
+            if(in_framecnt >= pCtx->framerate[channel])
+            {
+              in_framecnt = 0;
+              framerate_tail_cnt = framerate_tail;
+            }
+            droped = 0;
+          }
+          
         }
-        else
+        else //without framerate tail
         {
-          droped = 0;
+          if(droped < pCtx->drop[channel])
+          {
+            queue_frame(channel);
+            droped++;
+            continue;
+          }
+          else
+          {
+            droped = 0;
+          }
         }
       }
-
       //set LTR
       if (pCtx->Cfg[channel].bEnableLTR && pCtx->nLTRFreq[channel] > 0)
       {
@@ -732,33 +820,74 @@ static void *encode_ch(void *arg)
 
         if(pCtx->enable_v4l2[channel] == 1)
         {
-          if(pCtx->repeat[channel])
+          if(pCtx->repeat_en[channel])
           {
-            if(repeated < pCtx->repeat[channel])
+            if(framerate_tail) // with framerate tail 
             {
-              repeated++;
-            }
-            else
-            {
-              repeated = 0;
-              if((pCtx->v4l2_rev[channel][pCtx->v4l2_rp[channel]].addr & V4L2_REPEAT_FLAG) == 0)
+              if(((in_framecnt % framerate_tail_gap) == 0) && framerate_tail_cnt)
               {
-                enqueue_buf(pCtx->v4l2_rev[channel][pCtx->v4l2_rp[channel]].addr, channel);
+
+                if(repeated < pCtx->repeat[channel] + 1)
+                {
+                  repeated++;
+                }
+                else
+                {
+                  repeated = 0;
+                  framerate_tail_cnt--;
+                  queue_frame(channel);
+                  in_framecnt++;
+                  if(in_framecnt >= pCtx->framerate[channel])
+                  {
+                    in_framecnt = 0;
+                    framerate_tail_cnt = framerate_tail;
+                  }
+                  
+                }
               }
-              pCtx->v4l2_rev[channel][pCtx->v4l2_rp[channel]].addr = V4L2_INVALID_INDEX;
-              pCtx->v4l2_rp[channel]++;
-              pCtx->v4l2_rp[channel] %= ISP_ADDR_BUFFER_CNT;
+              else
+              {
+                if(repeated < pCtx->repeat[channel])
+                {
+                  repeated++;
+                }
+                else
+                {
+                  repeated = 0;
+                  queue_frame(channel);
+                  in_framecnt++;
+                  if(in_framecnt >= pCtx->framerate[channel])
+                  {
+                    in_framecnt = 0;
+                    framerate_tail_cnt = framerate_tail;
+                  }
+                }
               }
-          }
-          else
-          {
-            if((pCtx->v4l2_rev[channel][pCtx->v4l2_rp[channel]].addr & V4L2_REPEAT_FLAG) == 0)
-            {
-              enqueue_buf(pCtx->v4l2_rev[channel][pCtx->v4l2_rp[channel]].addr, channel);
             }
-            pCtx->v4l2_rev[channel][pCtx->v4l2_rp[channel]].addr = V4L2_INVALID_INDEX;
-            pCtx->v4l2_rp[channel]++;
-            pCtx->v4l2_rp[channel] %= ISP_ADDR_BUFFER_CNT; 
+            else //without framerate tail
+            {
+              if(repeated < pCtx->repeat[channel])
+              {
+                repeated++;
+              }
+              else
+              {
+                repeated = 0;
+                queue_frame(channel);
+                in_framecnt++;
+                in_framecnt %= pCtx->framerate[channel];
+              }
+            }
+          }
+          else if(pCtx->drop_en[channel])
+          {
+            queue_frame(channel);
+          }
+          else if(!pCtx->drop_en[channel])// without repeate and drop
+          {
+            queue_frame(channel);
+            in_framecnt++;
+            in_framecnt %= pCtx->framerate[channel];
           }
         }
 
@@ -866,7 +995,9 @@ int free_context(void *arg)
   free(pCtx->encoding        );
   free(pCtx->ch              );
   free(pCtx->repeat          );
+  free(pCtx->repeat_en       );
   free(pCtx->drop            );
+  free(pCtx->drop_en         );
   free(pCtx->out_framerate   );
   free(pCtx->set_ae   );
 
@@ -1190,50 +1321,6 @@ int init_v4l2()
       sem_init(&pCtx->pSemGetData[i],0,0);
     }
 
-#ifdef SET_AE_WORKARROUND
-    for(int i = 0; i < pCtx->ch_cnt; i++)
-    {
-      if(pCtx->ae_enable)
-      { 
-        char* dev_name;
-
-        dev_name = pCtx->dev_name[i];
-      
-        if(i == 0)
-        {
-          pCtx->set_ae[i] = 1;
-          
-          if((dev_name[10] >= '2') && (dev_name[10] <= '5'))
-          {
-            f2k = 1;
-          }
-          else
-          {
-            r2k = 1;
-          }
-        }
-        else
-        {
-          if(f2k == 1)
-          {
-            if((dev_name[10] >= '6') && (dev_name[10] <= '9'))
-            {
-              pCtx->set_ae[i] = 1;
-            }
-          }
-          
-          if(r2k == 1)
-          {
-            if((dev_name[10] >= '2') && (dev_name[10] <= '5'))
-            {
-              pCtx->set_ae[i] = 1;
-            }
-          }
-          break;
-        }
-      }
-    }
-#endif
     if(mediactl_init(REAL_CONF_FILENAME, &(pCtx->dev_info[0])) < 0)
     {
         printf("mediactl_init error!\n");
@@ -1837,7 +1924,10 @@ int alloc_context(void *arg)
   pCtx->encoding        = (int*)malloc(sizeof(int) * pCtx->ch_cnt);
   pCtx->ch              = (int*)malloc(sizeof(int) * pCtx->ch_cnt);
   pCtx->repeat          = (uint32_t*)malloc(sizeof(uint32_t) * pCtx->ch_cnt);
+  pCtx->repeat_en       = (uint32_t*)malloc(sizeof(uint32_t) * pCtx->ch_cnt);
   pCtx->drop            = (uint32_t*)malloc(sizeof(uint32_t) * pCtx->ch_cnt);
+  pCtx->drop_en         = (uint32_t*)malloc(sizeof(uint32_t) * pCtx->ch_cnt);
+  pCtx->framerate_mod   = (uint32_t*)malloc(sizeof(uint32_t) * pCtx->ch_cnt);
   pCtx->out_framerate   = (unsigned char*)malloc(sizeof(unsigned char) * pCtx->ch_cnt);
   pCtx->set_ae          = (int*)malloc(sizeof(int) * pCtx->ch_cnt);
 
@@ -1891,6 +1981,7 @@ int parse_cmd(int argc, char *argv[])
       printf("-ar: audio sample rate\n");
       printf("-af: auido sample format\n");
       printf("-ad: audio device");
+      printf("-lossless: enable jpeg lossless encode");
       // printf("-aof: audio output frames\n");
       return 1;
     }
@@ -2072,6 +2163,12 @@ int parse_cmd(int argc, char *argv[])
       int nqp = atoi(argv[i+1]);
       pCtx->Cfg[cur_ch].SliceQP = nqp;
       printf("sliceqp %d\n", nqp);
+    }
+    else if (strcmp(argv[i],"-lossless") == 0 )
+    {
+      int lossless = atoi(argv[i+1]);
+      pCtx->Cfg[cur_ch].lossless = lossless;
+      printf("lossless %d\n", lossless);
     }
     else if (strcmp(argv[i],"-minqp") == 0 )
     {
@@ -2261,7 +2358,7 @@ int main(int argc, char *argv[])
         if(strcmp(ptr, ".jpg") == 0 || strcmp(ptr, ".mjpeg") == 0)
         {
           pCtx->Cfg[i].profile = JPEG;
-          pCtx->Cfg[i].rcMode = CONST_QP; 
+          pCtx->Cfg[i].rcMode = CONST_QP;          
           printf("JPEG encode\n");
         }
       }
@@ -2319,22 +2416,32 @@ int main(int argc, char *argv[])
           DoEncRoi(pCtx->hEnc[i],pCtx->aryEncRoiCfg[i]);
         }
 
-        if((pCtx->out_framerate[i] % pCtx->framerate[i] == 0) || (pCtx->framerate[i] % pCtx->out_framerate[i] == 0))
+        if((JPEG == pCtx->Cfg[i].profile) && (pCtx->out_framerate[i] != pCtx->framerate[i]))
         {
-          if(pCtx->out_framerate[i] > pCtx->framerate[i])
-          {
-            pCtx->repeat[i] = pCtx->out_framerate[i]/pCtx->framerate[i] - 1;
-            printf("ch%d: repeat %d\n", i, pCtx->repeat[i]);
-          }
-          else if(pCtx->out_framerate[i] < pCtx->framerate[i])
-          {
-            pCtx->drop[i] = pCtx->framerate[i]/pCtx->out_framerate[i] - 1;
-            printf("ch%d: drop %d\n", i, pCtx->drop[i]);
-          }
+          pCtx->repeat_en[i] = 0;
+          pCtx->drop_en[i] = 0;
+          printf("WARNING: NOT SUPPORT RC CONTROL IN JPEG MODE, OUTPUT WITH INPUT FRAMERATE.\n");
+          pCtx->out_framerate[i] = pCtx->framerate[i];
         }
         else
         {
-          printf("ch%d: Cannot handle -r: %d\n", i, pCtx->out_framerate[i]);
+          if(pCtx->out_framerate[i] > pCtx->framerate[i])
+          {
+            pCtx->repeat_en[i] = 1;
+            pCtx->repeat[i] = pCtx->out_framerate[i]/pCtx->framerate[i] - 1;
+            printf("ch%d: repeat %d\n", i, pCtx->repeat[i]);
+            pCtx->framerate_mod[i] = pCtx->out_framerate[i]%pCtx->framerate[i];
+            printf("ch%d: framerate_mod %d\n", i, pCtx->framerate_mod[i]);
+          }
+          else if(pCtx->out_framerate[i] < pCtx->framerate[i])
+          {
+            pCtx->drop_en[i] = 1;
+            pCtx->drop[i] = pCtx->framerate[i]/pCtx->out_framerate[i] - 1;
+            printf("ch%d: drop %d\n", i, pCtx->drop[i]);
+            pCtx->framerate_mod[i] = pCtx->framerate[i]%pCtx->out_framerate[i];
+            // pCtx->framerate_mod[i] = pCtx->out_framerate[i]%pCtx->framerate[i];
+            printf("ch%d: framerate_mod %d\n", i, pCtx->framerate_mod[i]);
+          }
         }
       }
     }

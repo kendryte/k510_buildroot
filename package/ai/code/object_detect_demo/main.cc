@@ -56,6 +56,12 @@
 #include "media_ctl.h"
 #include <linux/videodev2.h>
 #include "v4l2.h"
+#include <rapidjson/document.h>
+#include <rapidjson/pointer.h>
+#include <rapidjson/filereadstream.h>
+#include <rapidjson/filewritestream.h>
+#include <rapidjson/writer.h>
+using namespace rapidjson;
 
 #define PROFILING 0
 
@@ -67,12 +73,17 @@ std::mutex mtx;
 
 uint8_t drm_bufs_index = 0;
 uint8_t drm_bufs_argb_index = 0;
-struct drm_buffer *fbuf_yuv, *fbuf_argb;
+struct drm_buffer *fbuf_yuv;
 int obj_cnt;
 std::vector<BoxInfo> result0;
 std::vector<BoxInfo> result1;
 char *kmodel_name;
 int display_ds2;
+
+#define AUTO_ADAPT_CONFIG_FILE "auto.conf"
+static uint32_t screen_width, screen_height;
+static uint32_t gnne_input_width, gnne_input_height;
+static uint32_t gnne_valid_width, gnne_valid_height;
 
 std::atomic<bool> quit(true);
 
@@ -110,11 +121,8 @@ void ai_worker()
 {
     float obj_thresh = 0.2;
     float nms_thresh = 0.45;
-    uint32_t valid_width = dev_info[0].video_width[3];
-    uint32_t valid_height = dev_info[0].video_height[3];
-    int offset_channel = valid_width * valid_width;  // ds2 channel offset
-    int padding_r, padding_l;
-    
+    int offset_channel = gnne_input_width * gnne_input_height;
+    uint32_t padding_r, padding_l;
     objectDetect od(obj_thresh, nms_thresh);
 
     od.load_model(kmodel_name);
@@ -125,13 +133,15 @@ void ai_worker()
     cv::VideoCapture capture;
 	capture.open(5);
     capture.set(cv::CAP_PROP_CONVERT_RGB, 0);
-    capture.set(cv::CAP_PROP_FRAME_WIDTH, valid_width);
-    capture.set(cv::CAP_PROP_FRAME_HEIGHT, valid_height);
+    capture.set(cv::CAP_PROP_FRAME_WIDTH, gnne_input_width);
+    capture.set(cv::CAP_PROP_FRAME_HEIGHT, gnne_input_height);
     capture.set(cv::CAP_PROP_FOURCC, dev_info[0].video_out_format[3] ? V4L2_PIX_FMT_ARGB32 : V4L2_PIX_FMT_RGB24);
     mtx.unlock();
-    padding_r = padding_l = (valid_width-GNNE_INPUT_WIDTH)/2;
+    padding_r = (gnne_input_width - gnne_valid_width);
+    padding_l = padding_r / 2;
+    padding_r -= padding_l;
     cv::Mat rgb24_img_for_ai(YOLOV5_FIX_SIZE, YOLOV5_FIX_SIZE, CV_8UC3, od.virtual_addr_input[0] + padding_l);
-    
+
     while(quit.load()) 
     {
         bool ret = false;
@@ -145,18 +155,31 @@ void ai_worker()
             continue; // 
         }
 
-        fbuf_argb = &drm_dev.drm_bufs_argb[drm_bufs_argb_index];
-        cv::Mat img_argb = cv::Mat(DRM_INPUT_HEIGHT, DRM_INPUT_WIDTH, CV_8UC4, (uint8_t *)fbuf_argb->map);
+        struct drm_buffer *fbuf_argb = &drm_dev.drm_bufs_argb[drm_bufs_argb_index];
+        cv::Mat img_argb = cv::Mat(screen_height, screen_width, CV_8UC4, (uint8_t *)fbuf_argb->map);
         //padding
-        for(int h=0; h<valid_height; h++)
-        {
-            memset(od.virtual_addr_input[0] + h*valid_width, 114, padding_l);
-            memset(od.virtual_addr_input[0] + offset_channel + h*valid_width, 114, padding_l);
-            memset(od.virtual_addr_input[0] + offset_channel*2 + h*valid_width, 114, padding_l);
-
-            memset(od.virtual_addr_input[0] + padding_l + GNNE_INPUT_WIDTH + h*valid_width, 114, padding_r);
-            memset(od.virtual_addr_input[0] + offset_channel + padding_l+GNNE_INPUT_WIDTH + h*valid_width, 114, padding_r);
-            memset(od.virtual_addr_input[0] + offset_channel*2 + padding_l+GNNE_INPUT_WIDTH + h*valid_width, 114, padding_r);
+        uint8_t *r_addr, *g_addr, *b_addr;
+        r_addr = (uint8_t *)od.virtual_addr_input[0];
+        g_addr = (uint8_t *)od.virtual_addr_input[0] + offset_channel;
+        b_addr = (uint8_t *)od.virtual_addr_input[0] + offset_channel * 2;
+        if (gnne_valid_width < gnne_input_width) {
+            for (int row = 0; row < gnne_valid_height; row++) {
+                uint32_t offset_l = row * gnne_input_width;
+                uint32_t offset_r = offset_l + gnne_valid_width + padding_l;
+                memset(r_addr + offset_l, 114, padding_l);
+                memset(g_addr + offset_l, 114, padding_l);
+                memset(b_addr + offset_l, 114, padding_l);
+                memset(r_addr + offset_r, 114, padding_r);
+                memset(g_addr + offset_r, 114, padding_r);
+                memset(b_addr + offset_r, 114, padding_r);
+            }
+        }
+        if (gnne_valid_height < gnne_input_height) {
+            uint32_t padding = (gnne_input_height - gnne_valid_height) * gnne_input_width;
+            uint32_t offset = gnne_valid_height * gnne_input_width;
+            memset(r_addr + offset, 114, padding);
+            memset(g_addr + offset, 114, padding);
+            memset(b_addr + offset, 114, padding);
         }
         if(display_ds2)
         {
@@ -214,8 +237,8 @@ void ai_worker()
             for (auto r : drm_bufs_argb_index?result1:result0)
             {
                 cv::Point origin;
-                origin.x = (int)(r.x1 * DRM_INPUT_WIDTH/GNNE_INPUT_WIDTH);
-                origin.y = (int)(r.y1 * DRM_INPUT_HEIGHT/GNNE_INPUT_HEIGHT - 10);
+                origin.x = (int)(r.x1 * screen_width / gnne_valid_width);
+                origin.y = (int)(r.y1 * screen_height / gnne_valid_height - 10);
                 std::string text = od.labels[r.label] + ":" + std::to_string(round(r.score * 100) / 100.0);
                 cv::putText(img_argb, text, origin, cv::FONT_HERSHEY_COMPLEX, 1.5, cv::Scalar(0, 0, 255, 0), 1, 8, 0);
             }
@@ -242,17 +265,17 @@ void ai_worker()
                     frame.crtc_id = drm_dev.crtc_id;
                     frame.draw_en = 1;
                     frame.frame_num = obj_cnt;
-                    frame.line_x_start = r.x1*DRM_INPUT_WIDTH/GNNE_INPUT_WIDTH;
-                    frame.line_y_start = r.y1*DRM_INPUT_HEIGHT/GNNE_INPUT_HEIGHT+DRM_OFFSET_HEIGHT;
-                    frame.line_y_start = frame.line_y_start < DRM_OFFSET_HEIGHT ? DRM_OFFSET_HEIGHT : frame.line_y_start;
-                    frame.line_x_end = r.x2*DRM_INPUT_WIDTH/GNNE_INPUT_WIDTH;
-                    frame.line_y_end = r.y2*DRM_INPUT_HEIGHT/GNNE_INPUT_HEIGHT+DRM_OFFSET_HEIGHT;
-                    frame.line_y_end = frame.line_y_end > (DRM_OFFSET_HEIGHT+DRM_INPUT_HEIGHT) ? (DRM_OFFSET_HEIGHT+DRM_INPUT_HEIGHT) : frame.line_y_end;
+                    frame.line_x_start = r.x1 * screen_width / gnne_valid_width;
+                    frame.line_y_start = r.y1 * screen_height / gnne_valid_height;
+                    frame.line_x_end = r.x2 * screen_width / gnne_valid_width;
+                    frame.line_y_end = r.y2 * screen_height / gnne_valid_height;
+                    frame.line_x_end = frame.line_x_end > screen_width ? screen_width : frame.line_x_end;
+                    frame.line_y_end = frame.line_y_end > screen_height ? screen_height : frame.line_y_end;
                     draw_frame(&frame);
                 
                     cv::Point origin;
-                    origin.x = (int)(r.x1*DRM_INPUT_WIDTH/GNNE_INPUT_WIDTH);
-                    origin.y = (int)(r.y1*DRM_INPUT_HEIGHT/GNNE_INPUT_HEIGHT - 10);
+                    origin.x = (int)(r.x1 * screen_width / gnne_valid_width);
+                    origin.y = (int)(r.y1* screen_height / gnne_valid_height - 10);
                     std::string text = od.labels[r.label] + ":" + std::to_string(round(r.score * 100) / 100.0);
                     cv::putText(img_argb, text, origin, cv::FONT_HERSHEY_COMPLEX, 1.5, cv::Scalar(0, 0, 255, 255), 1, 8, 0);
                 }
@@ -304,7 +327,7 @@ static int process_ds0_image(struct v4l2_device *vdev,unsigned int width,unsigne
 
     if (drm_dev.req)
         drm_wait_vsync();
-    fbuf_argb = &drm_dev.drm_bufs_argb[!drm_bufs_argb_index];//等待AI计算后的buffer
+    struct drm_buffer *fbuf_argb = &drm_dev.drm_bufs_argb[!drm_bufs_argb_index];//等待AI计算后的buffer
     if (drm_dmabuf_set_plane(fbuf_yuv, fbuf_argb)) {
         std::cerr << "Flush fail \n";
         return 1;
@@ -428,6 +451,123 @@ display_cleanup:
     mtx.unlock();
 }
 
+int video_resolution_adaptation(void)
+{
+    // open input file
+    FILE *fp = fopen(video_cfg_file, "rb");
+    if (fp == NULL) {
+        printf("open %s file error\n", video_cfg_file);
+        return -1;
+    }
+    // parse
+    char buff[4096];
+    FileReadStream frs(fp, buff, sizeof(buff));
+    Document root;
+    root.ParseStream(frs);
+    fclose(fp);
+    if (root.HasParseError()) {
+        printf("parse file error\n");
+        return -1;
+    }
+    // default disable all
+    Pointer("/sensor0/~1dev~1video2/video2_used").Set(root, 0);
+    Pointer("/sensor0/~1dev~1video3/video3_used").Set(root, 1);
+    Pointer("/sensor0/~1dev~1video4/video4_used").Set(root, 0);
+    Pointer("/sensor0/~1dev~1video5/video5_used").Set(root, 1);
+    Pointer("/sensor1/~1dev~1video6/video6_used").Set(root, 0);
+    Pointer("/sensor1/~1dev~1video7/video7_used").Set(root, 0);
+    Pointer("/sensor1/~1dev~1video8/video8_used").Set(root, 0);
+    Pointer("/sensor1/~1dev~1video9/video9_used").Set(root, 0);
+
+    char *sensor0_cfg_file = NULL;
+    uint32_t sensor0_total_width;
+    uint32_t sensor0_total_height;
+    uint32_t sensor0_active_width;
+    uint32_t sensor0_active_height;
+    uint32_t video3_width;
+    uint32_t video3_height;
+    uint32_t video5_width;
+    uint32_t video5_height;
+
+#define SENSOR_1920x1080_TIMING(x) \
+    do {\
+        sensor0_total_width = 3476;\
+        sensor0_total_height = 1166;\
+        sensor0_active_width = 1920;\
+        sensor0_active_height = 1080;\
+    } while(0)
+
+#define SENSOR_1080x1920_TIMING(x) \
+    do {\
+        sensor0_total_width = 3453;\
+        sensor0_total_height = 1979;\
+        sensor0_active_width = 1088;\
+        sensor0_active_height = 1920;\
+    } while(0)
+
+    if (screen_width == 1920 && screen_height == 1080) {
+        sensor0_cfg_file = "imx219_0.conf";
+        video3_width = screen_width;
+        video3_height = screen_height;
+        video5_width = 320;
+        video5_height = 192;
+    } else if (screen_width == 1080 && screen_height == 1920) {
+        sensor0_cfg_file = "imx219_1080x1920_0.conf";
+        video3_width = screen_width;
+        video3_height = screen_height;
+        video5_width = 192;
+        video5_height = 320;
+    } else if (screen_width == 1280 && screen_height == 720) {
+        sensor0_cfg_file = "imx219_0.conf";
+        video3_width = screen_width;
+        video3_height = screen_height;
+        video5_width = 320;
+        video5_height = 192;
+    } else {
+        return -1;
+    }
+    // update video config
+    gnne_input_width = YOLOV5_FIX_SIZE;
+    gnne_input_height = YOLOV5_FIX_SIZE;
+    gnne_valid_width = video5_width;
+    gnne_valid_height = video5_height;
+    if (strcmp(sensor0_cfg_file, "imx219_0.conf") == 0)
+        SENSOR_1920x1080_TIMING(0);
+    else if (strcmp(sensor0_cfg_file, "imx219_1080x1920_0.conf") == 0)
+        SENSOR_1080x1920_TIMING(0);
+    else
+        return -1;
+    Pointer("/sensor0/sensor0_total_size/sensor0_total_width").Set(root, sensor0_total_width);
+    Pointer("/sensor0/sensor0_total_size/sensor0_total_height").Set(root, sensor0_total_height);
+    Pointer("/sensor0/sensor0_active_size/sensor0_active_width").Set(root, sensor0_active_width);
+    Pointer("/sensor0/sensor0_active_size/sensor0_active_height").Set(root, sensor0_active_height);
+    Pointer("/sensor0/~1dev~1video2/video2_width").Set(root, sensor0_active_width);
+    Pointer("/sensor0/~1dev~1video2/video2_height").Set(root, sensor0_active_height);
+    Pointer("/sensor0/~1dev~1video2/video2_out_format").Set(root, 1);
+    Pointer("/sensor0/~1dev~1video3/video3_width").Set(root, video3_width);
+    Pointer("/sensor0/~1dev~1video3/video3_height").Set(root, video3_height);
+    Pointer("/sensor0/~1dev~1video3/video3_out_format").Set(root, 1);
+    Pointer("/sensor0/~1dev~1video5/video5_width").Set(root, video5_width);
+    Pointer("/sensor0/~1dev~1video5/video5_height").Set(root, gnne_input_height);
+    Pointer("/sensor0/~1dev~1video5/video5_pitch").Set(root, gnne_input_width);
+    Pointer("/sensor0/~1dev~1video5/video5_height_r").Set(root, video5_height);
+    Pointer("/sensor0/~1dev~1video5/video5_out_format").Set(root, 0);
+    // create output file
+    video_cfg_file = AUTO_ADAPT_CONFIG_FILE;
+    fp = fopen(video_cfg_file, "wb");
+    if (fp == NULL) {
+        printf("open %s file error\n", video_cfg_file);
+        return -1;
+    }
+    // generate
+    FileWriteStream fws(fp, buff, sizeof(buff));
+    Writer<FileWriteStream> writer(fws);
+    root.Accept(writer);
+    fclose(fp);
+
+    return 0;
+}
+
 int main(int argc, char *argv[])
 {
     std::cout << "case " << argv[0] << " build " << __DATE__ << " " << __TIME__ << std::endl;
@@ -445,6 +585,17 @@ int main(int argc, char *argv[])
     sa.sa_handler = fun_sig;
     sigfillset(&sa.sa_mask);
     sigaction(SIGINT, &sa, NULL);
+    // get screen resolution
+    if (drm_get_resolution(NULL, &screen_width, &screen_height) < 0) {
+        printf("get resolution error!\n");
+        return -1;
+    }
+    printf("screen resolution: %dx%d\n", screen_width, screen_height);
+    if (video_resolution_adaptation() < 0) {
+        printf("resolution not support!\n");
+        return -1;
+    }
+
     if(drm_init())
         return -1;
 

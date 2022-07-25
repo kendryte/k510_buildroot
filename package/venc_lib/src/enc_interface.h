@@ -155,6 +155,7 @@ typedef struct
     bool                      bEnableGDR;//gdr
     GDRCtrlMode               gdrMode;
     bool                      bEnableLTR;//Long Term reference
+    bool                      lossless; //jpeg lossless encode
 
     ROICtrlMode               roiCtrlMode;
     EncSliceSplitCfg          sliceSplitCfg;

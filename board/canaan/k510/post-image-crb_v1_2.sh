@@ -62,9 +62,13 @@ ${UBOOT_BUILD_DIR}/tools/mkenvimage -s 0x2000 -o ${BINARIES_DIR}/uboot-nand.env 
 #${BOARD_DIR}/debian.sh ${KERNEL_VERSION} || { echo "create debian image error "; exit 1; }
 
 riscv64-linux-cpp -nostdinc -I ${KERNEL_BUILD_DIR}/include -I ${KERNEL_BUILD_DIR}/arch  -undef -x assembler-with-cpp ${KERNEL_BUILD_DIR}/arch/riscv/boot/dts/canaan/k510_crb_lp3_v1_2.dts ${BINARIES_DIR}/k510_crb_lp3_v1_2.dts.tmp
+riscv64-linux-cpp -nostdinc -I ${KERNEL_BUILD_DIR}/include -I ${KERNEL_BUILD_DIR}/arch  -undef -x assembler-with-cpp ${KERNEL_BUILD_DIR}/arch/riscv/boot/dts/canaan/k510_crb_lp3_hdmi_v1_2.dts ${BINARIES_DIR}/k510_crb_lp3_hdmi_v1_2.dts.tmp
 
 ${KERNEL_BUILD_DIR}/scripts/dtc/dtc -I dts -o ${BINARIES_DIR}/k510.dtb ${BINARIES_DIR}/k510_crb_lp3_v1_2.dts.tmp
+${KERNEL_BUILD_DIR}/scripts/dtc/dtc -I dts -o ${BINARIES_DIR}/k510-hdmi.dtb ${BINARIES_DIR}/k510_crb_lp3_hdmi_v1_2.dts.tmp
+
 rm -rf  ${BINARIES_DIR}/k510_crb_lp3_v1_2.dts.tmp
+rm -rf  ${BINARIES_DIR}/k510_crb_lp3_hdmi_v1_2.dts.tmp
 
 genimage                           \
 	--rootpath "${TARGET_DIR}"     \

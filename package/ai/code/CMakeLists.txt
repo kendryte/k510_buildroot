@@ -8,6 +8,9 @@ set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g3")
 set(CMAKE_CXX_FLAGS_RELEASE "-O2 -s")
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp")
 
+set(input imx219_1080x1920_0.conf imx219_0.conf imx219_1.conf video_192x320.conf video_object_detect_320.conf video_object_detect_432x368.conf video_object_detect_512.conf video_object_detect_640x480.conf video_object_detect_320x320.conf video_object_detect_480x640.conf video_object_detect_640.conf)
+install(PROGRAMS ${input} DESTINATION exe)
+
 add_subdirectory(face_detect)
 add_subdirectory(face_landmarks)
 add_subdirectory(object_detect)
