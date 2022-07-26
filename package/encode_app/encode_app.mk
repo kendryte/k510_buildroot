@@ -25,6 +25,8 @@ define ENCODE_APP_INSTALL_TARGET_CMDS
 	$(INSTALL) -D -m 0755 $(@D)/imx219_0.conf $(TARGET_DIR)/app/encode_app/imx219_0.conf
 	$(INSTALL) -D -m 0755 $(@D)/imx219_1.conf $(TARGET_DIR)/app/encode_app/imx219_1.conf
 	$(INSTALL) -D -m 0755 $(@D)/roi_1920x1080.conf $(TARGET_DIR)/app/encode_app/roi_1920x1080.conf
+	$(INSTALL) -D -m 0755 $(@D)/imx385_0.conf $(TARGET_DIR)/app/encode_app/imx385_0.conf
+	$(INSTALL) -D -m 0755 $(@D)/imx385_video_1920x1080.conf $(TARGET_DIR)/app/encode_app/imx385_video_1920x1080.conf
 endef
 
 $(eval $(generic-package))

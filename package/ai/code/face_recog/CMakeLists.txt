@@ -1,4 +1,4 @@
-set(SRC main.cc cv2_utils.cc hal_key.c anchors_320.cc anchors_640.cc retinaface.cc insightface.cc ../common/k510_drm.c key.cc ../common/v4l2.c)
+set(SRC main.cc cv2_utils.cc hal_key.c anchors_320.cc anchors_640.cc retinaface.cc insightface.cc ../common/k510_drm.c key.cc ../common/v4l2.c ../common/buf_mgt.cc)
 set(bin face_recog)
 set(script ../shell/face_recog.sh)
 set(input ../imx219_0.conf ../imx219_1.conf ../video_object_detect_320.conf ../video_object_detect_640.conf)

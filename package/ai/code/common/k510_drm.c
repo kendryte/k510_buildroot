@@ -275,16 +275,10 @@ int drm_dmabuf_set_plane(struct drm_buffer *buf, struct drm_buffer *buf1)
 	drm_add_plane_property("SRC_W", drm_dev.width << 16);
 	drm_add_plane_property("SRC_H", drm_dev.height << 16);
 	drm_add_plane_property("CRTC_X", 0);
-	drm_add_plane_property("CRTC_Y", DRM_OFFSET_HEIGHT);
+	drm_add_plane_property("CRTC_Y", 0);
 	drm_add_plane_property("CRTC_W", drm_dev.width);
 	drm_add_plane_property("CRTC_H", drm_dev.height);
 
-	ret = drmModeAtomicCommit(drm_dev.fd, drm_dev.req, flags, NULL);
-	if (ret) {
-		printf("drmModeAtomicCommit failed: %s", strerror(errno));
-		drmModeAtomicFree(drm_dev.req);
-		return ret;
-	}
 #if 1
 	// two plane 
 	drm_add_plane2_property("FB_ID", buf1->fb_handle);
@@ -294,17 +288,17 @@ int drm_dmabuf_set_plane(struct drm_buffer *buf, struct drm_buffer *buf1)
 	drm_add_plane2_property("SRC_W", drm_dev.width << 16);
 	drm_add_plane2_property("SRC_H", drm_dev.height << 16);
 	drm_add_plane2_property("CRTC_X", 0);
-	drm_add_plane2_property("CRTC_Y", DRM_OFFSET_HEIGHT);
+	drm_add_plane2_property("CRTC_Y", 0);
 	drm_add_plane2_property("CRTC_W", drm_dev.width);
 	drm_add_plane2_property("CRTC_H", drm_dev.height);
 
+#endif
 	ret = drmModeAtomicCommit(drm_dev.fd, drm_dev.req, flags, NULL);
 	if (ret) {
 		printf("drmModeAtomicCommit failed: %s", strerror(errno));
 		drmModeAtomicFree(drm_dev.req);
 		return ret;
 	}
-#endif
 	return 0;
 }
 
@@ -351,7 +345,6 @@ static int find_plane(unsigned int fourcc, uint32_t *plane_id, uint32_t crtc_id,
 		drmModeFreePlane(plane);
 
 		dbg("found plane %d", *plane_id);
-		printf("found plane %d", *plane_id);
 		break;
 	}
 
@@ -428,8 +421,8 @@ static int drm_find_connector(void)
 		goto free_res;
 	}
 
-	drm_dev.width = DRM_INPUT_WIDTH;
-	drm_dev.height = DRM_INPUT_HEIGHT;
+	drm_dev.width = drm_dev.mode.hdisplay;
+	drm_dev.height = drm_dev.mode.vdisplay;
 
 	for (i = 0 ; i < res->count_encoders; i++) {
 		enc = drmModeGetEncoder(drm_dev.fd, res->encoders[i]);
@@ -752,7 +745,7 @@ static int drm_allocate_dumb(struct drm_buffer *buf)
 		printf("PRIME_HANDLE_TO_FD failed");
 		while(1);
 	}
-	printf("dbuf_fd = %d\n", prime.fd);
+	// printf("dbuf_fd = %d\n", prime.fd);
 	buf->dbuf_fd = prime.fd;
 
 	/* prepare buffer for memory mapping */
@@ -784,7 +777,7 @@ static int drm_allocate_dumb(struct drm_buffer *buf)
 #elif LV_COLOR_DEPTH == 8
 	offsets[0] = 0;
 	handles[0] = creq.handle;
-	pitches[0] = 1088;//creq.pitch;
+	pitches[0] = creq.pitch;
 	pitches[1] = pitches[0];
 	offsets[1] = pitches[0] * drm_dev.height;
 	handles[1] = creq.handle;
@@ -928,5 +921,25 @@ void drm_exit(void)
 // {
 // 	terminate = 0;
 // }
+
+int drm_get_resolution(struct drm_dev *dev, uint32_t *width, uint32_t *height)
+{
+	int ret = drm_setup(DRM_FOURCC);
+	if (ret) {
+		close(drm_dev.fd);
+		drm_dev.fd = -1;
+		return ret;
+	}
+	*width = drm_dev.mode.hdisplay;
+	*height = drm_dev.mode.vdisplay;
+	close(drm_dev.fd);
+	// fix draw frame
+	char cmd[64];
+	uint32_t val = ((*width - 1) & 0xFFF) | (((*height - 1) & 0xFFF) << 16) | (1UL << 15);
+	snprintf(cmd, sizeof(cmd), "devmem 0x92700780 32 0x%08x", val);
+	system(cmd);
+
+	return 0;
+}
 
 /* drm code end */
