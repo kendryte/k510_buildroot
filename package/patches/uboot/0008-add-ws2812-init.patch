@@ -1,0 +1,526 @@
+From 61c2f86d9f65321992fc8de6e1106f9313bc2727 Mon Sep 17 00:00:00 2001
+From: wycwyhwyq <5f20.6d9b@gmail.com>
+Date: Tue, 26 Jul 2022 15:56:47 +0800
+Subject: [PATCH 2/2] add ws2812 init
+
+---
+ board/Canaan/dsi_logo/Makefile                |   4 +
+ board/Canaan/dsi_logo/bsp/controler/spi.c     |   3 +-
+ board/Canaan/dsi_logo/bsp/cpu/cache.c         |   4 +-
+ board/Canaan/dsi_logo/bsp/cpu/interrupt.c     |   2 +-
+ board/Canaan/dsi_logo/bsp/include/cpu/cache.h |   5 +-
+ .../log/hw_dev/src/display_hardware_init.c    |  74 +++++----
+ board/Canaan/dsi_logo/test/log/main.c         |  36 ++---
+ .../Canaan/dsi_logo/test/log/ws2812/ws2812.c  | 140 ++++++++++++++++++
+ .../Canaan/dsi_logo/test/log/ws2812/ws2812.h  |  55 +++++++
+ configs/k510_crb_lp3_v1_2_defconfig           |   3 +-
+ 10 files changed, 256 insertions(+), 70 deletions(-)
+ create mode 100755 board/Canaan/dsi_logo/test/log/ws2812/ws2812.c
+ create mode 100755 board/Canaan/dsi_logo/test/log/ws2812/ws2812.h
+
+diff --git a/board/Canaan/dsi_logo/Makefile b/board/Canaan/dsi_logo/Makefile
+index 3e8b30c9..23b4b4b9 100755
+--- a/board/Canaan/dsi_logo/Makefile
++++ b/board/Canaan/dsi_logo/Makefile
+@@ -23,6 +23,10 @@ obj-y	:=  \
+  test/log/hw_dev/src/display_hardware_init.o \
+  test/log/hw_dev/src/lt9611.o \
+  test/log/vo/vo_calc.o \
++ bsp/controler/spi.o \
++ bsp/cpu/cache.o \
++ bsp/cpu/interrupt.o \
++ test/log/ws2812/ws2812.o \
+  bsp/cpu/k510.o \
+  bsp/utils/utils.o \
+  bsp/controler/video/mipi/dphy/mipi_corner.o \
+diff --git a/board/Canaan/dsi_logo/bsp/controler/spi.c b/board/Canaan/dsi_logo/bsp/controler/spi.c
+index 470578cb..4cb4222f 100755
+--- a/board/Canaan/dsi_logo/bsp/controler/spi.c
++++ b/board/Canaan/dsi_logo/bsp/controler/spi.c
+@@ -25,9 +25,10 @@
+ #include <string.h>
+ #include <stdio.h>
+ #include "platform.h"
+-#include "spi.h"
++#include "controler/spi.h"
+ #include "dmac.h"
+ #include <interrupt.h>
++#include "common.h"
+ 
+ volatile spi_t *const spi[4] =
+ {
+diff --git a/board/Canaan/dsi_logo/bsp/cpu/cache.c b/board/Canaan/dsi_logo/bsp/cpu/cache.c
+index 9e501f5c..99c1426e 100755
+--- a/board/Canaan/dsi_logo/bsp/cpu/cache.c
++++ b/board/Canaan/dsi_logo/bsp/cpu/cache.c
+@@ -22,10 +22,10 @@
+  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+  */
+-#include "cache.h"
++#include "cpu/cache.h"
+ #include "core_v5.h"
+ #include "platform.h"
+-#include <assert.h>
++// #include <assert.h>
+ 
+ volatile l2cache *ax25_l2cache = (volatile l2cache *)L2C_BASE_ADDR;
+ 
+diff --git a/board/Canaan/dsi_logo/bsp/cpu/interrupt.c b/board/Canaan/dsi_logo/bsp/cpu/interrupt.c
+index 595859df..aeb9e561 100755
+--- a/board/Canaan/dsi_logo/bsp/cpu/interrupt.c
++++ b/board/Canaan/dsi_logo/bsp/cpu/interrupt.c
+@@ -24,7 +24,7 @@
+  */
+ #include <stdio.h>
+ #include "k510.h"
+-#include "interrupt.h"
++#include "cpu/interrupt.h"
+ #include <stdbool.h>
+ #include <wdt.h>
+ 
+diff --git a/board/Canaan/dsi_logo/bsp/include/cpu/cache.h b/board/Canaan/dsi_logo/bsp/include/cpu/cache.h
+index 5028b393..6dee4b91 100755
+--- a/board/Canaan/dsi_logo/bsp/include/cpu/cache.h
++++ b/board/Canaan/dsi_logo/bsp/include/cpu/cache.h
+@@ -1,9 +1,8 @@
+ #ifndef _CACHE_H
+ #define _CACHE_H
+ #include "platform.h"
+-#include <stdint.h>
+-#include <stddef.h>
+ #include <core_v5.h>
++#include "common.h"
+ typedef struct{
+     volatile unsigned long  configure;
+     volatile unsigned long  control;
+@@ -27,7 +26,7 @@ typedef struct{
+     volatile unsigned long  tgt_read_data[4];
+ } l2cache;
+ 
+-volatile l2cache *ax25_l2cache;
++extern volatile l2cache *ax25_l2cache;
+ 
+ /* Control Register */
+ #define L2_ENABLE   0x1
+diff --git a/board/Canaan/dsi_logo/test/log/hw_dev/src/display_hardware_init.c b/board/Canaan/dsi_logo/test/log/hw_dev/src/display_hardware_init.c
+index 5d9ec495..0e5f6e81 100755
+--- a/board/Canaan/dsi_logo/test/log/hw_dev/src/display_hardware_init.c
++++ b/board/Canaan/dsi_logo/test/log/hw_dev/src/display_hardware_init.c
+@@ -39,7 +39,17 @@
+ #include  "controler/sysctl_clk.h"
+ #include  "controler/sysctl_boot.h"
+ 
+-
++#define MIPI_SWITCH_OE_PIN  32
++#define MIPI_SWITCH_SEL_PIN 34
++#define LCD_BACKLIGHT_PIN   79
++#define LCD_RESET_PIN       78
++#define HDMI_RESET_PIN      97
++
++#define MIPI_SWITCH_OE_IO   22
++#define MIPI_SWITCH_SEL_IO  21
++#define LCD_BACKLIGHT_IO    20
++#define LCD_RESET_IO        19
++#define HDMI_RESET_IO       15
+ 
+ // screen reset , 1 high , 0 : low
+ void display_gpio_reset(void)
+@@ -55,21 +65,11 @@ void display_gpio_reset(void)
+ #endif
+ 
+ #ifdef CONFIG_TARGET_K510_CRB_LP3_V1_2
+-    gpio_set_pin(19, GPIO_PV_HIGH);
+-    msleep(200);
+-    gpio_set_pin(19, GPIO_PV_LOW);
+-    msleep(200);
+-    gpio_set_pin(19, GPIO_PV_HIGH);
++    gpio_set_pin(LCD_RESET_IO, GPIO_PV_HIGH);
+     msleep(200);
+-#endif
+-}
+-
+-void camera_power_on(void)
+-{
+-#ifdef CONFIG_TARGET_K510_CRB_LP3_V1_2
+-    gpio_set_pin(23, GPIO_PV_LOW);
++    gpio_set_pin(LCD_RESET_IO, GPIO_PV_LOW);
+     msleep(200);
+-    gpio_set_pin(23, GPIO_PV_HIGH);
++    gpio_set_pin(LCD_RESET_IO, GPIO_PV_HIGH);
+     msleep(200);
+ #endif
+ }
+@@ -84,29 +84,29 @@ void display_gpio_poweron(void)
+ #endif
+ 
+ #ifdef CONFIG_TARGET_K510_CRB_LP3_V1_2
+-    gpio_set_pin(20, GPIO_PV_HIGH);
++    gpio_set_pin(LCD_BACKLIGHT_IO, GPIO_PV_HIGH);
+ #endif
+ }
+ 
+ void lt9611_reset(void)
+ {
+-    gpio_set_pin(15, GPIO_PV_LOW);
++    gpio_set_pin(HDMI_RESET_IO, GPIO_PV_LOW);
+     msleep(100);
+-    gpio_set_pin(15, GPIO_PV_HIGH);
++    gpio_set_pin(HDMI_RESET_IO, GPIO_PV_HIGH);
+ }
+ 
+ // gpio init 
+ int mipi_select_value = 0;
+ void display_switch_lcd_gpio(void)
+ {
+-    gpio_set_drive_mode(21,GPIO_DM_OUTPUT);
+-    gpio_set_pin(21, mipi_select_value);
++    gpio_set_drive_mode(MIPI_SWITCH_SEL_IO, GPIO_DM_OUTPUT);
++    gpio_set_pin(MIPI_SWITCH_SEL_IO, mipi_select_value);
+ }
+ 
+ void display_switch_hdmi_gpio(void)
+ {
+-    gpio_set_drive_mode(21,GPIO_DM_OUTPUT);
+-    gpio_set_pin(21, !mipi_select_value);
++    gpio_set_drive_mode(MIPI_SWITCH_SEL_IO, GPIO_DM_OUTPUT);
++    gpio_set_pin(MIPI_SWITCH_SEL_IO, !mipi_select_value);
+ }
+ 
+ void display_gpio_init(void)
+@@ -124,32 +124,26 @@ void display_gpio_init(void)
+ 
+ #ifdef CONFIG_TARGET_K510_CRB_LP3_V1_2
+ 
+-    muxpin_set_function(32, FUNC_GPIO25);
+-    gpio_set_drive_mode(25,GPIO_DM_OUTPUT);
+-    gpio_set_pin(25, GPIO_PV_LOW);
++    muxpin_set_function(MIPI_SWITCH_OE_PIN, FUNC_GPIO0 + MIPI_SWITCH_OE_IO);
++    gpio_set_drive_mode(MIPI_SWITCH_OE_IO, GPIO_DM_OUTPUT);
++    gpio_set_pin(MIPI_SWITCH_OE_IO,  GPIO_PV_LOW);
+ 
+-    muxpin_set_function(97, FUNC_GPIO15);
+-    gpio_set_drive_mode(15,GPIO_DM_OUTPUT);
+-    gpio_set_pin(15, GPIO_PV_HIGH);
++    muxpin_set_function(HDMI_RESET_PIN, FUNC_GPIO0 + HDMI_RESET_IO);
++    gpio_set_drive_mode(HDMI_RESET_IO, GPIO_DM_OUTPUT);
++    gpio_set_pin(HDMI_RESET_IO, GPIO_PV_HIGH);
+ 
+-    muxpin_set_function(34, FUNC_GPIO21);
+-    gpio_set_drive_mode(21,GPIO_DM_INPUT);
+-    mipi_select_value = gpio_get_pin(21);
+-    msleep(10);
++    muxpin_set_function(MIPI_SWITCH_SEL_PIN, FUNC_GPIO0 + MIPI_SWITCH_OE_IO);
++    gpio_set_drive_mode(MIPI_SWITCH_OE_IO, GPIO_DM_INPUT);
++    mipi_select_value = gpio_get_pin(MIPI_SWITCH_OE_IO);
+ 
+-    muxpin_set_function(78, FUNC_GPIO19);
+-    gpio_set_drive_mode(19,GPIO_DM_OUTPUT);
++    muxpin_set_function(LCD_RESET_PIN, FUNC_GPIO0 + LCD_RESET_IO);
++    gpio_set_drive_mode(LCD_RESET_IO, GPIO_DM_OUTPUT);
+ 
+-    muxpin_set_function(79, FUNC_GPIO20);
+-    gpio_set_drive_mode(20,GPIO_DM_OUTPUT);
+-
+-    muxpin_set_function(49, FUNC_GPIO23);
+-    gpio_set_drive_mode(23,GPIO_DM_OUTPUT);
++    muxpin_set_function(LCD_BACKLIGHT_PIN, FUNC_GPIO0 + LCD_BACKLIGHT_IO);
++    gpio_set_drive_mode(LCD_BACKLIGHT_IO, GPIO_DM_OUTPUT);
+ 
+     lt9611_reset();
+ 
+-    camera_power_on();
+-
+     display_gpio_reset();
+ 
+     display_gpio_poweron();
+diff --git a/board/Canaan/dsi_logo/test/log/main.c b/board/Canaan/dsi_logo/test/log/main.c
+index 1f5ff0e6..efbf31c5 100755
+--- a/board/Canaan/dsi_logo/test/log/main.c
++++ b/board/Canaan/dsi_logo/test/log/main.c
+@@ -23,8 +23,6 @@
+  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+  */
+ #include <common.h>
+-//#include <cpu/k510.h>
+-//#include <cpu/cache.h>
+ #include <cpu/interrupt.h>
+ #include <cpu/sleep.h>
+ #include <controler/i2c.h>
+@@ -36,28 +34,11 @@
+ #include <video/mipi/dphy/mipi_corner.h>
+ #include <video/mipi/dphy/mipi_rxdphy.h>
+ #include "pcal6416.h"
+-#include  "controler/sysctl_clk.h"
+-#include  "controler/sysctl_boot.h"
+-
++#include "controler/sysctl_clk.h"
++#include "controler/sysctl_boot.h"
+ #include "hw_dev/inc/display_hardware_init.h"
+-
+-//#include <video/mipi/dphy/mipi_txdphy.h>
+-//
+-//#include "isp/isp.h"
+-//#include "vi/vi.h"
+ #include "vo/vo.h"
+-//#include "isp_3d/isp_3d.h"
+-//#include "mfbc/mfbc.h"
+-//#include "td/td.h"
+-//#include "bt1120/bt1120.h"
+-//#include "sensor/sensor.h"
+-//
+-//
+-//#include "hw_dev/inc/ext_ctl_hw.h"
+-//#include "hw_dev/inc/dev_hw.h"
+-//#include "hw_dev/inc/dev_reg.h"
+-//#include "hw_dev/inc/fpga_system.h"
+-
++#include "ws2812/ws2812.h"
+ 
+ 
+ void SYSCTL_DRV_Init(void)
+@@ -226,9 +207,20 @@ ulong board_get_usable_ram_top(ulong total_size)
+ 	return gd->ram_top - 0x200000;
+ }                                                   
+ 
++#define WS2812_PIN 122
++
++static void ws2812_init(void)
++{
++    ws2812_info *ws_info;
++    ws2812_init_spi(WS2812_PIN);
++    ws_info = ws2812_get_buf(1);
++    ws2812_set_data(ws_info, 0, NONE);
++    ws2812_send_data_spi(ws_info);
++}
+ 
+ int board_late_init(void)
+ {
++    ws2812_init();
+ 	main_logo(0,0,0,0);
+ 	return 0;
+ }
+diff --git a/board/Canaan/dsi_logo/test/log/ws2812/ws2812.c b/board/Canaan/dsi_logo/test/log/ws2812/ws2812.c
+new file mode 100755
+index 00000000..c21812eb
+--- /dev/null
++++ b/board/Canaan/dsi_logo/test/log/ws2812/ws2812.c
+@@ -0,0 +1,140 @@
++/* Copyright (c) 2022, Canaan Bright Sight Co., Ltd
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions are met:
++ * 1. Redistributions of source code must retain the above copyright
++ * notice, this list of conditions and the following disclaimer.
++ * 2. Redistributions in binary form must reproduce the above copyright
++ * notice, this list of conditions and the following disclaimer in the
++ * documentation and/or other materials provided with the distribution.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
++ * CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
++ * INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
++ * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
++ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
++ * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
++ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
++ * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
++ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
++ * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
++ * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
++ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++// #include <common.h>
++#include "ws2812.h"
++#include "controler/sysctl_clk.h"
++#include "controler/sysctl_rst.h"
++#include "controler/muxpin.h"
++#include "controler/gpio.h"
++#include "cpu/cache.h"
++#include "controler/spi.h"
++
++
++ws2812_info *ws2812_get_buf(uint32_t num)
++{
++    ws2812_info *ws = malloc(sizeof(ws2812_info));
++
++    if (ws == NULL)
++        return NULL;
++    ws->ws_num = num;
++    ws->ws_buf = malloc(num * sizeof(ws2812_data));
++    if (ws->ws_buf == NULL) {
++        free(ws);
++        return NULL;
++    }
++    memset(ws->ws_buf, 0, num * sizeof(ws2812_data));
++    return ws;
++}
++
++bool ws2812_set_data(ws2812_info *ws, uint32_t num, uint32_t color)
++{
++    if (ws == NULL)
++        return false;
++
++    if (ws->ws_buf == NULL)
++        return false;
++    if (num >= ws->ws_num)
++        return false;
++    printf("led color is 0x%08x\n", color);
++    (ws->ws_buf + num)->red = (uint8_t)(color >> 16);
++    (ws->ws_buf + num)->green = (uint8_t)(color >> 8);
++    (ws->ws_buf + num)->blue = (uint8_t)color;
++
++    return true;
++}
++
++void ws2812_init_spi(uint8_t pin)
++{
++    muxpin_set_function(pin, FUNC_SPI1_D0);
++
++    sysctl_clk_set_leaf_en(SYSCTL_CLK_SPI1_SCLK, false);
++    usleep(10);
++    sysctl_clk_set_leaf_parent(SYSCTL_CLK_SPI1_SCLK,SYSCTL_CLK_ROOT_PLL0);
++    usleep(10);
++    sysctl_clk_set_leaf_en(SYSCTL_CLK_SPI1_SCLK, true);
++    usleep(10);
++    sysctl_clk_set_leaf_div(SYSCTL_CLK_SPI1_SCLK, 1, 2);  //1G/16=62.5MHz
++    usleep(10);
++    sysctl_reset(SYSCTL_RESET_PERI_DMA);
++    sysctl_reset(SYSCTL_RESET_SPI1);
++
++    spi_init(1, 18);
++}
++
++bool ws2812_send_data_spi(ws2812_info *ws)
++{
++    uint32_t resbit;
++
++    if (ws == NULL)
++        return false;
++
++    if (ws->ws_buf == NULL)
++        return false;
++
++    size_t ws_cnt = ws->ws_num;
++    uint32_t *ws_data = (uint32_t *)ws->ws_buf;
++
++    uint32_t freq_spi_src = sysctl_clk_get_leaf_freq(SYSCTL_CLK_SPI1_SCLK);
++
++    uint32_t freq_spi = freq_spi_src / 18;//31250000
++
++    double clk_time = 1e9 / freq_spi;   // ns per clk
++
++    resbit = (500000 / clk_time);   // > 300us 312
++
++    uint32_t spi_send_cnt = ws_cnt * 24 ; //加最后的reset
++    uint32_t reset_cnt = resbit / 32;      //先reset
++    uint32_t len = (reset_cnt + spi_send_cnt + reset_cnt) * 4;
++    uint32_t *tmp_spi_data = malloc(len);
++
++    if (tmp_spi_data == NULL)
++        return false;
++
++    memset(tmp_spi_data, 0, len);
++    uint32_t *spi_data = tmp_spi_data;
++
++    spi_data += reset_cnt;
++
++    uint32_t highvalue  =   0xFFFFFC00;
++    uint32_t lowvalue   =   0xFF800000;
++
++    for (int i = 0; i < ws_cnt; i++) {
++
++        for (uint32_t mask = 0x800000; mask > 0; mask >>= 1) {
++
++            if (ws_data[i] & mask) {
++                *(spi_data) = highvalue;
++            } else{
++                *(spi_data) = lowvalue;
++            }
++            spi_data++;
++        }
++    }
++    cache_wb_all();
++    spi_send_data_dma(1, tmp_spi_data, len);
++
++    free(tmp_spi_data);
++    return true;
++}
+diff --git a/board/Canaan/dsi_logo/test/log/ws2812/ws2812.h b/board/Canaan/dsi_logo/test/log/ws2812/ws2812.h
+new file mode 100755
+index 00000000..f792a3be
+--- /dev/null
++++ b/board/Canaan/dsi_logo/test/log/ws2812/ws2812.h
+@@ -0,0 +1,55 @@
++/* Copyright (c) 2022, Canaan Bright Sight Co., Ltd
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions are met:
++ * 1. Redistributions of source code must retain the above copyright
++ * notice, this list of conditions and the following disclaimer.
++ * 2. Redistributions in binary form must reproduce the above copyright
++ * notice, this list of conditions and the following disclaimer in the
++ * documentation and/or other materials provided with the distribution.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
++ * CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
++ * INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
++ * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
++ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
++ * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
++ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
++ * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
++ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
++ * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
++ * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
++ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++#ifndef _WS2812_H
++#define _WS2812_H
++
++#include <common.h>
++
++#define RED 	0x00FF0000
++#define GREEN 	0x0000FF00
++#define BLUE 	0x000000FF
++#define NONE 	0x00000000
++
++
++typedef struct _WS2812_DATA {
++    uint32_t blue : 8;
++    uint32_t red : 8;
++    uint32_t green : 8;
++    uint32_t reserved : 8;
++} __attribute__((packed, aligned(4))) ws2812_data;
++
++typedef struct _WS2812_INFO {
++    size_t ws_num;
++    ws2812_data *ws_buf;
++} ws2812_info;
++
++void ws2812_init_spi(uint8_t pin);
++bool ws2812_send_data_spi(ws2812_info *ws);
++
++ws2812_info *ws2812_get_buf(uint32_t num);
++bool ws2812_set_data(ws2812_info *ws, uint32_t num, uint32_t color);
++
++#endif
++
+diff --git a/configs/k510_crb_lp3_v1_2_defconfig b/configs/k510_crb_lp3_v1_2_defconfig
+index 7a3e4084..3b4dc85a 100755
+--- a/configs/k510_crb_lp3_v1_2_defconfig
++++ b/configs/k510_crb_lp3_v1_2_defconfig
+@@ -34,7 +34,8 @@ CONFIG_ENV_FAT_INTERFACE="mmc"
+ CONFIG_ENV_FAT_DEVICE_AND_PART="auto"
+ CONFIG_SYS_RELOC_GD_ENV_ADDR=y
+ CONFIG_NET_RANDOM_ETHADDR=y
+-CONFIG_V5L2_CACHE=y
++CONFIG_CACHE=n
++CONFIG_V5L2_CACHE=n
+ CONFIG_MMC=y
+ CONFIG_SUPPORT_EMMC_RPMB=y
+ CONFIG_SUPPORT_EMMC_BOOT=y
+-- 
+2.17.1
+
