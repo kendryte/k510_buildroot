@@ -1029,7 +1029,50 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
         .tv_sec = 5,
         .tv_usec = 0
     };
-    // fill double buffer
+    // read some (30) frames
+    for (unsigned cnt = 0; cnt < 30; cnt++) {
+        bit_mask_w = bit_mask;
+        do {
+            fd_set rfds = fds;
+            int r = select(max_fd + 1, &rfds, NULL, NULL, &tv);
+            if (r > 0) {
+                for (unsigned i = 0; i < 2; i++) {
+                    if (dev_info[i].video_used && FD_ISSET(camera[i].fd, &rfds)) {
+                        if (readframe(camera[i].fd, &vbuf[0][i]) == -1) {
+                            if (errno == EAGAIN) {
+                                continue;
+                            }
+                            // error
+                            perror("readframe() error");
+                            goto cleanup;
+                        }
+                        if (xioctl(camera[i].fd, VIDIOC_QBUF, &vbuf[0][i]) < 0) {
+                            perror("camera VIDIOC_QBUF");
+                            goto cleanup;
+                        }
+                        #define DEBUG_VBUF_IDX 0
+                        #if DEBUG_VBUF_IDX
+                        fprintf(stderr, "> %d\n", vbuf[j][i].index);
+                        #endif
+                        // FIXME: should be (1U << (i - 1))
+                        //if(isp_ae_status & (i + 1)) {
+                        //    mediactl_set_ae(ISP_F2K_PIPELINE + i);
+                        //}
+                        bit_mask_w &= ~(1U << i);
+                    }
+                }
+            } else if (r == 0) {
+                // timeout
+                fprintf(stderr, "camera select() timeout at line %d\n", __LINE__);
+                goto cleanup;
+            } else {
+                // error
+                perror("camera select() error");
+                goto cleanup;
+            }
+        } while (bit_mask_w);
+    }
+    // start fill double buffer
     for (unsigned j = 0; j < 2; j++) {
         bit_mask_w = bit_mask;
         do {
@@ -1072,19 +1115,19 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
     // display vbuf[0]
     if(dev_info[0].video_used && dev_info[1].video_used) {
         if (drm_dmabuf_set_2plane(
-                &drm_dev.drm_bufs[vbuf[0][0].index],
-                &drm_dev.drm_bufs[vbuf[0][1].index + BUFFERS_COUNT])) {
+                &drm_dev.drm_bufs[vbuf[1][0].index],
+                &drm_dev.drm_bufs[vbuf[1][1].index + BUFFERS_COUNT])) {
             printf("Flush fail\n");
             goto cleanup;
         }
     } 
     else if(dev_info[0].video_used) { 
-        if (drm_dmabuf_set_plane(&drm_dev.drm_bufs[vbuf[0][0].index])) {
+        if (drm_dmabuf_set_plane(&drm_dev.drm_bufs[vbuf[1][0].index])) {
             printf("Flush fail\n");
             goto cleanup;
         }
     } else if(dev_info[1].video_used) {
-        if (drm_dmabuf_set_plane(&drm_dev.drm_bufs[vbuf[0][1].index + BUFFERS_COUNT])) {
+        if (drm_dmabuf_set_plane(&drm_dev.drm_bufs[vbuf[1][1].index + BUFFERS_COUNT])) {
             printf("Flush fail\n");
             goto cleanup;
         }
