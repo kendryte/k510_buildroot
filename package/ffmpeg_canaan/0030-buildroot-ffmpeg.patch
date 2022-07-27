@@ -49,7 +49,7 @@ Index: b/libavdevice/v4l2.c
 +        buf_descriptor->index = buf.index;
 +        buf_descriptor->s     = s;
 +        mmap_release_buffer(buf_descriptor, NULL);
-+        printf("%s>drop at begining index %d\n", __FUNCTION__, buf.index);
++        //printf("%s>drop at begining index %d\n", __FUNCTION__, buf.index);
 +        return 0;
 +      }
        
@@ -82,7 +82,7 @@ Index: b/libavdevice/v4l2.c
 +      buf_descriptor->index = buf.index;
 +      buf_descriptor->s     = s;
 +      mmap_release_buffer(buf_descriptor, NULL);
-+      printf("%s>drop at begining index %d\n", __FUNCTION__, buf.index);
++      //printf("%s>drop at begining index %d\n", __FUNCTION__, buf.index);
 +      return 0;
 +    }
 +
