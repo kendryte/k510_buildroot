@@ -632,13 +632,13 @@ int video_resolution_adaptation(void)
             break;
         case VIDEO_INPUT_0_ENABLE | VIDEO_INPUT_1_ENABLE:
             sensor0_cfg_file = "imx219_0.conf";
-            video_width[0] = 936;
-            video_height[0] = 526;
+            video_width[0] = 944;
+            video_height[0] = 532;
             video_offset_x[0] = (screen_width / 2 - video_width[0]) / 2;
             video_offset_y[0] = (screen_height - video_height[0]) / 2;
             sensor1_cfg_file = "imx219_1.conf";
-            video_width[1] = 936;
-            video_height[1] = 526;
+            video_width[1] = 944;
+            video_height[1] = 532;
             video_offset_x[1] = screen_width / 2 + (screen_width / 2 - video_width[1]) / 2;
             video_offset_y[1] = (screen_height - video_height[1]) / 2;
             break;
@@ -659,15 +659,15 @@ int video_resolution_adaptation(void)
             break;
         case VIDEO_INPUT_0_ENABLE | VIDEO_INPUT_1_ENABLE:
             sensor0_cfg_file = "imx219_0.conf";
-            video_width[0] = 1080;
-            video_height[0] = 720;
-            video_offset_x[0] = 0;
-            video_offset_y[0] = 200;
+            video_width[0] = 1072;
+            video_height[0] = 604;
+            video_offset_x[0] = (screen_width - video_width[0]) / 2;
+            video_offset_y[0] = (screen_height / 2 - video_height[0]) / 2;
             sensor1_cfg_file = "imx219_1.conf";
-            video_width[1] = 1080;
-            video_height[1] = 720;
-            video_offset_x[1] = 0;
-            video_offset_y[1] = 1000;
+            video_width[1] = 1072;
+            video_height[1] = 604;
+            video_offset_x[1] = (screen_width - video_width[1]) / 2;
+            video_offset_y[1] = screen_height / 2 + (screen_height / 2 - video_height[1]) / 2;
             break;
         default:
             return -1;
@@ -686,13 +686,13 @@ int video_resolution_adaptation(void)
             break;
         case VIDEO_INPUT_0_ENABLE | VIDEO_INPUT_1_ENABLE:
             sensor0_cfg_file = "imx219_0.conf";
-            video_width[0] = 616;
-            video_height[0] = 346;
+            video_width[0] = 624;
+            video_height[0] = 352;
             video_offset_x[0] = (screen_width / 2 - video_width[0]) / 2;
             video_offset_y[0] = (screen_height - video_height[0]) / 2;
             sensor1_cfg_file = "imx219_1.conf";
-            video_width[1] = 616;
-            video_height[1] = 346;
+            video_width[1] = 624;
+            video_height[1] = 352;
             video_offset_x[1] = screen_width / 2 + (screen_width / 2 - video_width[1]) / 2;
             video_offset_y[1] = (screen_height - video_height[1]) / 2;
             break;
