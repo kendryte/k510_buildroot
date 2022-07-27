@@ -1,0 +1,49 @@
+From 1ab87143b3d9958d0f5a62dcf6ff6ba1771bf4a9 Mon Sep 17 00:00:00 2001
+From: longyiluo <longyiluo@canaan-creative.com>
+Date: Tue, 26 Jul 2022 15:49:38 +0800
+Subject: [PATCH] fix-isp-image-size-align
+
+---
+ drivers/media/platform/canaan-isp/k510isp_video.c | 6 +++---
+ include/media/media-entity.h                      | 1 -
+ 2 files changed, 3 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/media/platform/canaan-isp/k510isp_video.c b/drivers/media/platform/canaan-isp/k510isp_video.c
+index 440afc53..aad3680c 100755
+--- a/drivers/media/platform/canaan-isp/k510isp_video.c
++++ b/drivers/media/platform/canaan-isp/k510isp_video.c
+@@ -296,8 +296,8 @@ static unsigned int k510isp_video_mbus_to_pix(const struct k510isp_video *video,
+ 	else
+ 		bpl = min_bpl;
+ 
+-	if (!video->bpl_zero_padding || bpl != min_bpl)
+-		bpl = ALIGN(bpl, video->bpl_alignment);
++	//if (!video->bpl_zero_padding || bpl != min_bpl)
++	//	bpl = ALIGN(bpl, video->bpl_alignment);
+ 
+ 	pix->pixelformat = formats[i].pixelformat;
+ 	pix->bytesperline = bpl;
+@@ -1317,7 +1317,7 @@ static int k510isp_video_check_external_subdevs(struct k510isp_video *video,stru
+ 	{
+ 		*first_bmap = first_bmap_val;
+ 	}
+-	dev_info(video->isp->dev,"%s:fisrt_video(%d),first_bmap_val(0x%x),first_bmap(0x%x,%p)\n",__func__,fisrt_video,first_bmap_val,*first_bmap,first_bmap);
++	dev_dbg(video->isp->dev,"%s:fisrt_video(%d),first_bmap_val(0x%x),first_bmap(0x%x,%p)\n",__func__,fisrt_video,first_bmap_val,*first_bmap,first_bmap);
+ 	for (i = 0; i < ARRAY_SIZE(ents); i++) {
+ 		/* Is the entity part of the pipeline? */
+ 		if (!media_entity_enum_test(&pipe->ent_enum, ents[i]))
+diff --git a/include/media/media-entity.h b/include/media/media-entity.h
+index 2868a78e..4717ee76 100755
+--- a/include/media/media-entity.h
++++ b/include/media/media-entity.h
+@@ -475,7 +475,6 @@ static inline bool media_entity_enum_test(struct media_entity_enum *ent_enum,
+ {
+ 	if (WARN_ON(entity->internal_idx >= ent_enum->idx_max))
+ 		return true;
+-	printk("%s:internal_idx(0x%x),ent_enum->bmap(0x%x)\n",__func__,entity->internal_idx,*ent_enum->bmap);
+ 	return test_bit(entity->internal_idx, ent_enum->bmap);
+ }
+ 
+-- 
+2.17.1
+
