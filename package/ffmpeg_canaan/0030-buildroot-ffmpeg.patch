@@ -1,0 +1,91 @@
+Index: b/libavdevice/v4l2.c
+===================================================================
+--- a/libavdevice/v4l2.c
++++ b/libavdevice/v4l2.c
+@@ -43,6 +43,8 @@
+ #include <libv4l2.h>
+ #endif
+ 
++#define ISP_START_DROP_CNT  (20)   //drop garbage from the beginning
++
+ static const int desired_video_buffers = 256;
+ 
+ #define V4L_ALLFORMATS  3
+@@ -125,6 +127,7 @@ struct video_data {
+     int isp_pic_cnt;
+     int drop_cnt;
+     int repeat_cnt;
++	int start_drop_cnt;
+     /*----------------------------------------*/
+ 
+     int buffers;
+@@ -297,10 +300,10 @@ static void isp_init(AVFormatContext *ct
+         printf("mediactl_init error!\n");
+         return -1;
+     }
+-  
+-    //mediactl_set_ae();
+-    
++      
+     s->pts = 0;
++    s->isp_pic_cnt = 0;
++    s->start_drop_cnt = 0;
+   
+     //QoS setting for memory bandwidth
+     reg=(unsigned char * )mmap(NULL, MEMORY_TEST_BLOCK_ALIGN, PROT_READ | PROT_WRITE, MAP_SHARED, s->fd_ddr, MAILBOX_REG_BASE);
+@@ -919,6 +922,21 @@ static int mmap_read_frame_usrptr(AVForm
+                  av_err2str(res));
+           return res;
+       }
++
++      if(s->start_drop_cnt < ISP_START_DROP_CNT)
++      {
++        struct buff_data *buf_descriptor;
++        
++        pkt->size = 0;
++        s->start_drop_cnt++;
++
++        buf_descriptor = av_malloc(sizeof(struct buff_data));
++        buf_descriptor->index = buf.index;
++        buf_descriptor->s     = s;
++        mmap_release_buffer(buf_descriptor, NULL);
++        printf("%s>drop at begining index %d\n", __FUNCTION__, buf.index);
++        return 0;
++      }
+       
+       buf_ts = buf.timestamp;
+ 
+@@ -992,11 +1010,7 @@ static int mmap_read_frame_usrptr(AVForm
+ 
+     if(pkt->size > 0)
+     {
+-#if 0
+         s->pts += 1;
+-#else
+-        s->pts += (-1 == ret)?0:1;//需要drop的帧时间戳 与上一帧相同，避免return pkt为0.
+-#endif
+         pkt->pts = s->pts;
+         pkt->dts = s->pts;   
+     }
+@@ -1030,6 +1044,21 @@ static int mmap_read_frame(AVFormatConte
+         return res;
+     }
+ 
++    if(s->start_drop_cnt < ISP_START_DROP_CNT)
++    {
++      struct buff_data *buf_descriptor;
++      
++      pkt->size = 0;
++      s->start_drop_cnt++;
++
++      buf_descriptor = av_malloc(sizeof(struct buff_data));
++      buf_descriptor->index = buf.index;
++      buf_descriptor->s     = s;
++      mmap_release_buffer(buf_descriptor, NULL);
++      printf("%s>drop at begining index %d\n", __FUNCTION__, buf.index);
++      return 0;
++    }
++
+     buf_ts = buf.timestamp;
+ 
+     if (buf.index >= s->buffers) {
