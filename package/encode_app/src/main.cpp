@@ -531,7 +531,7 @@ static void *v4l2_output(void *arg)
           printf("v4l2 buffer overflow\n");
           enqueue_buf(buf.index, channel);
       }
-      else if(time - start_time < 100000000)
+      else if(time - start_time < 1000000000)
       {
           if(pCtx->v4l2_pic_cnt[channel] == 0)
           {

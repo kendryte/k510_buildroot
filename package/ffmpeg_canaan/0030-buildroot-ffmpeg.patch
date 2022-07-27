@@ -6,7 +6,7 @@ Index: b/libavdevice/v4l2.c
  #include <libv4l2.h>
  #endif
  
-+#define ISP_START_DROP_CNT  (20)   //drop garbage from the beginning
++#define ISP_START_DROP_CNT  (30)   //drop garbage from the beginning
 +
  static const int desired_video_buffers = 256;
  
