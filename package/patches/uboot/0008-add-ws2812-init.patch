@@ -1,20 +1,19 @@
-From 61c2f86d9f65321992fc8de6e1106f9313bc2727 Mon Sep 17 00:00:00 2001
+From 56f0a93a5e9e0886a1c758e3f814e8ec8063c11a Mon Sep 17 00:00:00 2001
 From: wycwyhwyq <5f20.6d9b@gmail.com>
-Date: Tue, 26 Jul 2022 15:56:47 +0800
-Subject: [PATCH 2/2] add ws2812 init
+Date: Wed, 27 Jul 2022 17:33:33 +0800
+Subject: [PATCH] add ws2812 init
 
 ---
  board/Canaan/dsi_logo/Makefile                |   4 +
  board/Canaan/dsi_logo/bsp/controler/spi.c     |   3 +-
- board/Canaan/dsi_logo/bsp/cpu/cache.c         |   4 +-
+ board/Canaan/dsi_logo/bsp/cpu/cache.c         |  18 +--
  board/Canaan/dsi_logo/bsp/cpu/interrupt.c     |   2 +-
  board/Canaan/dsi_logo/bsp/include/cpu/cache.h |   5 +-
  .../log/hw_dev/src/display_hardware_init.c    |  74 +++++----
  board/Canaan/dsi_logo/test/log/main.c         |  36 ++---
  .../Canaan/dsi_logo/test/log/ws2812/ws2812.c  | 140 ++++++++++++++++++
  .../Canaan/dsi_logo/test/log/ws2812/ws2812.h  |  55 +++++++
- configs/k510_crb_lp3_v1_2_defconfig           |   3 +-
- 10 files changed, 256 insertions(+), 70 deletions(-)
+ 9 files changed, 261 insertions(+), 76 deletions(-)
  create mode 100755 board/Canaan/dsi_logo/test/log/ws2812/ws2812.c
  create mode 100755 board/Canaan/dsi_logo/test/log/ws2812/ws2812.h
 
@@ -50,7 +49,7 @@ index 470578cb..4cb4222f 100755
  volatile spi_t *const spi[4] =
  {
 diff --git a/board/Canaan/dsi_logo/bsp/cpu/cache.c b/board/Canaan/dsi_logo/bsp/cpu/cache.c
-index 9e501f5c..99c1426e 100755
+index 9e501f5c..ab896a36 100755
 --- a/board/Canaan/dsi_logo/bsp/cpu/cache.c
 +++ b/board/Canaan/dsi_logo/bsp/cpu/cache.c
 @@ -22,10 +22,10 @@
@@ -66,6 +65,27 @@ index 9e501f5c..99c1426e 100755
  
  volatile l2cache *ax25_l2cache = (volatile l2cache *)L2C_BASE_ADDR;
  
+@@ -253,13 +253,13 @@ __attribute__((always_inline)) inline void l1cache_va_wbinval(uint64_t addr, siz
+     l1cache_va_handle(addr, len, CCTL_L1D_VA_WBINVAL);
+ }
+ 
+-__attribute__((always_inline)) inline void cache_enable(void)
+-{
+-    l1cache_disable();
+-    if(!is_dsp_type())
+-        l2cache_enable();
+-    l1cache_enable();
+-}
++// __attribute__((always_inline)) inline void cache_enable(void)
++// {
++//     l1cache_disable();
++//     if(!is_dsp_type())
++//         l2cache_enable();
++//     l1cache_enable();
++// }
+ 
+ // __attribute__((always_inline)) inline void cache_disable(void)
+ // {
 diff --git a/board/Canaan/dsi_logo/bsp/cpu/interrupt.c b/board/Canaan/dsi_logo/bsp/cpu/interrupt.c
 index 595859df..aeb9e561 100755
 --- a/board/Canaan/dsi_logo/bsp/cpu/interrupt.c
@@ -507,20 +527,6 @@ index 00000000..f792a3be
 +
 +#endif
 +
-diff --git a/configs/k510_crb_lp3_v1_2_defconfig b/configs/k510_crb_lp3_v1_2_defconfig
-index 7a3e4084..3b4dc85a 100755
---- a/configs/k510_crb_lp3_v1_2_defconfig
-+++ b/configs/k510_crb_lp3_v1_2_defconfig
-@@ -34,7 +34,8 @@ CONFIG_ENV_FAT_INTERFACE="mmc"
- CONFIG_ENV_FAT_DEVICE_AND_PART="auto"
- CONFIG_SYS_RELOC_GD_ENV_ADDR=y
- CONFIG_NET_RANDOM_ETHADDR=y
--CONFIG_V5L2_CACHE=y
-+CONFIG_CACHE=n
-+CONFIG_V5L2_CACHE=n
- CONFIG_MMC=y
- CONFIG_SUPPORT_EMMC_RPMB=y
- CONFIG_SUPPORT_EMMC_BOOT=y
 -- 
 2.17.1
 
