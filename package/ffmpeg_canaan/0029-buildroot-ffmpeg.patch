@@ -1,0 +1,14 @@
+Index: b/libavfilter/af_audio3a.c
+===================================================================
+--- a/libavfilter/af_audio3a.c
++++ b/libavfilter/af_audio3a.c
+@@ -646,6 +646,9 @@ static av_cold void uninit(AVFilterConte
+             printf("%s>Error!\n", __FUNCTION__);
+             }
+         }
++
++        pthread_cancel(s->thread_1);
++        pthread_join(s->thread_1, NULL);
+         
+         close(s->fd_mailbox);
+         close(s->fd_share_memory);
