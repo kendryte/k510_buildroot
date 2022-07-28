@@ -1,4 +1,4 @@
-set(SRC main.cc cv2_utils.cc object_detect.cc ../common/k510_drm.c ../common/v4l2.c)
+set(SRC main.cc cv2_utils.cc object_detect.cc ../common/k510_drm.c ../common/v4l2.c ../common/buf_mgt.cc)
 set(bin object_detect)
 set(script ../shell/object_detect.sh)
 set(input ../imx219_0.conf ../imx219_1.conf ../video_object_detect_320.conf ../video_object_detect_640.conf)

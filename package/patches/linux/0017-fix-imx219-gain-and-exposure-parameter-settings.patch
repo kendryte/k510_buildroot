@@ -1,0 +1,120 @@
+From 339e562403d2fa0d12e057d45f38dfe158a8e1ee Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=E9=BB=84=E5=AD=90=E6=87=BF?=
+ <huangziyi@canaan-creative.com>
+Date: Tue, 19 Jul 2022 17:15:00 +0800
+Subject: [PATCH] fix imx219 gain and exposure parameter settings
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Signed-off-by: 黄子懿 <huangziyi@canaan-creative.com>
+---
+ .../i2c/soc_camera/canaanchip/imx219_0.c      | 28 +++++++++++++++----
+ .../i2c/soc_camera/canaanchip/imx219_1.c      | 28 +++++++++++++++----
+ 2 files changed, 46 insertions(+), 10 deletions(-)
+
+diff --git a/drivers/media/i2c/soc_camera/canaanchip/imx219_0.c b/drivers/media/i2c/soc_camera/canaanchip/imx219_0.c
+index e25d9bfe..c8002b24 100644
+--- a/drivers/media/i2c/soc_camera/canaanchip/imx219_0.c
++++ b/drivers/media/i2c/soc_camera/canaanchip/imx219_0.c
+@@ -766,6 +766,27 @@ static int reg_write(struct i2c_client *client, const u16 addr, const u8 data)
+ 	return ret == 1 ? 0 : -EIO;
+ }
+ 
++static int reg16_write(struct i2c_client *client, const u16 addr, const u16 data)
++{
++	struct i2c_adapter *adap = client->adapter;
++	struct i2c_msg msg;
++	u8 tx[4];
++	int ret;
++
++	msg.addr = client->addr;
++	msg.buf = tx;
++	msg.len = 4;
++	msg.flags = 0;
++	tx[0] = addr >> 8;
++	tx[1] = addr & 0xff;
++	tx[2] = data >> 8;
++	tx[3] = data & 0xff;
++	ret = i2c_transfer(adap, &msg, 1);
++	mdelay(2);
++
++	return ret == 1 ? 0 : -EIO;
++}
++
+ static int reg_read(struct i2c_client *client, const u16 addr)
+ {
+ 	u8 buf[2] = {addr >> 8, addr & 0xff};
+@@ -1099,16 +1120,13 @@ static int imx219_s_ctrl(struct v4l2_ctrl *ctrl)
+ 		 */
+ 
+ 		ret = reg_write(client, 0x0157, priv->analogue_gain);
+-		ret |= reg_write(client, 0x0158, priv->digital_gain >> 8);
+-		ret |= reg_write(client, 0x0159, priv->digital_gain & 0xff);
++		ret |= reg16_write(client, 0x0158, priv->digital_gain);
+ 
+ 		return ret;
+ 
+ 	case V4L2_CID_EXPOSURE:
+ 		priv->exposure_time = ctrl->val;
+-
+-		ret = reg_write(client, 0x015a, priv->exposure_time >> 8);
+-		ret |= reg_write(client, 0x015b, priv->exposure_time & 0xff);
++		ret = reg16_write(client, 0x015a, priv->exposure_time);
+ 		return ret;
+ 
+ 	case V4L2_CID_TEST_PATTERN:
+diff --git a/drivers/media/i2c/soc_camera/canaanchip/imx219_1.c b/drivers/media/i2c/soc_camera/canaanchip/imx219_1.c
+index f11986c9..d30c8a51 100644
+--- a/drivers/media/i2c/soc_camera/canaanchip/imx219_1.c
++++ b/drivers/media/i2c/soc_camera/canaanchip/imx219_1.c
+@@ -764,6 +764,27 @@ static int reg_write(struct i2c_client *client, const u16 addr, const u8 data)
+ 	return ret == 1 ? 0 : -EIO;
+ }
+ 
++static int reg16_write(struct i2c_client *client, const u16 addr, const u16 data)
++{
++	struct i2c_adapter *adap = client->adapter;
++	struct i2c_msg msg;
++	u8 tx[4];
++	int ret;
++
++	msg.addr = client->addr;
++	msg.buf = tx;
++	msg.len = 4;
++	msg.flags = 0;
++	tx[0] = addr >> 8;
++	tx[1] = addr & 0xff;
++	tx[2] = data >> 8;
++	tx[3] = data & 0xff;
++	ret = i2c_transfer(adap, &msg, 1);
++	mdelay(2);
++
++	return ret == 1 ? 0 : -EIO;
++}
++
+ static int reg_read(struct i2c_client *client, const u16 addr)
+ {
+ 	u8 buf[2] = {addr >> 8, addr & 0xff};
+@@ -1092,16 +1113,13 @@ static int imx219_s_ctrl(struct v4l2_ctrl *ctrl)
+ 		 */
+ 
+ 		ret = reg_write(client, 0x0157, priv->analogue_gain);
+-		ret |= reg_write(client, 0x0158, priv->digital_gain >> 8);
+-		ret |= reg_write(client, 0x0159, priv->digital_gain & 0xff);
++		ret |= reg16_write(client, 0x0158, priv->digital_gain);
+ 
+ 		return ret;
+ 
+ 	case V4L2_CID_EXPOSURE:
+ 		priv->exposure_time = ctrl->val;
+-
+-		ret = reg_write(client, 0x015a, priv->exposure_time >> 8);
+-		ret |= reg_write(client, 0x015b, priv->exposure_time & 0xff);
++		ret = reg16_write(client, 0x015a, priv->exposure_time);
+ 		return ret;
+ 
+ 	case V4L2_CID_TEST_PATTERN:
+-- 
+2.36.1
+

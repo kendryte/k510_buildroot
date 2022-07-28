@@ -106,7 +106,7 @@ float minf(float v1, float v2);
 float maxf(float v1, float v2);
 box_t get_enlarged_box(box_t b, int valid_width, int valid_height, cv::Mat mat, float enlarge_ratio);
 box_t get_box_from_landmarks(box_t valid_box, float *cur_pts, int fk_num, float enlarge_ratio);
-frame_coordinate_info get_frame_coord(box_t r, int valid_width, int valid_height);
+frame_coordinate_info get_frame_coord(box_t r, int valid_width, int valid_height, int display_width, int display_height);
 class ScopedTiming
 {
 public:
