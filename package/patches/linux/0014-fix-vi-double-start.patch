@@ -1,0 +1,215 @@
+From c75e52626040bb9d4d9b7dbbd0f039b1c6933e9b Mon Sep 17 00:00:00 2001
+From: longyiluo <longyiluo@canaan-creative.com>
+Date: Thu, 14 Jul 2022 17:32:34 +0800
+Subject: [PATCH] fix vi double start
+
+---
+ drivers/media/media-entity.c                  |  5 ----
+ .../platform/canaan-isp/isp_2k/isp_f2k.c      | 18 ++++++++++---
+ .../platform/canaan-isp/isp_2k/isp_r2k.c      | 25 ++++++++++++++-----
+ .../media/platform/canaan-isp/k510isp_com.h   |  1 +
+ drivers/media/platform/canaan-isp/vi/vi.c     | 21 ++++++++++------
+ 5 files changed, 49 insertions(+), 21 deletions(-)
+
+diff --git a/drivers/media/media-entity.c b/drivers/media/media-entity.c
+index 849ab16..78c0086 100755
+--- a/drivers/media/media-entity.c
++++ b/drivers/media/media-entity.c
+@@ -72,21 +72,16 @@ static inline const char *intf_type(struct media_interface *intf)
+ __must_check int __media_entity_enum_init(struct media_entity_enum *ent_enum,
+ 					  int idx_max)
+ {
+-	printk("%s:idx_max(0x%x)start\n",__func__,idx_max);
+ 	idx_max = ALIGN(idx_max, BITS_PER_LONG);
+-	printk("%s:ent_enum->bmap1(%p),idx_max(0x%x)\n",__func__,ent_enum->bmap,idx_max);
+ 	ent_enum->bmap = kcalloc(idx_max / BITS_PER_LONG, sizeof(long),
+ 				 GFP_KERNEL);
+-	printk("%s:ent_enum->bmap2(%p)\n",__func__,ent_enum->bmap);			
+ 	if (!ent_enum->bmap)
+ 	{
+-		printk("%s:err ent_enum->bmap(%p)\n",__func__,ent_enum->bmap);
+ 		return -ENOMEM;
+ 	}	
+ 
+ 	bitmap_zero(ent_enum->bmap, idx_max);
+ 	ent_enum->idx_max = idx_max;
+-	printk("%s:end\n",__func__);
+ 	return 0;
+ }
+ EXPORT_SYMBOL_GPL(__media_entity_enum_init);
+diff --git a/drivers/media/platform/canaan-isp/isp_2k/isp_f2k.c b/drivers/media/platform/canaan-isp/isp_2k/isp_f2k.c
+index 3b63639..a420dbe 100755
+--- a/drivers/media/platform/canaan-isp/isp_2k/isp_f2k.c
++++ b/drivers/media/platform/canaan-isp/isp_2k/isp_f2k.c
+@@ -2812,17 +2812,28 @@ static void video_buffer_next(struct isp_f2k_device *f2k, enum video_type dsNum)
+ 	struct k510isp_buffer *buf, *next_buf;
+ 	unsigned long flags;
+ 	int drop=0;
++	struct isp_cfg_info *isp_cfg = &f2k->isp_cfg;
+ 	
+ 	dev_dbg(video->isp->dev,"%s:start\n",__func__);
+ 	spin_lock_irqsave(&video->irqlock, flags);
+ 	if (WARN_ON(list_empty(&video->dmaqueue))) {
+ 		dev_err(video->isp->dev,"%s:WARN_ONlist_empty\n",__func__);
+ 		spin_unlock_irqrestore(&video->irqlock, flags);
++		if(isp_cfg->isp_wrap_cfg.ds0Info.ds0_out_en == 0 && dsNum == DS0_VIDEO)
++		{
++		  return;
++		}		
++		f2k->profile.no_buf_drop_cnt++;
+ 		return;
+ 	}
+ 
+ 	if (list_is_singular(&video->dmaqueue)) {//only one buffer, for isp, return NULL
+ 		spin_unlock_irqrestore(&video->irqlock, flags);
++		if(isp_cfg->isp_wrap_cfg.ds0Info.ds0_out_en == 0 && dsNum == DS0_VIDEO)
++		{
++		  return;
++		}		
++		f2k->profile.no_buf_drop_cnt++;
+ 		return;
+ 	}
+ 
+@@ -3370,10 +3381,11 @@ static int f2k_set_stream(struct v4l2_subdev *sd, int enable)
+ 		mutex_unlock(&f2k->ioctl_lock);
+ 		if(f2k->profile.drop_threshold > 0)
+ 		{
+-		  printk("f2k interrupt: max duration %lld us, big_cnt %d\n", f2k->profile.max_int_duration, f2k->profile.big_dur_cnt);
+-		  printk("f2k interrupt: max interval %lld us, big_cnt %d\n", f2k->profile.max_int_interval, f2k->profile.big_inter_cnt);
+-		  printk("f2k drop_threshold %lld, drop_cnt %d, dmaErrCnt %d\n", f2k->profile.drop_threshold, f2k->profile.drop_cnt, f2k->profile.dmaErrCnt);
++		  dev_info(f2k->isp->dev,"f2k interrupt: max duration %lld us, big_cnt %d\n", f2k->profile.max_int_duration, f2k->profile.big_dur_cnt);
++		  dev_info(f2k->isp->dev,"f2k interrupt: max interval %lld us, big_cnt %d\n", f2k->profile.max_int_interval, f2k->profile.big_inter_cnt);
++		  dev_info(f2k->isp->dev,"f2k jump drop_cnt %d\n", f2k->profile.drop_cnt);
+ 		}		
++		dev_info(f2k->isp->dev,"f2k dmaErrCnt %d, no_buf_drop_cnt %d, total %d\n", f2k->profile.dmaErrCnt, f2k->profile.no_buf_drop_cnt, f2k->profile.pic_cnt);
+ 		break;
+ 	}
+ 
+diff --git a/drivers/media/platform/canaan-isp/isp_2k/isp_r2k.c b/drivers/media/platform/canaan-isp/isp_2k/isp_r2k.c
+index a6826c8..95b2b27 100755
+--- a/drivers/media/platform/canaan-isp/isp_2k/isp_r2k.c
++++ b/drivers/media/platform/canaan-isp/isp_2k/isp_r2k.c
+@@ -2431,17 +2431,28 @@ static void video_buffer_next(struct isp_r2k_device *r2k, enum video_type dsNum)
+ 	struct k510isp_buffer *buf, *next_buf;
+ 	unsigned long flags;
+ 	int drop = 0;
++	struct isp_cfg_info *isp_cfg = &r2k->isp_cfg;
+ 	
+ 	dev_dbg(video->isp->dev,"%s:start\n",__func__);
+ 	spin_lock_irqsave(&video->irqlock, flags);
+ 	if (WARN_ON(list_empty(&video->dmaqueue))) {
+ 		dev_err(video->isp->dev,"%s:WARN_ONlist_empty\n",__func__);
+ 		spin_unlock_irqrestore(&video->irqlock, flags);
++		if(isp_cfg->isp_wrap_cfg.ds0Info.ds0_out_en == 0 && dsNum == DS0_VIDEO)
++		{
++		  return;
++		}		
++		r2k->profile.no_buf_drop_cnt++;
+ 		return;
+ 	}
+ 
+ 	if (list_is_singular(&video->dmaqueue)) {//only one buffer, for isp, return NULL
+ 		spin_unlock_irqrestore(&video->irqlock, flags);
++		if(isp_cfg->isp_wrap_cfg.ds0Info.ds0_out_en == 0 && dsNum == DS0_VIDEO)
++		{
++		  return;
++		}		
++		r2k->profile.no_buf_drop_cnt++;
+ 		return;
+ 	}
+ 
+@@ -2906,6 +2918,7 @@ static int r2k_set_stream(struct v4l2_subdev *sd, int enable)
+ 
+ 	struct isp_cfg_info *isp_cfg = &r2k->isp_cfg;
+ 	struct isp_irq_info irq_info; 
++	
+ 	if (r2k->state == ISP_PIPELINE_STREAM_STOPPED) {
+ 		if (enable == ISP_PIPELINE_STREAM_STOPPED)
+ 		{
+@@ -2917,12 +2930,11 @@ static int r2k_set_stream(struct v4l2_subdev *sd, int enable)
+ 			return 0;
+ 		}	
+ 		atomic_set(&r2k->stopping, 0);
+-	}
++	}	
+ 
+ 	switch (enable) {
+ 	case ISP_PIPELINE_STREAM_CONTINUOUS:
+ 		mutex_lock(&r2k->ioctl_lock);
+-		
+ 		isp_r2k_config(isp,isp_cfg);
+ 		mutex_unlock(&r2k->ioctl_lock);
+ 		dev_dbg(r2k->isp->dev,"%s:main_out_en(0x%x)\n",__func__,isp_cfg->isp_wrap_cfg.mainInfo.main_out_en);
+@@ -2974,10 +2986,11 @@ static int r2k_set_stream(struct v4l2_subdev *sd, int enable)
+ 		mutex_unlock(&r2k->ioctl_lock);
+ 		if(r2k->profile.drop_threshold > 0)
+ 		{
+-		  printk("r2k interrupt: max duration %lld us, big_cnt %d\n", r2k->profile.max_int_duration, r2k->profile.big_dur_cnt);
+-		  printk("r2k interrupt: max interval %lld us, big_cnt %d\n", r2k->profile.max_int_interval, r2k->profile.big_inter_cnt);
+-		  printk("r2k drop_threshold %lld, drop_cnt %d, dmaErrCnt %d\n", r2k->profile.drop_threshold, r2k->profile.drop_cnt, r2k->profile.dmaErrCnt);
+-		}
++		  dev_info(r2k->isp->dev,"r2k interrupt: max duration %lld us, big_cnt %d\n", r2k->profile.max_int_duration, r2k->profile.big_dur_cnt);
++		  dev_info(r2k->isp->dev,"r2k interrupt: max interval %lld us, big_cnt %d\n", r2k->profile.max_int_interval, r2k->profile.big_inter_cnt);
++		  dev_info(r2k->isp->dev,"r2k jump drop_cnt %d\n", r2k->profile.drop_cnt);
++		}		
++		dev_info(r2k->isp->dev,"r2k dmaErrCnt %d, no_buf_drop_cnt %d, total %d\n", r2k->profile.dmaErrCnt, r2k->profile.no_buf_drop_cnt, r2k->profile.pic_cnt);
+ 		break;
+ 	}
+ 
+diff --git a/drivers/media/platform/canaan-isp/k510isp_com.h b/drivers/media/platform/canaan-isp/k510isp_com.h
+index 7ee3337..96eb1ad 100755
+--- a/drivers/media/platform/canaan-isp/k510isp_com.h
++++ b/drivers/media/platform/canaan-isp/k510isp_com.h
+@@ -482,6 +482,7 @@ struct k510_isp_profile {
+ 	unsigned long long buf_set_time;
+ 	unsigned long long drop_threshold;
+ 	int drop_cnt;
++	int no_buf_drop_cnt;
+ };
+ 
+ #endif /*_K510ISP_COM_H*/
+\ No newline at end of file
+diff --git a/drivers/media/platform/canaan-isp/vi/vi.c b/drivers/media/platform/canaan-isp/vi/vi.c
+index c319255..77cfe16 100755
+--- a/drivers/media/platform/canaan-isp/vi/vi.c
++++ b/drivers/media/platform/canaan-isp/vi/vi.c
+@@ -1255,7 +1255,8 @@ static int vi_set_stream(struct v4l2_subdev *sd, int enable)
+ 	struct k510_isp_device *isp = to_isp_device(vi);
+ 	int ret = 0;
+ 
+-	dev_dbg(vi->isp->dev,"%s:start\n",__func__);
++	dev_info(vi->isp->dev,"%s:enable %d\n",__func__, enable);
++	
+ 	if (vi->state == ISP_PIPELINE_STREAM_STOPPED) {
+ 		if (enable == ISP_PIPELINE_STREAM_STOPPED)
+ 		{
+@@ -1270,14 +1271,20 @@ static int vi_set_stream(struct v4l2_subdev *sd, int enable)
+ 		//struct vi_cfg_info *vi_cfg = &vi->vi_cfg;
+ 
+ 	}
+-
++  
+ 	switch (enable) {
+ 	case ISP_PIPELINE_STREAM_CONTINUOUS:
+-		k510isp_subclk_enable(isp, K510_ISP_SUBCLK_VI);
+-		vi_config(vi);
+-		if (vi->underrun)
+-			vi_enable(vi);
+-		vi->underrun = 0;
++	  if(vi->state == ISP_PIPELINE_STREAM_CONTINUOUS)
++	  {
++	    dev_info(vi->isp->dev,"%s:skip\n",__func__);
++	    return 0;
++	  }
++	  
++  	k510isp_subclk_enable(isp, K510_ISP_SUBCLK_VI);
++  	vi_config(vi);
++  	if (vi->underrun)
++  		vi_enable(vi);
++  	vi->underrun = 0;
+ 		break;
+ 	case ISP_PIPELINE_STREAM_STOPPED:
+ 		vi_reset(vi);
+-- 
+2.36.1
+

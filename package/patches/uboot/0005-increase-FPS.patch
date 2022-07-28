@@ -1,0 +1,44 @@
+From ed47c7d47f7fd0d92d5f1b49191e5a92f94f1d64 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=E9=BB=84=E5=AD=90=E6=87=BF?=
+ <huangziyi@canaan-creative.com>
+Date: Tue, 12 Jul 2022 10:51:14 +0800
+Subject: [PATCH] increase FPS
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Signed-off-by: 黄子懿 <huangziyi@canaan-creative.com>
+---
+ .../dsi_logo/bsp/controler/video/mipi/dsi/cnds_dsi_test.c       | 2 +-
+ board/Canaan/dsi_logo/test/log/vo/vo_app.c                      | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/board/Canaan/dsi_logo/bsp/controler/video/mipi/dsi/cnds_dsi_test.c b/board/Canaan/dsi_logo/bsp/controler/video/mipi/dsi/cnds_dsi_test.c
+index fbc4f825..4b36dcb7 100755
+--- a/board/Canaan/dsi_logo/bsp/controler/video/mipi/dsi/cnds_dsi_test.c
++++ b/board/Canaan/dsi_logo/bsp/controler/video/mipi/dsi/cnds_dsi_test.c
+@@ -2259,7 +2259,7 @@ void dsi_init_1080x1920()
+         int VACT = 1920;
+         int HSA = 20;
+         int HBP = 20;
+-        int HFP = 220;
++        int HFP = 134;
+ 
+         int VSA = 5;
+         int VBP = 8;
+diff --git a/board/Canaan/dsi_logo/test/log/vo/vo_app.c b/board/Canaan/dsi_logo/test/log/vo/vo_app.c
+index d4b9e5a5..d3f48ebd 100755
+--- a/board/Canaan/dsi_logo/test/log/vo/vo_app.c
++++ b/board/Canaan/dsi_logo/test/log/vo/vo_app.c
+@@ -1090,7 +1090,7 @@ static int VO_TEST_BRINGUP_DSI_GetCtl(VO_CTL_S *voCtl)
+     dispCtl->Disp_en = TRUE;
+     dispCtl->SyncMode = VO_SYSTEM_MODE_1080x1920x30P;
+ #if 1
+-    dispCtl->total_size.Width = 1340 ;//1340;  1125 
++    dispCtl->total_size.Width = 1254;//1340 ;//1340;  1125 
+     dispCtl->total_size.Height = 1958;//1958;//1938???  2200
+     dispCtl->disp_start.Width = (5+20+20+1);  // 46
+     dispCtl->disp_stop.Width = 1080 +(5+20+20+1);
+-- 
+2.36.1
+

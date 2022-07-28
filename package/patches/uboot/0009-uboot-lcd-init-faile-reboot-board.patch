@@ -1,0 +1,37 @@
+From a2af539e7045417493b3b10fc103a318d50c3479 Mon Sep 17 00:00:00 2001
+From: wangjianxin <wangjianxin@canaan-creative.com>
+Date: Wed, 27 Jul 2022 17:53:42 +0800
+Subject: [PATCH] uboot lcd init faile reboot board
+
+---
+ .../bsp/controler/video/mipi/dsi/cnds_dsi_test.c   | 14 +++++++++-----
+ 1 file changed, 9 insertions(+), 5 deletions(-)
+
+diff --git a/board/Canaan/dsi_logo/bsp/controler/video/mipi/dsi/cnds_dsi_test.c b/board/Canaan/dsi_logo/bsp/controler/video/mipi/dsi/cnds_dsi_test.c
+index 91e3e737..b248d98d 100755
+--- a/board/Canaan/dsi_logo/bsp/controler/video/mipi/dsi/cnds_dsi_test.c
++++ b/board/Canaan/dsi_logo/bsp/controler/video/mipi/dsi/cnds_dsi_test.c
+@@ -1716,11 +1716,15 @@ int32_t hx8399_read_id(void)
+         DsiRegWr(DIRECT_CMD_SEND_OFFSET, 0xffffffff);
+ 
+         while ((cmd_sts & 0x08) != 0x08) {
+-                usleep(1000);
+-                retry--;
+-                cmd_sts = DsiRegRd(DIRECT_CMD_STS_OFFSET);
+-                if (retry == 0)
+-                        return -1;
++            usleep(1000);
++            retry--;
++            cmd_sts = DsiRegRd(DIRECT_CMD_STS_OFFSET);
++            if (retry == 0){
++				printf("lcd id can not read ,reboot device \n");
++				usleep(1000);
++				writel(0x10001, 0x97000060);
++	            return -1;
++            }
+         }
+ 
+         err = DsiRegRd(DIRECT_CMD_RD_STS_OFFSET);
+-- 
+2.30.2
+

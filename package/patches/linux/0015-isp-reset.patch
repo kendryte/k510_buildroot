@@ -1,0 +1,161 @@
+From 0a386b6fcc7bb9897654f99411c5c0b063e63b92 Mon Sep 17 00:00:00 2001
+From: longyiluo <longyiluo@canaan-creative.com>
+Date: Sat, 16 Jul 2022 17:49:22 +0800
+Subject: [PATCH] isp reset
+
+---
+ .../platform/canaan-isp/isp_2k/isp_f2k.c      | 34 +++++++++++++++----
+ .../platform/canaan-isp/isp_2k/isp_r2k.c      | 33 ++++++++++++++----
+ .../canaan-isp/isp_2k/wrap/isp_wrap_reg.h     | 14 ++++----
+ 3 files changed, 62 insertions(+), 19 deletions(-)
+
+diff --git a/drivers/media/platform/canaan-isp/isp_2k/isp_f2k.c b/drivers/media/platform/canaan-isp/isp_2k/isp_f2k.c
+index a420dbe8..0f75d724 100755
+--- a/drivers/media/platform/canaan-isp/isp_2k/isp_f2k.c
++++ b/drivers/media/platform/canaan-isp/isp_2k/isp_f2k.c
+@@ -27,6 +27,7 @@
+ #include "fbd/isp_3dnr_fbd_drv.h"
+ #include "remap/isp_remap_drv.h"
+ #include "table/isp_table_drv.h"
++#include "wrap/isp_wrap_reg.h"
+ 
+ static unsigned long long get_usec(void)
+ {
+@@ -570,13 +571,11 @@ void isp_f2k_wrap_SetDmaConfig(struct k510_isp_device *isp)
+ //
+ int isp_f2k_wrap_SetAxiCtl(struct k510_isp_device *isp)
+ {
+-	
+-    ISP_WRAP_AXI_CTL_S pstAxiCtl;
++  return 0;
++  ISP_WRAP_AXI_CTL_S pstAxiCtl;
+ 	pstAxiCtl.axi_wr_ch_rst_req = 1;
+ 	pstAxiCtl.axi_rd_ch_rst_req = 1;
+-	pstAxiCtl.axi_wr_ch_rst_req = 1;
+-	pstAxiCtl.axi_rd_ch_state = 1;
+-    Isp_Drv_F2k_Wrap_SetAxiCtl(isp,&pstAxiCtl);
++  Isp_Drv_F2k_Wrap_SetAxiCtl(isp,&pstAxiCtl);
+ 	return 0;
+ }
+ /*
+@@ -703,11 +702,34 @@ int isp_f2k_wrap_SetConfigDone(struct k510_isp_device *isp,unsigned int wp_en)
+ int isp_f2k_wrap_reset(struct k510_isp_device *isp)
+ {
+ 	unsigned int stData;
++	union U_ISP_WRAP_AXI_CTL axi_ctl;
++	
+ 	isp_f2k_wrap_SetConfigDone(isp,1);
+ 	//
+ 	stData = 0;
+-	isp_reg_writel(isp,stData,ISP_IOMEM_F2K_WRAP,ISP_WRAP_PIPE_CLK_CTL);
+ 	isp_reg_writel(isp,stData,ISP_IOMEM_F2K_WRAP,ISP_WRAP_DMA_EN_CTL);
++	isp_f2k_wrap_SetConfigDone(isp,0);
++	msleep(50);
++
++	axi_ctl.u32 = 0;
++	axi_ctl.bits.axi_wr_ch_rst_req = 1;   
++	axi_ctl.bits.axi_rd_ch_rst_req = 1;        
++	isp_reg_writel(isp, axi_ctl.u32, ISP_IOMEM_F2K_WRAP, ISP_WRAP_AXI_CTL);	
++	axi_ctl.u32 = 0;
++	axi_ctl = (union U_ISP_WRAP_AXI_CTL)isp_reg_readl(isp, ISP_IOMEM_F2K_WRAP, ISP_WRAP_AXI_CTL);
++	printk("%s>AXI_CTL = 0x%x\n", __func__, axi_ctl);
++	while(1)
++	{
++	  //wait AXI request finish
++	  if(axi_ctl.bits.axi_wr_ch_state == 1 && axi_ctl.bits.axi_rd_ch_state == 1)
++      break;
++	}
++
++	isp_f2k_wrap_SetConfigDone(isp,1);
++	
++	stData = 0;
++	isp_reg_writel(isp,stData,ISP_IOMEM_F2K_WRAP,ISP_WRAP_PIPE_CLK_CTL);
++	
+ 	//
+ 	stData = 0xffffffff;
+ 	isp_reg_writel(isp,stData,ISP_IOMEM_F2K_WRAP,ISP_WRAP_SWRST_CTL);
+diff --git a/drivers/media/platform/canaan-isp/isp_2k/isp_r2k.c b/drivers/media/platform/canaan-isp/isp_2k/isp_r2k.c
+index 22b454a3..62b89f6b 100755
+--- a/drivers/media/platform/canaan-isp/isp_2k/isp_r2k.c
++++ b/drivers/media/platform/canaan-isp/isp_2k/isp_r2k.c
+@@ -473,13 +473,11 @@ void isp_r2k_wrap_SetDmaConfig(struct k510_isp_device *isp)
+ //
+ int isp_r2k_wrap_SetAxiCtl(struct k510_isp_device *isp)
+ {
+-	
+-    ISP_WRAP_AXI_CTL_S pstAxiCtl;
++  return 0;
++  ISP_WRAP_AXI_CTL_S pstAxiCtl;
+ 	pstAxiCtl.axi_wr_ch_rst_req = 1;
+ 	pstAxiCtl.axi_rd_ch_rst_req = 1;
+-	pstAxiCtl.axi_wr_ch_rst_req = 1;
+-	pstAxiCtl.axi_rd_ch_state = 1;
+-    Isp_Drv_R2k_Wrap_SetAxiCtl(isp,&pstAxiCtl);
++  Isp_Drv_R2k_Wrap_SetAxiCtl(isp,&pstAxiCtl);
+ 	return 0;
+ }
+ /*
+@@ -605,11 +603,34 @@ int isp_r2k_wrap_SetConfigDone(struct k510_isp_device *isp,unsigned int wp_en)
+ int isp_r2k_wrap_reset(struct k510_isp_device *isp)
+ {
+ 	unsigned int stData;
++	union U_ISP_WRAP_AXI_CTL axi_ctl;
++	
+ 	isp_r2k_wrap_SetConfigDone(isp,1);
+ 	//
+ 	stData = 0;
+-	isp_reg_writel(isp,stData,ISP_IOMEM_R2K_WRAP,ISP_WRAP_PIPE_CLK_CTL);
+ 	isp_reg_writel(isp,stData,ISP_IOMEM_R2K_WRAP,ISP_WRAP_DMA_EN_CTL);
++	isp_r2k_wrap_SetConfigDone(isp,0);
++	msleep(50);
++
++	axi_ctl.u32 = 0;
++	axi_ctl.bits.axi_wr_ch_rst_req = 1;   
++	axi_ctl.bits.axi_rd_ch_rst_req = 1;        
++	isp_reg_writel(isp, axi_ctl.u32, ISP_IOMEM_R2K_WRAP, ISP_WRAP_AXI_CTL);	
++	axi_ctl.u32 = 0;
++	axi_ctl = (union U_ISP_WRAP_AXI_CTL)isp_reg_readl(isp, ISP_IOMEM_R2K_WRAP, ISP_WRAP_AXI_CTL);
++	printk("%s>AXI_CTL = 0x%x\n", __func__, axi_ctl);
++	while(1)
++	{
++	  //wait AXI request finish
++	  if(axi_ctl.bits.axi_wr_ch_state == 1 && axi_ctl.bits.axi_rd_ch_state == 1)
++      break;
++	}
++
++	isp_r2k_wrap_SetConfigDone(isp,1);
++	
++	stData = 0;
++	isp_reg_writel(isp,stData,ISP_IOMEM_R2K_WRAP,ISP_WRAP_PIPE_CLK_CTL);
++	
+ 	//
+ 	stData = 0xffffffff;
+ 	isp_reg_writel(isp,stData,ISP_IOMEM_R2K_WRAP,ISP_WRAP_SWRST_CTL);
+diff --git a/drivers/media/platform/canaan-isp/isp_2k/wrap/isp_wrap_reg.h b/drivers/media/platform/canaan-isp/isp_2k/wrap/isp_wrap_reg.h
+index 8f4d1ee8..9cbe2d7c 100755
+--- a/drivers/media/platform/canaan-isp/isp_2k/wrap/isp_wrap_reg.h
++++ b/drivers/media/platform/canaan-isp/isp_2k/wrap/isp_wrap_reg.h
+@@ -2069,13 +2069,13 @@ union U_ISP_WRAP_AXI_CTL{
+     /* Define the struct bits */
+     struct
+     {
+-        unsigned int axi_wr_ch_rst_req : 1; /* [0 ]      */
+-        unsigned int axi_rd_ch_rst_req : 1; /* [1 ]      */
+-        unsigned int reserved0 : 1;         /* [2 ]      */
+-        unsigned int reserved1 : 5;         /* [7 ..3 ]  */
+-        unsigned int axi_wr_ch_state : 1;   /* [8 ]      */
+-        unsigned int axi_rd_ch_state : 1;   /* [9 ]      */
+-        unsigned int reserved2 : 22;        /* [31..10]  */
++        unsigned int reserved1 : 24;        /* [23..0]  */
++        unsigned int axi_wr_ch_rst_req : 1; /* [24 ]      */
++        unsigned int axi_rd_ch_rst_req : 1; /* [25 ]      */
++        unsigned int reserved0 : 2;         /* [27:26 ]      */
++        unsigned int axi_wr_ch_state : 1;   /* [28 ]      */
++        unsigned int axi_rd_ch_state : 1;   /* [29 ]      */
++        unsigned int reserved2 : 2;         /* [31..30]  */
+     } bits;                                 /* Define an unsigned member */
+ 
+     unsigned int u32;
+-- 
+2.17.1
+

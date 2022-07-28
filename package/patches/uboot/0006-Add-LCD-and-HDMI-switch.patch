@@ -1,0 +1,412 @@
+From 1a877d0f6f71996db9e6f16ede9c77d3e93dcc8e Mon Sep 17 00:00:00 2001
+From: wangquan <wangquan@canaan-creative.com>
+Date: Thu, 14 Jul 2022 20:18:43 +0800
+Subject: [PATCH] Add LCD and HDMI switch
+
+---
+ board/Canaan/dsi_logo/Makefile                |  1 +
+ .../controler/video/mipi/dsi/cnds_dsi_test.c  |  7 +-
+ .../log/hw_dev/inc/display_hardware_init.h    |  4 +-
+ .../dsi_logo/test/log/hw_dev/inc/lt9611.h     | 30 +++++++
+ .../log/hw_dev/src/display_hardware_init.c    | 38 +++++++++
+ .../dsi_logo/test/log/hw_dev/src/lt9611.c     | 78 +++++++++++++++++++
+ board/Canaan/dsi_logo/test/log/vo/vo_app.c    | 21 ++++-
+ board/Canaan/k510_crb_lp3/Makefile            |  2 +-
+ board/Canaan/k510_crb_lp3/set_bootcmd.c       | 66 ++++++++++++++++
+ include/env.h                                 |  2 +
+ 10 files changed, 243 insertions(+), 6 deletions(-)
+ create mode 100644 board/Canaan/dsi_logo/test/log/hw_dev/inc/lt9611.h
+ create mode 100755 board/Canaan/dsi_logo/test/log/hw_dev/src/lt9611.c
+ create mode 100644 board/Canaan/k510_crb_lp3/set_bootcmd.c
+
+diff --git a/board/Canaan/dsi_logo/Makefile b/board/Canaan/dsi_logo/Makefile
+index 57234764..3e8b30c9 100755
+--- a/board/Canaan/dsi_logo/Makefile
++++ b/board/Canaan/dsi_logo/Makefile
+@@ -21,6 +21,7 @@ obj-y	:=  \
+  bsp/controler/i2c.o \
+  test/log/hw_dev/src/ext_ctl_hw.o \
+  test/log/hw_dev/src/display_hardware_init.o \
++ test/log/hw_dev/src/lt9611.o \
+  test/log/vo/vo_calc.o \
+  bsp/cpu/k510.o \
+  bsp/utils/utils.o \
+diff --git a/board/Canaan/dsi_logo/bsp/controler/video/mipi/dsi/cnds_dsi_test.c b/board/Canaan/dsi_logo/bsp/controler/video/mipi/dsi/cnds_dsi_test.c
+index 4b36dcb7..91e3e737 100755
+--- a/board/Canaan/dsi_logo/bsp/controler/video/mipi/dsi/cnds_dsi_test.c
++++ b/board/Canaan/dsi_logo/bsp/controler/video/mipi/dsi/cnds_dsi_test.c
+@@ -2253,6 +2253,12 @@ void dsi_prepare(void)
+         */
+ }
+ 
++static int32_t lcd_id = 0;
++int32_t get_lcd_id(void)
++{
++    return lcd_id;
++}
++
+ void dsi_init_1080x1920()
+ {
+         int HACT = 1080;
+@@ -2273,7 +2279,6 @@ void dsi_init_1080x1920()
+         DsiRegWr(DPI_IRQ_EN_OFFSET, 0); // enable dpi overflow int
+         msleep(100);
+ 
+-        int32_t lcd_id = 0;
+         lcd_id = hx8399_read_id();
+         if (lcd_id == -1) {
+                 sysctl_reset(SYSCTL_RESET_DSI);
+diff --git a/board/Canaan/dsi_logo/test/log/hw_dev/inc/display_hardware_init.h b/board/Canaan/dsi_logo/test/log/hw_dev/inc/display_hardware_init.h
+index 43b9027b..1f6205c7 100755
+--- a/board/Canaan/dsi_logo/test/log/hw_dev/inc/display_hardware_init.h
++++ b/board/Canaan/dsi_logo/test/log/hw_dev/inc/display_hardware_init.h
+@@ -28,5 +28,7 @@
+ 
+ void display_gpio_reset(void);
+ void display_gpio_init(void);
++void display_switch_lcd_gpio(void);
++void display_switch_hdmi_gpio(void);
+ 
+-#endif
+\ No newline at end of file
++#endif
+diff --git a/board/Canaan/dsi_logo/test/log/hw_dev/inc/lt9611.h b/board/Canaan/dsi_logo/test/log/hw_dev/inc/lt9611.h
+new file mode 100644
+index 00000000..198d6448
+--- /dev/null
++++ b/board/Canaan/dsi_logo/test/log/hw_dev/inc/lt9611.h
+@@ -0,0 +1,30 @@
++/* Copyright (c) 2022, Canaan Bright Sight Co., Ltd
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions are met:
++ * 1. Redistributions of source code must retain the above copyright
++ * notice, this list of conditions and the following disclaimer.
++ * 2. Redistributions in binary form must reproduce the above copyright
++ * notice, this list of conditions and the following disclaimer in the
++ * documentation and/or other materials provided with the distribution.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
++ * CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
++ * INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
++ * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
++ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
++ * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
++ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
++ * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
++ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
++ * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
++ * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
++ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++#ifndef _LT9611_H_
++#define _LT9611_H_
++
++int lt9611_get_hpd_state(void);
++
++#endif
+diff --git a/board/Canaan/dsi_logo/test/log/hw_dev/src/display_hardware_init.c b/board/Canaan/dsi_logo/test/log/hw_dev/src/display_hardware_init.c
+index 530c2f52..5d9ec495 100755
+--- a/board/Canaan/dsi_logo/test/log/hw_dev/src/display_hardware_init.c
++++ b/board/Canaan/dsi_logo/test/log/hw_dev/src/display_hardware_init.c
+@@ -88,7 +88,27 @@ void display_gpio_poweron(void)
+ #endif
+ }
+ 
++void lt9611_reset(void)
++{
++    gpio_set_pin(15, GPIO_PV_LOW);
++    msleep(100);
++    gpio_set_pin(15, GPIO_PV_HIGH);
++}
++
+ // gpio init 
++int mipi_select_value = 0;
++void display_switch_lcd_gpio(void)
++{
++    gpio_set_drive_mode(21,GPIO_DM_OUTPUT);
++    gpio_set_pin(21, mipi_select_value);
++}
++
++void display_switch_hdmi_gpio(void)
++{
++    gpio_set_drive_mode(21,GPIO_DM_OUTPUT);
++    gpio_set_pin(21, !mipi_select_value);
++}
++
+ void display_gpio_init(void)
+ {
+ 
+@@ -103,6 +123,20 @@ void display_gpio_init(void)
+ #endif
+ 
+ #ifdef CONFIG_TARGET_K510_CRB_LP3_V1_2
++
++    muxpin_set_function(32, FUNC_GPIO25);
++    gpio_set_drive_mode(25,GPIO_DM_OUTPUT);
++    gpio_set_pin(25, GPIO_PV_LOW);
++
++    muxpin_set_function(97, FUNC_GPIO15);
++    gpio_set_drive_mode(15,GPIO_DM_OUTPUT);
++    gpio_set_pin(15, GPIO_PV_HIGH);
++
++    muxpin_set_function(34, FUNC_GPIO21);
++    gpio_set_drive_mode(21,GPIO_DM_INPUT);
++    mipi_select_value = gpio_get_pin(21);
++    msleep(10);
++
+     muxpin_set_function(78, FUNC_GPIO19);
+     gpio_set_drive_mode(19,GPIO_DM_OUTPUT);
+ 
+@@ -111,11 +145,15 @@ void display_gpio_init(void)
+ 
+     muxpin_set_function(49, FUNC_GPIO23);
+     gpio_set_drive_mode(23,GPIO_DM_OUTPUT);
++
++    lt9611_reset();
++
+     camera_power_on();
+ 
+     display_gpio_reset();
+ 
+     display_gpio_poweron();
++
+ #endif
+ 
+ }
+diff --git a/board/Canaan/dsi_logo/test/log/hw_dev/src/lt9611.c b/board/Canaan/dsi_logo/test/log/hw_dev/src/lt9611.c
+new file mode 100755
+index 00000000..8d21275f
+--- /dev/null
++++ b/board/Canaan/dsi_logo/test/log/hw_dev/src/lt9611.c
+@@ -0,0 +1,78 @@
++/* Copyright (c) 2022, Canaan Bright Sight Co., Ltd
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions are met:
++ * 1. Redistributions of source code must retain the above copyright
++ * notice, this list of conditions and the following disclaimer.
++ * 2. Redistributions in binary form must reproduce the above copyright
++ * notice, this list of conditions and the following disclaimer in the
++ * documentation and/or other materials provided with the distribution.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
++ * CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
++ * INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
++ * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
++ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
++ * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
++ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
++ * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
++ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
++ * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
++ * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
++ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++#include <common.h>
++#include <cpu/sleep.h>
++#include <controler/i2c.h>
++#include <controler/muxpin.h>
++#include <controler/gpio.h>
++#include  "controler/sysctl_clk.h"
++#include  "controler/sysctl_boot.h"
++
++#define LT9611_ADDR (0x76>>1)
++
++int lt9611_i2c_init(void)
++{
++    muxpin_set_function(117, FUNC_I2C3_SCLK);
++    muxpin_set_function(116, FUNC_I2C3_SDA);
++    i2c_init(I2C_DEVICE_3, LT9611_ADDR, 7, 100000);
++}
++
++int lt9611_write_byte(uint8_t reg_addr, uint8_t reg_val)
++{
++    uint8_t buf[2] = {reg_addr, reg_val};
++    i2c_send_data(I2C_DEVICE_3, buf, 2);
++
++    return 0;
++}
++
++uint8_t lt9611_read_byte(uint8_t reg_addr)
++{
++    uint8_t reg_val = 0x00;
++
++    i2c_recv_data(I2C_DEVICE_3, &reg_addr, 1, &reg_val, 1);
++
++    return reg_val;
++}
++
++uint8_t lt9611_read_id(void)
++{
++    lt9611_write_byte(0xff, 0x80);
++    lt9611_write_byte(0xee, 0x01);
++    printf("LT9611 ID %02x %02x\n", lt9611_read_byte(0x00), lt9611_read_byte(0x01));
++}
++
++int lt9611_get_hpd_state(void)
++{
++    uint8_t reg_val = 0;
++    int hpd_state = 0;
++
++    lt9611_i2c_init();
++    lt9611_read_id();
++    lt9611_write_byte(0xff, 0x82);
++    reg_val = lt9611_read_byte(0x5e);
++    hpd_state = reg_val & 0x04;
++    return hpd_state;
++}
++
+diff --git a/board/Canaan/dsi_logo/test/log/vo/vo_app.c b/board/Canaan/dsi_logo/test/log/vo/vo_app.c
+index d3f48ebd..02152cf3 100755
+--- a/board/Canaan/dsi_logo/test/log/vo/vo_app.c
++++ b/board/Canaan/dsi_logo/test/log/vo/vo_app.c
+@@ -31,8 +31,10 @@
+ #include "hw_dev/inc/dev_hw.h"
+ 
+ #include "hw_dev/inc/display_hardware_init.h"
++#include "hw_dev/inc/lt9611.h"
+ 
+ #include "interrupt.h"
++#include "env.h"
+ 
+ /******************************************************************************
+  *  CORE com*
+@@ -1090,7 +1092,7 @@ static int VO_TEST_BRINGUP_DSI_GetCtl(VO_CTL_S *voCtl)
+     dispCtl->Disp_en = TRUE;
+     dispCtl->SyncMode = VO_SYSTEM_MODE_1080x1920x30P;
+ #if 1
+-    dispCtl->total_size.Width = 1254;//1340 ;//1340;  1125 
++    dispCtl->total_size.Width = 1254;//1340;  1125 
+     dispCtl->total_size.Height = 1958;//1958;//1938???  2200
+     dispCtl->disp_start.Width = (5+20+20+1);  // 46
+     dispCtl->disp_stop.Width = 1080 +(5+20+20+1);
+@@ -2923,6 +2925,8 @@ static int dsi_init(VO_TEST_CASE_E voTestCase)
+ */
+ int VO_TEST_VideoOut(VO_TEST_CASE_E voTestCase)
+ {
++    int hpd_state = 0;
++    int lcd_id = 0;
+     VO_INFO_S voInfo;
+ 
+     //set vo irq
+@@ -2942,8 +2946,19 @@ int VO_TEST_VideoOut(VO_TEST_CASE_E voTestCase)
+ 
+     //
+     //MS_API_VO_WriteBackSet(640,480);
+-    VO_TEST_Start();
+-
++    hpd_state = lt9611_get_hpd_state();
++    lcd_id = get_lcd_id();
++    if (hpd_state) {
++        set_bootcmd("k510-hdmi.dtb");
++        display_switch_hdmi_gpio();
++    } else if (lcd_id == 0x0C9983 || lcd_id == 0x1C9983) {
++        set_bootcmd("k510.dtb");
++        display_switch_lcd_gpio();
++        //VO_TEST_Start();
++    } else {
++        set_bootcmd("k510-hdmi.dtb");
++        display_switch_hdmi_gpio();
++    }
+ 
+ #ifndef _SIMU    
+     //remap
+diff --git a/board/Canaan/k510_crb_lp3/Makefile b/board/Canaan/k510_crb_lp3/Makefile
+index 087d8aad..0c0195f4 100755
+--- a/board/Canaan/k510_crb_lp3/Makefile
++++ b/board/Canaan/k510_crb_lp3/Makefile
+@@ -7,4 +7,4 @@ EXTRA_CFLAGS += -I${src}/../dsi_logo/bsp/include   \
+ 				-I${src}/../dsi_logo/bsp/include/controler \
+ 				-I${src}/../dsi_logo/bsp/include/cpu -I${src}/../dsi_logo/bsp/include/utils
+ 
+-obj-y	:= ax25-ae350.o lpddr3_init.o lpddr3_training.o ddr_common.o sysctl_clk.o ../dsi_logo/
++obj-y	:= ax25-ae350.o lpddr3_init.o lpddr3_training.o ddr_common.o sysctl_clk.o set_bootcmd.o ../dsi_logo/
+diff --git a/board/Canaan/k510_crb_lp3/set_bootcmd.c b/board/Canaan/k510_crb_lp3/set_bootcmd.c
+new file mode 100644
+index 00000000..b1abeea8
+--- /dev/null
++++ b/board/Canaan/k510_crb_lp3/set_bootcmd.c
+@@ -0,0 +1,66 @@
++#include <common.h>
++#include <env.h>
++#include <stdio.h>
++#include <linux/string.h>
++
++#define     DEFUALTDTB  "k510.dtb"
++
++/**
++ * @brief Set the cmd 
++ * 
++ * @param str eg: k510-dualcam.dtb
++ * @return  if return -1, it means something wrong
++ */
++int set_bootcmd(const char *str)
++{
++    char *cmd = NULL;
++    char buf[150] = {0};
++    char *pos = buf;
++    char *p;
++    int ret = 0;
++
++	if(!str){
++		return -1;
++    }
++
++    cmd = env_get("bootcmd");
++    if(!cmd)
++        return -1;
++
++    p = strstr(cmd, DEFUALTDTB);
++    if(!p)
++    {
++        printf("there is no '%s' in cmd, use default dtb to start\n",DEFUALTDTB);
++        return 0;
++    }
++
++    strncpy(pos, cmd, (p-cmd));
++    strncpy(pos+(p-cmd), str, strlen(str));
++    strncpy(pos+(p-cmd+strlen(str)), p+8, strlen(p+8));
++
++    printf("******Yourself bootcmd is '%s' \n",buf);
++    
++    ret = env_set("bootcmd",buf);
++
++    if(ret)
++    {
++        printf("bootcmd set failed!\n");
++        return -1;
++    }
++    return 0;
++}
++
++
++
++
++
++
++
++
++
++
++
++
++
++
++
+diff --git a/include/env.h b/include/env.h
+index d6c2d751..e8b2825b 100644
+--- a/include/env.h
++++ b/include/env.h
+@@ -343,4 +343,6 @@ int env_get_char(int index);
+  */
+ void env_reloc(void);
+ 
++int set_bootcmd(const char *str);
++
+ #endif
+-- 
+2.17.1
+

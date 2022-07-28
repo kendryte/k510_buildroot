@@ -113,7 +113,8 @@ void gerecorg::load_model(char *path)
 
 cv::Mat gerecorg::crop_image(cv::Mat image)
 {
-    int wh = (1 - 2 * MARGIN) * image.cols;
+    int smaller = image.cols < image.rows ? image.cols : image.rows;
+    int wh = (1 - 2 * MARGIN) * smaller;
     int32_t x0 = image.cols / 2 - wh/ 2;
     int32_t y0 = image.rows / 2 - wh/ 2;
     cv::Mat cropped_image = image(cv::Rect((int)(x0) ,(int)(y0),(int)(wh),(int)(wh)));

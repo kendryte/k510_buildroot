@@ -97,7 +97,7 @@ typedef struct ai_worker_args
 
 void rotationMatrixToEulerAngles(float (*R)[3], float* eular);
 void build_projection_matrix(float rear_size, float *projections);
-void draw_pose(box_t b, float *pdst, int valid_height, int valid_width, cv::Mat& frame);
+void draw_pose(box_t b, float *pdst, int valid_height, int valid_width, cv::Mat& frame, uint64_t index);
 class ScopedTiming
 {
 public:
