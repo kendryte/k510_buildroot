@@ -284,7 +284,7 @@ int drm_dmabuf_set_2plane(struct drm_buffer *buf,struct drm_buffer *buf2)
 {
 	int ret;
 	static int first = 1;
-	uint32_t flags = DRM_MODE_PAGE_FLIP_EVENT;
+	uint32_t flags = DRM_MODE_PAGE_FLIP_EVENT | DRM_MODE_ATOMIC_NONBLOCK;
 	//struct drm_buffer *buf2 =&buf[BUFFERS_COUNT];
 	drm_dev.req = drmModeAtomicAlloc();
 
