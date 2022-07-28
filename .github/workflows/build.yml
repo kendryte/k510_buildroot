@@ -161,7 +161,7 @@ jobs:
             echo "ERROR: Reserve DUT failed"
             exit 1
           fi
-          power=$(./bin/ai_dut power --action=cycle ${{ env.available }})
+          power=$(./bin/ai_dut power --type=cycle ${{ env.available }})
           echo $power
           if [[ $power =~ "True" ]]; then
             echo "Power Cycle DUT pass"
