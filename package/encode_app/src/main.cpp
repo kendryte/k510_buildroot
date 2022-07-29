@@ -2325,7 +2325,7 @@ int main(int argc, char *argv[])
       pCtx->ch[i] = i;
       pCtx->Cfg[i].channel     = i;
       if(!pCtx->framerate[i])             pCtx->framerate[i]       = 30;
-      if(!pCtx->out_framerate[i])         pCtx->out_framerate[i]   = 30;
+      if(!pCtx->out_framerate[i])         pCtx->out_framerate[i]   = pCtx->framerate[i];
       if(!pCtx->Cfg[i].width)             pCtx->Cfg[i].width       = 1920;
       if(!pCtx->Cfg[i].height)            pCtx->Cfg[i].height      = 1080;
       if(!pCtx->Cfg[i].BitRate)           pCtx->Cfg[i].BitRate     = 4000000;
