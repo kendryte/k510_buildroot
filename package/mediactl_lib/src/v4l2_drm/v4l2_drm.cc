@@ -1025,15 +1025,15 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
         }
     }
 
-    struct timeval tv = {
-        .tv_sec = 5,
-        .tv_usec = 0
-    };
     // read some (30) frames
     for (unsigned cnt = 0; cnt < 30; cnt++) {
         bit_mask_w = bit_mask;
         do {
             fd_set rfds = fds;
+            struct timeval tv = {
+                .tv_sec = 2,
+                .tv_usec = 0
+            };
             int r = select(max_fd + 1, &rfds, NULL, NULL, &tv);
             if (r > 0) {
                 for (unsigned i = 0; i < 2; i++) {
@@ -1077,6 +1077,10 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
         bit_mask_w = bit_mask;
         do {
             fd_set rfds = fds;
+            struct timeval tv = {
+                .tv_sec = 2,
+                .tv_usec = 0
+            };
             int r = select(max_fd + 1, &rfds, NULL, NULL, &tv);
             if (r > 0) {
                 for (unsigned i = 0; i < 2; i++) {
@@ -1155,8 +1159,10 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
         frame_counter += 1;
         // FIXME
         do {
-            tv.tv_sec = 5; // ???? if not, select() will timeout
-            tv.tv_usec = 0;
+            struct timeval tv = {
+                .tv_sec = 2,
+                .tv_usec = 0
+            };
             fd_set rrfds = rfds;
             int r = select(max_fd_with_drm, &rrfds, NULL, NULL, &tv);
             if (r > 0) {
