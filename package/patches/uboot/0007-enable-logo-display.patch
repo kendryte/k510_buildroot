@@ -1,0 +1,94 @@
+From a119f681339374e1668cdefc980d43291206ae01 Mon Sep 17 00:00:00 2001
+From: wycwyhwyq <5f20.6d9b@gmail.com>
+Date: Tue, 26 Jul 2022 13:56:43 +0800
+Subject: [PATCH 1/2] enable logo display
+
+---
+ board/Canaan/dsi_logo/test/log/vo/vo_app.c | 24 +---------------------
+ board/Canaan/k510_crb_lp3/ax25-ae350.c     | 12 +++++------
+ 2 files changed, 7 insertions(+), 29 deletions(-)
+
+diff --git a/board/Canaan/dsi_logo/test/log/vo/vo_app.c b/board/Canaan/dsi_logo/test/log/vo/vo_app.c
+index 02152cf3..5b5bad26 100755
+--- a/board/Canaan/dsi_logo/test/log/vo/vo_app.c
++++ b/board/Canaan/dsi_logo/test/log/vo/vo_app.c
+@@ -2929,9 +2929,6 @@ int VO_TEST_VideoOut(VO_TEST_CASE_E voTestCase)
+     int lcd_id = 0;
+     VO_INFO_S voInfo;
+ 
+-    //set vo irq
+-//    vo_set_irq();
+-
+     //enable dsi output
+     dsi_init(voTestCase);
+     //
+@@ -2943,9 +2940,8 @@ int VO_TEST_VideoOut(VO_TEST_CASE_E voTestCase)
+     //core
+     VO_CORE_INFO_S *voCoreInfo = &voInfo.voCoreInfo;
+     VO_TEST_Core(voTestCase,voCoreInfo);
++    VO_TEST_Start();
+ 
+-    //
+-    //MS_API_VO_WriteBackSet(640,480);
+     hpd_state = lt9611_get_hpd_state();
+     lcd_id = get_lcd_id();
+     if (hpd_state) {
+@@ -2953,29 +2949,11 @@ int VO_TEST_VideoOut(VO_TEST_CASE_E voTestCase)
+         display_switch_hdmi_gpio();
+     } else if (lcd_id == 0x0C9983 || lcd_id == 0x1C9983) {
+         set_bootcmd("k510.dtb");
+-        display_switch_lcd_gpio();
+-        //VO_TEST_Start();
+     } else {
+         set_bootcmd("k510-hdmi.dtb");
+         display_switch_hdmi_gpio();
+     }
+ 
+-#ifndef _SIMU    
+-    //remap
+-    msleep(1000);
+-#endif
+-    VO_REMAP_INFO_S *voRemapInfo = &voInfo.voRemapInfo;
+-    VO_TEST_Remap(voTestCase,voRemapInfo);
+-#ifndef _SIMU 
+-    //enable hdmi ouput
+-    //cv8878_init();
+-#endif
+-
+-//    pcal6416_init(0);
+-
+-//    aml550_22v_power_en();
+-
+-    
+     VO_PRINTF_FUNC("Display Config done!\n");
+     return 0;
+ }
+diff --git a/board/Canaan/k510_crb_lp3/ax25-ae350.c b/board/Canaan/k510_crb_lp3/ax25-ae350.c
+index 3784fcb0..71baee6b 100755
+--- a/board/Canaan/k510_crb_lp3/ax25-ae350.c
++++ b/board/Canaan/k510_crb_lp3/ax25-ae350.c
+@@ -303,15 +303,15 @@ int last_stage_init(void)
+ void	reset_phy     (void)
+ {
+ 
+-	muxpin_set_function(31, FUNC_GPIO20);
+-	gpio_set_drive_mode(20, GPIO_DM_OUTPUT);//GPIO_DM_OUTPUT
+-	gpio_set_pin(20, GPIO_PV_LOW);//GPIO_PV_LOW
++	muxpin_set_function(31, FUNC_GPIO18);
++	gpio_set_drive_mode(18, GPIO_DM_OUTPUT);//GPIO_DM_OUTPUT
++	gpio_set_pin(18, GPIO_PV_LOW);//GPIO_PV_LOW
+ 	mdelay(20);
+-	gpio_set_pin(20, GPIO_PV_HIGH);//GPIO_PV_HIGH
++	gpio_set_pin(18, GPIO_PV_HIGH);//GPIO_PV_HIGH
+ 	udelay(10);
+-	gpio_set_pin(20, GPIO_PV_LOW);//GPIO_PV_LOW
++	gpio_set_pin(18, GPIO_PV_LOW);//GPIO_PV_LOW
+ 	mdelay(20);
+-	gpio_set_pin(20, GPIO_PV_HIGH);//GPIO_PV_HIGH
++	gpio_set_pin(18, GPIO_PV_HIGH);//GPIO_PV_HIGH
+ 	mdelay(200);
+ 	return 0;
+ }
+-- 
+2.17.1
+
