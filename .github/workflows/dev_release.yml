@@ -71,3 +71,5 @@ jobs:
           mkdir -p $DEV_RELEASE/$VER/$HW/
           cp -r $CONF/images/* $DEV_RELEASE/$VER/$HW/
           cp -r $CONF/target/etc/version/release_version $DEV_RELEASE/$VER/$HW/
+          test -d $DEV_RELEASE/latest && rm $DEV_RELEASE/latest
+          ln -s $DEV_RELEASE/$VER $DEV_RELEASE/latest

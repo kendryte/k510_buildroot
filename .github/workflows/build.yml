@@ -86,6 +86,8 @@ jobs:
           mkdir -p $CI_ROOT/$VER/$HW/
           cp -r $CONF/images/* $CI_ROOT/$VER/$HW/
           cp -r $CONF/target/etc/version/release_version $CI_ROOT/$VER/$HW/
+          test -d $CI_ROOT/latest && rm $CI_ROOT/latest
+          ln -s $CI_ROOT/$VER $CI_ROOT/latest
 
       - name: Save image to TFTP
         id: save_tftp
@@ -157,6 +159,14 @@ jobs:
             echo "Reserve DUT pass"
           else
             echo "ERROR: Reserve DUT failed"
+            exit 1
+          fi
+          power=$(./bin/ai_dut power --type=cycle ${{ env.available }})
+          echo $power
+          if [[ $power =~ "True" ]]; then
+            echo "Power Cycle DUT pass"
+          else
+            echo "ERROR: Power Cycle DUT failed"
             exit 1
           fi
 
