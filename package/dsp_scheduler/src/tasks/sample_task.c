@@ -114,7 +114,7 @@ ScheRunType sample_task_run(void *arg)
                 task0SendMsg->id = DSP_TASK_0_PROCESS_END;
                 task0SendMsg->src_phyAddr = task0RevMsg->src_phyAddr;
                 task0SendMsg->dst_phyAddr = task0RevMsg->dst_phyAddr;
-                                
+                cache_wb(task0SendMsg, task0SendMsg, sizeof(TASK0_MESSAGE));
                 printc(pArg->ch, "%s>send message: msg_phyAddr 0x%x\n", __FUNCTION__, sendMsg.msg_phyAddr);
                 SCHE_SendMessage(&sendMsg, pArg->ch);
             }

@@ -102,7 +102,10 @@ typedef struct
     unsigned int task0src_size;
     unsigned int task0dst_phyAddr;
     void *task0dst_vAddr;
-    unsigned int task0dst_size;;
+    unsigned int task0user_msg_phyAddr;
+    void *task0user_msg_vAddr;
+    unsigned int task0user_msg_size;
+    unsigned int task0dst_size;
     int task0_start_send_msg;
     int is_task0_enabled;
     int is_print_finished;
@@ -318,6 +321,11 @@ int main(int argc, char *argv[])
     pCtx->task0dst_vAddr = mmap(NULL, pCtx->task0dst_size, PROT_READ|PROT_WRITE, MAP_SHARED, pCtx->fd_ddr, pCtx->task0dst_phyAddr); 
     printf("task 0 dst buffer: vaddr 0x%x, phyAddr 0x%x, size %d\n", pCtx->task0dst_vAddr, pCtx->task0dst_phyAddr, pCtx->task0dst_size);
 
+    pCtx->task0user_msg_size = MEMORY_TEST_BLOCK_ALIGN;
+    pCtx->task0user_msg_phyAddr = alloc_memory(pCtx->fd_share_memory, pCtx->task0user_msg_size);  
+    pCtx->task0user_msg_vAddr = mmap(NULL, pCtx->task0user_msg_size, PROT_READ|PROT_WRITE, MAP_SHARED, pCtx->fd_ddr, pCtx->task0user_msg_phyAddr); 
+    printf("task 10user_msg buffer: vaddr 0x%x, phyAddr 0x%x, size %d\n", pCtx->task0user_msg_vAddr, pCtx->task0user_msg_phyAddr, pCtx->task0user_msg_size);
+
     pthread_create(&pCtx->thread_0, NULL, cpu2dsp_task0, pCtx);
 
     msg.msgId = DSP_TASK_ENABLE;
@@ -339,18 +347,19 @@ int main(int argc, char *argv[])
                 if(pCtx->task0_start_send_msg == 0)
                 {
                     memset(pCtx->task0src_vAddr, 0x12, pCtx->task0src_size);
-                    
+                    //TODO:
+                    msg.msgId = DSP_TASK_USER_MSG;
+                    msg.msg_phyAddr = pCtx->task0msg_phyAddr;
+                    msg.len = sizeof(TASK0_MESSAGE);
+
                     task0_msg = (TASK0_MESSAGE*)pCtx->task0msg_vAddr;
                     task0_msg->id = DSP_TASK_0_PROCESS_START;
                     task0_msg->src_phyAddr = pCtx->task0src_phyAddr;
                     task0_msg->dst_phyAddr = pCtx->task0dst_phyAddr;
                     task0_msg->data_size = pCtx->task0src_size;
                     FlushCache(pCtx->task0src_phyAddr, pCtx->task0src_vAddr, pCtx->task0src_size);
+                    FlushCache(pCtx->task0user_msg_phyAddr, pCtx->task0user_msg_vAddr, pCtx->task0user_msg_size);
                     FlushCache(pCtx->task0msg_phyAddr, pCtx->task0msg_vAddr, pCtx->task0msg_size);
-        
-                    msg.msgId = DSP_TASK_USER_MSG;
-                    msg.msg_phyAddr = pCtx->task0msg_phyAddr;
-                    msg.len = sizeof(TASK0_MESSAGE);
                     printf("cpu send PROCESS_START\n");
                     if (ioctl(pCtx->fd_mailbox, MBOX_CHAN_0_TX, &msg) < 0)
                         printf("task 0 message: tx 0 error\n");
