@@ -2293,8 +2293,6 @@ int main(int argc, char *argv[])
   unsigned int output_frames=0;
   unsigned int input_frames=0;
   int stride;    
-  int enable_rtsp=0;
-  int enable_v4l2=0;
 
   memset(pCtx, 0, sizeof(MainContext));
   pCtx->start = 1;
