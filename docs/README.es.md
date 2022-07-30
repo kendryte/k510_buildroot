@@ -16,7 +16,7 @@
 
 # K510 SDK
 
-Kanzhi K510 es la segunda generación de chips de inferencia del lado del borde de IA lanzados por Canaan, que proporciona capacidades de procesamiento de imágenes y voz de alto rendimiento para aplicaciones de IA. El K510 está equipado con el procesador de red neuronal de segunda generación de desarrollo propio KPU2.0, que adopta la tecnología de flujo de datos informáticos original, que aumenta la potencia de cálculo en 3 veces en comparación con la generación anterior y reduce el consumo de energía. Integrado con la última generación de procesador de imagen ISP, admite acceso a cámara de profundidad TOF, admite reducción de ruido 2D / 3D, amplio rango dinámico (WDR), hardware 3A y otras funciones completas. Los ISP 3D admiten sensores TOF de cámara de profundidad. Puede ser ampliamente utilizado en diferentes campos de aplicación, como vehículos aéreos no tripulados, fotografía aérea de alta definición, cámaras profesionales, videoconferencias, robots inteligentes, STEAM educativo y conducción asistida automática.
+Kendryte K510 es la segunda generación de chips de inferencia del lado del borde de IA lanzados por Canaan, que proporciona capacidades de procesamiento de imágenes y voz de alto rendimiento para aplicaciones de IA. El K510 está equipado con el procesador de red neuronal de segunda generación de desarrollo propio KPU2.0, que adopta la tecnología de flujo de datos informáticos original, que aumenta la potencia de cálculo en 3 veces en comparación con la generación anterior y reduce el consumo de energía. Integrado con la última generación de procesador de imagen ISP, admite acceso a cámara de profundidad TOF, admite reducción de ruido 2D / 3D, amplio rango dinámico (WDR), hardware 3A y otras funciones completas. Los ISP 3D admiten sensores TOF de cámara de profundidad. Puede ser ampliamente utilizado en diferentes campos de aplicación, como vehículos aéreos no tripulados, fotografía aérea de alta definición, cámaras profesionales, videoconferencias, robots inteligentes, STEAM educativo y conducción asistida automática.
 
 K510 SDK es un kit de desarrollo de software proporcionado por Canaan para el desarrollo de aplicaciones de chip K510, su configuración predeterminada se basa en K510 CRB (plataforma de referencia del cliente), el contenido del almacén incluye el software de cadena de herramientas, kit de herramientas de PC, código Linux, gestor de arranque, bbl, software de sistema de compilación buildroot y documentos de recursos de hardware relacionados que los usuarios pueden usar en el desarrollo del chip K510. Los usuarios pueden personalizar el desarrollo del cambio de acuerdo con sus propias necesidades en función de este conjunto de código base de software y, finalmente, crear y compilar el archivo de imagen utilizado para la implementación.
 
@@ -27,8 +27,8 @@ K510 SDK es un kit de desarrollo de software proporcionado por Canaan para el de
 |1| / | El código compila el directorio de trabajo |
 |2|[documentos/](https://github.com/kendryte/k510_docs)| Compilación del sistema K510 y documentación de desarrollo de aplicaciones; Documentación de introducción a recursos de hardware
 |3|[paquete/](/package/)| Proporcionar ejemplos de aplicaciones de desarrollo de periféricos del sistema Linux; Varios código fuente de la aplicación de demostración de IA  |
-|4|[Canaán Kanchi](https://canaan-creative.com/product/勘智k510)|Sitio web oficial de Canaan Kanji|
-|5|[Comunidad de desarrolladores](https://canaan-creative.com/developer)|Foro Canaan Kanchi
+|4|[Canaán Kendryte](https://canaan-creative.com/product/勘智k510)|Sitio web oficial de Canaan Kendryte|
+|5|[Comunidad de desarrolladores](https://canaan-creative.com/developer)|Foro Canaan Kendryte
 |6|[Vídeo de demostración](https://space.bilibili.com/677429436)|Video listo para usar de la placa de desarrollo K510 y múltiples videos de demostración de aplicaciones de IA|
 |7|[K510 CRB-KIT](https://item.taobao.com/item.htm?spm=a230r.1.14.1.22714815bDh5ei&id=673510674381&ns=1&abbucket=0&mt=)|Enlace de compra en línea del kit de placa K510|
 |8|Comunicación instantánea|  Community Mutual Aid QQ Group: 790699378</br>Telegram: nncase community |
@@ -107,7 +107,7 @@ Si está interesado en este proyecto y desea recibir comentarios sobre un proble
 
 ## Contáctenos
 
-Beijing Canaan Jiesi Información Technology Co., Ltd  
+Canaan Inc.  
 URL:[canaan-creative.com](https://canaan-creative.com)  
 Consultas comerciales:[salesAI@canaan-creative.com](mailto:salesAI@canaan-creative.com)
 

@@ -110,6 +110,7 @@ void doit_video_cfg(char *text,struct vi_cfg_info *vi_cfg,struct sensor_info *se
          //sensor0_active_size
          object=cJSON_GetArrayItem(arrayItem,i++);
          item=cJSON_GetObjectItem(object,"sensor0_active_width");
+         item->valueint = (item->valueint + 15) / 16 * 16;
          //printf("%s:active_width %p\n",__func__,item);
          if(item != NULL)
          {
@@ -146,6 +147,7 @@ void doit_video_cfg(char *text,struct vi_cfg_info *vi_cfg,struct sensor_info *se
          }  
 
          item=cJSON_GetObjectItem(object,"video2_width");
+         item->valueint = (item->valueint + 15) / 16 * 16;
          //printf("%s:active_height %p\n",__func__,item);
          if(item != NULL)
          {
@@ -193,6 +195,7 @@ void doit_video_cfg(char *text,struct vi_cfg_info *vi_cfg,struct sensor_info *se
          }  
 
          item=cJSON_GetObjectItem(object,"video3_width");
+         item->valueint = (item->valueint + 15) / 16 * 16;
          //printf("%s:active_height %p\n",__func__,item);
          if(item != NULL)
          {
@@ -238,6 +241,7 @@ void doit_video_cfg(char *text,struct vi_cfg_info *vi_cfg,struct sensor_info *se
          }  
 
          item=cJSON_GetObjectItem(object,"video4_width");
+         item->valueint = (item->valueint + 15) / 16 * 16;
          //printf("%s:active_height %p\n",__func__,item);
          if(item != NULL)
          {
@@ -283,6 +287,7 @@ void doit_video_cfg(char *text,struct vi_cfg_info *vi_cfg,struct sensor_info *se
          }  
 
          item=cJSON_GetObjectItem(object,"video5_width");
+         item->valueint = (item->valueint + 15) / 16 * 16;
          //printf("%s:active_height %p\n",__func__,item);
          if(item != NULL)
          {
@@ -384,6 +389,7 @@ void doit_video_cfg(char *text,struct vi_cfg_info *vi_cfg,struct sensor_info *se
          //sensor1_active_size
          object=cJSON_GetArrayItem(arrayItem,i++);
          item=cJSON_GetObjectItem(object,"sensor1_active_width");
+         item->valueint = (item->valueint + 15) / 16 * 16;
          //printf("%s:active_width %p\n",__func__,item);
          if(item != NULL)
          {
@@ -416,6 +422,7 @@ void doit_video_cfg(char *text,struct vi_cfg_info *vi_cfg,struct sensor_info *se
          }  
 
          item=cJSON_GetObjectItem(object,"video6_width");
+         item->valueint = (item->valueint + 15) / 16 * 16;
          //printf("%s:active_height %p\n",__func__,item);
          if(item != NULL)
          {
@@ -463,6 +470,7 @@ void doit_video_cfg(char *text,struct vi_cfg_info *vi_cfg,struct sensor_info *se
          }  
 
          item=cJSON_GetObjectItem(object,"video7_width");
+         item->valueint = (item->valueint + 15) / 16 * 16;
          //printf("%s:active_height %p\n",__func__,item);
          if(item != NULL)
          {
@@ -508,6 +516,7 @@ void doit_video_cfg(char *text,struct vi_cfg_info *vi_cfg,struct sensor_info *se
          }  
 
          item=cJSON_GetObjectItem(object,"video8_width");
+         item->valueint = (item->valueint + 15) / 16 * 16;
          //printf("%s:active_height %p\n",__func__,item);
          if(item != NULL)
          {
@@ -553,6 +562,7 @@ void doit_video_cfg(char *text,struct vi_cfg_info *vi_cfg,struct sensor_info *se
          }  
 
          item=cJSON_GetObjectItem(object,"video9_width");
+         item->valueint = (item->valueint + 15) / 16 * 16;
          //printf("%s:active_height %p\n",__func__,item);
          if(item != NULL)
          {

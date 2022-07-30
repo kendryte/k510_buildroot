@@ -16,9 +16,9 @@
 
 # K510 SDK
 
-Kanzhi K510 is the second generation of AI edge-side inference chips launched by Canaan, which provides high-performance image and speech processing capabilities for AI applications. The K510 is equipped with the self-developed second-generation neural network processor KPU2.0, which adopts the original computing data flow technology, which increases the computing power by 3 times compared with the previous generation and reduces power consumption. Integrated with the latest generation of image processor ISP, support TOF depth camera access, support 2D/3D noise reduction, wide dynamic range (WDR), hardware 3A and other complete functions. 3D ISPs support depth camera TOF sensors. It can be widely used in different application fields such as unmanned aerial vehicles, high-definition aerial photography, professional cameras, video conferencing, intelligent robots, educational STEAM, and automatic assisted driving.
+Kendryte K510 is the second generation of AI edge-side inference chips launched by Canaan, which provides high-performance image and speech processing capabilities for AI applications. The K510 is equipped with the self-developed second-generation neural network processor KPU2.0, which adopts the original computing data flow technology, that increases the computing power by 3 times compared with the previous generation and reduces power consumption. Integrated with the latest generation of image processor ISP. It supports TOF depth camera access, 2D/3D noise reduction, wide dynamic range (WDR), hardware 3A, and other complete functions. The 3D ISPs support depth camera TOF sensors, and can be widely used in different application fields such as unmanned aerial vehicles, high-definition aerial photography, professional cameras, video conferencing, intelligent robots, educational STEAM, and automatic assisted driving.
 
-K510 SDK is a software development kit provided by Canaan for K510 chip application development, its default configuration is based on K510 CRB (customer reference platform), the warehouse content includes the toolchain software, PC toolkit, Linux code, bootloader, bbl, buildroot build system software and related hardware resource documents that users may use in the development of K510 chip. Users can customize the change development according to their own needs based on this set of software code base, and finally build and compile the image file used for deployment.
+K510 SDK is a software development kit provided by Canaan for K510 chip application development. Its default configuration is based on K510 CRB (customer reference platform). The warehouse content includes the toolchain software, PC toolkit, Linux code, bootloader, bbl, buildroot build system software, and related hardware resource documents that users may use in the development with K510 chip. Users can customize and change development according to their own needs based on this set of software code base, and finally build and compile the image file used for deployment.
 
 ## Descriptions of material content and links to reference resources
 
@@ -27,15 +27,15 @@ K510 SDK is a software development kit provided by Canaan for K510 chip applicat
 |1| / | The code compiles the working directory |
 |2|[docs/](https://github.com/kendryte/k510_docs)| K510 system compilation and application development documentation; Hardware resource introduction documentation
 |3|[package/](/package/)| Provide Linux system peripheral development application examples; Various AI demo application source code  |
-|4|[Canaan Kanchi](https://canaan-creative.com/product/勘智k510)|Canaan Kanji official website|
-|5|[Developer community](https://canaan-creative.com/developer)|Canaan Kanchi Forum
+|4|[Canaan Kendryte](https://canaan-creative.com/product/勘智k510)|Canaan Kendryte official website|
+|5|[Developer community](https://canaan-creative.com/developer)|Canaan Kendryte Forum
 |6|[Demo video](https://space.bilibili.com/677429436)|K510 development board out-of-the-box video and multiple AI application demonstration videos|
 |7|[K510 CRB-KIT](https://item.taobao.com/item.htm?spm=a230r.1.14.1.22714815bDh5ei&id=673510674381&ns=1&abbucket=0&mt=)|K510 Board Kit Online Purchase Link|
 |8|Instant communication|  Community Mutual Aid QQ Group: 790699378</br>Telegram: nncase community |
 
 ## Introduction to the K510 CRB Developer Suite
 
-K510 CRB-KIT is a developer suite based on the K510 chip development, which adopts a hierarchical design, based on the K510 core module, with rich peripherals and easy to expand. Support USB 2.0 OTG+PHY, Gigabit Ethernet port, 3xSDIO, 3xSPI and other high-speed communication interfaces, support 4xUART, GPIO, I2C and I2S and other low-speed communication interfaces. Simple to use, informative, can help customers quickly achieve creative evaluation, product prototype verification, shorten the product design cycle.
+K510 CRB-KIT is a developer suite based on the K510 chip development, which adopts a hierarchical design, based on the K510 core module, with rich peripherals and easy to expand. It supports USB 2.0 OTG+PHY, Gigabit Ethernet port, 3xSDIO, 3xSPI and other high-speed communication interfaces. In addition, it supports 4xUART, GPIO, I2C and I2S and other low-speed communication interfaces. It is simple to use, informative and can help customers quickly achieve creative evaluation and product prototype verification. It shortens the product design cycle.
 ![Canaan-board .png](https://github.com/kendryte/k510_docs/raw/v1.5/zh/images/hw_crb_v1_2/canaan-board.png)
 <center>K510 CRB front photo </center>
 
@@ -84,12 +84,12 @@ Whether you work on Linux or Windows, you can download [the Etcher](https://www.
 
 ### Power-on operation
 
-Confirm that the SW1 switch is selected in SD card boot mode, insert the burned TF card into the open board card slot, and then unplug the power switch K1 to the ON position, and the system can power up. You will see the screen display the CANAAN logo screen, if you have a connected serial port, you can see the boot log output in the serial port.
+Confirm that the SW1 switch is selected in SD card boot mode, insert the burned TF card into the open board card slot, and then unplug the power switch K1 to the ON position, and The system should power up.. You will see the screen display the CANAAN logo screen. If you have a connected serial port, you can see the boot log output in the serial port.
 ![k510_boot.png](https://github.com/kendryte/k510_docs/raw/v1.5/zh/images/quick_start/k510_boot.png)
 
 ### Change the default startup program
 
-By default, the system automatically runs the sample program (v4l2_drm.out) under the /app/mediactl_lib path on. You can also manually change the configuration program to run other demo programs instead. Here's how to change it:
+By default, the system automatically runs the sample program (v4l2_drm.out) under path /app/mediactl_lib. You can also manually change the configuration program to run other demo programs instead. Here's how to change it:
 
 ```sh
 vi /etc/init.d/rc.sysinit
@@ -103,11 +103,11 @@ cd /
 
 ## Contribution Guide
 
-If you are interested in this project and would like feedback on a problem or submit code, please refer to[CONSOLIDATING](.github/CONTRIBUTING.md)
+If you are interested in this project and would like feedback on a problem or submit code, please refer to [CONSOLIDATING](.github/CONTRIBUTING.md)
 
 ## Contact us
 
-Beijing Canaan Jiesi Information Technology Co., Ltd  
+Canaan Inc.  
 URL:[canaan-creative.com](https://canaan-creative.com)  
 Business Enquiries:[salesAI@canaan-creative.com](mailto:salesAI@canaan-creative.com)
 
