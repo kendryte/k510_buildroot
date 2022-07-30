@@ -621,11 +621,12 @@ static void usage(FILE *fp, int argc, char **argv)
          "-c | --count         Number of frames to grab [%i]\n"
          "-v | --verbose       Verbose output\n"
          "-O | --output file   Output file full path[%s]\n"
+         "-a | --anti-flicker-enable, 50Hz, default 0: all disable, 1: f2k enable, 2: r2k enable, 3: all enable\n"
          "",
          argv[0], dev_name, frame_count, video_name);
 }
 
-static const char short_options[] = "d:hmruofc:vO:";// 短选项 ：表示带参数
+static const char short_options[] = "d:hmruofc:vO:a:";// 短选项 ：表示带参数
 
 static const struct option //长选项
 long_options[] = {
@@ -639,6 +640,7 @@ long_options[] = {
     { "count",  required_argument, NULL, 'c' },
     { "verbose", no_argument,      NULL, 'v' },
     { "ouput file",  required_argument, NULL, 'O' },
+    { "anti-flicker-enable", required_argument,      NULL, 'a' },
     { 0, 0, 0, 0 }
 };
 
@@ -716,6 +718,9 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
             break;
         case 'O':
             video_name = optarg;
+            break;
+		case 'a':
+			mediactl_anti_flicker_init(atoi(optarg)); // anti flicker 0: disable, 1: f2k enable, 2: r2k enable, 3: all enable
             break;
         default:
             usage(stderr, argc, argv);

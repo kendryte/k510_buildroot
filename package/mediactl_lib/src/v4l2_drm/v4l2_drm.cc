@@ -488,11 +488,12 @@ static void usage(FILE *fp, int argc, char **argv)
          "-v | --verbose       Verbose output\n"
          "-s | --single[(0|1),[,width*height[,x*y]]] display sensor (0|1)\n"
          "-d | --double[width*height,x*y,width*height,x*y] display double sensor\n"
+         "-a | --anti-flicker-enable, 50Hz, default 0: all disable, 1: f2k enable, 2: r2k enable, 3: all enable\n"
          "",
          argv[0], video_cfg_file);
 }
 
-static const char short_options[] = "f:e:hvs::d::";// 短选项 ：表示带参数
+static const char short_options[] = "f:e:hvs::d::a:";// 短选项 ：表示带参数
 
 static const struct option //长选项
 long_options[] = {
@@ -502,6 +503,7 @@ long_options[] = {
     { "verbose", no_argument,      NULL, 'v' },
     { "single", optional_argument,      NULL, 's' },
     { "double", optional_argument,      NULL, 'd' },
+    { "anti-flicker-enable", required_argument,      NULL, 'a' },
     { 0, 0, 0, 0 }
 };
 
@@ -821,7 +823,9 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
         case 'v':
             verbose = 1;
             break;
-
+		case 'a':
+			mediactl_anti_flicker_init(atoi(optarg)); // anti flicker 0: disable, 1: f2k enable, 2: r2k enable, 3: all enable
+			break;
         case 's':
             parse_count = sscanf(optarg ? : "", "%u,%u%*[*x]%u,%u%*[*x]%u", &sensor_index, &video_in_cfg[0].width_force,
                 &video_in_cfg[0].height_force, &video_in_cfg[0].offset_x_force, &video_in_cfg[0].offset_y_force);
