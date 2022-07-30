@@ -1,0 +1,21 @@
+Index: b/libavformat/librtmp.c
+===================================================================
+--- a/libavformat/librtmp.c
++++ b/libavformat/librtmp.c
+@@ -263,7 +263,15 @@ static int rtmp_write(URLContext *s, con
+ 
+     int ret = RTMP_Write(r, buf, size);
+     if (!ret)
+-        return AVERROR_EOF;
++    {
++    	//In the internal implementation of function RTMP_Write, when size<11, it returns false
++    	if (size < 11)
++    	{
++    		return size;
++    	}
++    	return AVERROR_EOF;
++    }
++        
+     return ret;
+ }
+ 
