@@ -1031,36 +1031,33 @@ int mediactl_all_set_ae(enum isp_pipeline_e pipeline)
 		}
 
 		struct media_entity *sensor0 = v4l_isp.sensor0;
-		if( ae_stats.ae_wren == 1)
+		ret = v4l2_subdev_open(sensor0);
+		if (ret < 0)
+			return ret;
+
+		struct v4l2_control  control_s;
+		control_s.id = V4L2_CID_EXPOSURE;
+		control_s.value = ae_stats.ae_expl ;
+		ret = ioctl(sensor0->fd,VIDIOC_S_CTRL,&control_s);
+		if (ret < 0)
 		{
-			ret = v4l2_subdev_open(sensor0);
-			if (ret < 0)
-				return ret;
-
-			struct v4l2_control  control_s;
-			control_s.id = V4L2_CID_EXPOSURE;
-			control_s.value = ae_stats.ae_expl ;
-			ret = ioctl(sensor0->fd,VIDIOC_S_CTRL,&control_s);
-			if (ret < 0)
-			{
-				printf("%s: ioctl(VIDIOC_S_CTRL-V4L2_CID_GAIN)failed ret(%d)\n", __func__,
-					  ret);
-				v4l2_subdev_close(sensor0);	  
-				return ret;
-			} 
-
-			control_s.id = V4L2_CID_GAIN;
-			control_s.value = ae_stats.ae_agco;
-			ret = ioctl(sensor0->fd,VIDIOC_S_CTRL,&control_s);
-			if (ret < 0)
-			{
-				printf("%s: ioctl(VIDIOC_S_CTRL-V4L2_CID_EXPOSURE)failed ret(%d)\n", __func__,
-					  ret);
-				v4l2_subdev_close(sensor0);
-				return ret;
-			} 		
+			printf("%s: ioctl(VIDIOC_S_CTRL-V4L2_CID_GAIN)failed ret(%d)\n", __func__,
+					ret);
 			v4l2_subdev_close(sensor0);
+			return ret;
 		}
+
+		control_s.id = V4L2_CID_GAIN;
+		control_s.value = ae_stats.ae_agco;
+		ret = ioctl(sensor0->fd,VIDIOC_S_CTRL,&control_s);
+		if (ret < 0)
+		{
+			printf("%s: ioctl(VIDIOC_S_CTRL-V4L2_CID_EXPOSURE)failed ret(%d)\n", __func__,
+					ret);
+			v4l2_subdev_close(sensor0);
+			return ret;
+		}
+		v4l2_subdev_close(sensor0);
 	}
 
 	if(ISP_R2K_PIPELINE == pipeline)
@@ -1091,37 +1088,33 @@ int mediactl_all_set_ae(enum isp_pipeline_e pipeline)
 		}
 
 		struct media_entity *sensor1 = v4l_isp.sensor1;
-		if( ae_stats.ae_wren == 1)
+		ret = v4l2_subdev_open(sensor1);
+		if (ret < 0)
+			return ret;
+
+		struct v4l2_control  control_s;
+		control_s.id = V4L2_CID_EXPOSURE;
+		control_s.value = ae_stats.ae_expl;
+		ret = ioctl(sensor1->fd,VIDIOC_S_CTRL,&control_s);
+		if (ret < 0)
 		{
-			ret = v4l2_subdev_open(sensor1);
-			if (ret < 0)
-				return ret;
-
-			struct v4l2_control  control_s;
-			control_s.id = V4L2_CID_EXPOSURE;
-			control_s.value = ae_stats.ae_expl;
-			ret = ioctl(sensor1->fd,VIDIOC_S_CTRL,&control_s);
-			if (ret < 0)
-			{
-				printf("%s: ioctl(VIDIOC_S_CTRL-V4L2_CID_GAIN)failed ret(%d)\n", __func__,
-					  ret);
-				v4l2_subdev_close(sensor1);
-				return ret;
-			} 
-
-			control_s.id = V4L2_CID_GAIN;
-			control_s.value = ae_stats.ae_agco;
-			ret = ioctl(sensor1->fd,VIDIOC_S_CTRL,&control_s);
-			if (ret < 0)
-			{
-				printf("%s: ioctl(VIDIOC_S_CTRL-V4L2_CID_EXPOSURE)failed ret(%d)\n", __func__,
-					  ret);
-				v4l2_subdev_close(sensor1);
-				return ret;
-			} 		
+			printf("%s: ioctl(VIDIOC_S_CTRL-V4L2_CID_GAIN)failed ret(%d)\n", __func__,
+					ret);
 			v4l2_subdev_close(sensor1);
-			// fprintf(stderr, "exp: %u\tagc: %u\n", ae_stats.ae_expl, ae_stats.ae_agco);
+			return ret;
 		}
+
+		control_s.id = V4L2_CID_GAIN;
+		control_s.value = ae_stats.ae_agco;
+		ret = ioctl(sensor1->fd,VIDIOC_S_CTRL,&control_s);
+		if (ret < 0)
+		{
+			printf("%s: ioctl(VIDIOC_S_CTRL-V4L2_CID_EXPOSURE)failed ret(%d)\n", __func__,
+					ret);
+			v4l2_subdev_close(sensor1);
+			return ret;
+		}
+		v4l2_subdev_close(sensor1);
 	}
 	
 	return 0;
