@@ -111,4 +111,5 @@ int drm_init(struct drm_size *size);
 void drm_destory_dumb(struct drm_buffer *buf);
 void drm_exit(void);
 void drm_reset(void);
+int drm_get_resolution(struct drm_dev *dev, uint32_t *width, uint32_t *height);
 #endif

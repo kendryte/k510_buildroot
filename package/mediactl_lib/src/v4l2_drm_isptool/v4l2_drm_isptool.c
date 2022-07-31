@@ -58,6 +58,10 @@ static char 	*video_cfg_file = "video_drm_1080x1920.conf";
 #define FORCED_FIELD  V4L2_FIELD_ANY
 #define VIDEO_NAME    "/dev/video3"
 static int verbose = 0;
+
+static int isp_ae_status = 0;
+//static int r_2k_status = 0;
+
 #define pr_debug(fmt, arg...) \
     if (verbose) fprintf(stderr, fmt, ##arg)
 
@@ -90,6 +94,7 @@ struct camera_info
     struct drm_size size;
     struct buffer  *buffers;
     unsigned int  n_buffers;
+    unsigned int  buffer_start;
 };
 
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -130,12 +135,11 @@ static int read_frame(struct camera_info *camera,unsigned int camera_seq)
     unsigned int n_buffers = camera->n_buffers;
 
     //printf("%s: called!\n", __func__);
-
-    pthread_mutex_lock(&mutex);
     CLEAR(buf);
     buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     buf.memory = V4L2_MEMORY_DMABUF;//drm //V4L2_MEMORY_MMAP;
-
+    
+    pthread_mutex_lock(&mutex);
     if (-1 == xioctl(fd, VIDIOC_DQBUF, &buf)) {
         pthread_mutex_unlock(&mutex);
         printf("%s: DQBUFERR!\n", __func__);
@@ -163,7 +167,11 @@ static int read_frame(struct camera_info *camera,unsigned int camera_seq)
     // process_image(&buffers[buf.index]);
     //printf("%s:buf.index(%d)\n",__func__,buf.index);
     EnQueue(f2k_queue,buf.index);
-    mediactl_set_ae(ISP_F2K_PIPELINE);
+    if(isp_ae_status == 1 || isp_ae_status == 3)
+    {
+        mediactl_set_ae(ISP_F2K_PIPELINE);
+    }
+    
 
     struct drm_buffer *fbuf;
     static struct v4l2_buffer old_buffer;
@@ -181,34 +189,6 @@ static int read_frame(struct camera_info *camera,unsigned int camera_seq)
         count = 0;
     }
 
-#if 0
-    /* drm show */
-#if 1
-    pthread_mutex_lock(&mutex);   
-    if (drm_dev.req)    
-      drm_wait_vsync();
-    pthread_mutex_unlock(&mutex);
-#else      
-    if( drm_vsync == 0)
-    {
-        if (drm_dev.req)
-          drm_wait_vsync();
-        drm_vsync = 1;
-    }
-    else
-    {
-       drm_vsync = 0; 
-    }
-#endif
-    fbuf = &drm_dev.drm_bufs[buf.index];
-    pthread_mutex_lock(&mutex);  
-    if(drm_dmabuf_set_plane(fbuf)) {
-        pthread_mutex_unlock(&mutex);
-        printf("%s:camera %d Flush fail\n",__func__,camera_seq);
-        return -1;
-    } 
-    pthread_mutex_unlock(&mutex);
-#endif
     pthread_mutex_lock(&mutex);
     if(screen_init_flag) // inited  //drm
     {
@@ -245,13 +225,12 @@ static int read_frame1(struct camera_info *camera,unsigned int camera_seq)
     int fd = camera->fd;
     unsigned int n_buffers = camera->n_buffers;
 
-    //printf("%s: called!\n", __func__);
-
-    pthread_mutex_lock(&mutex);
+    //printf("%s: called!\n", __func__); 
     CLEAR(buf);
     buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     buf.memory = V4L2_MEMORY_DMABUF;//drm //V4L2_MEMORY_MMAP;
     //printf("%s:called 1! \n", __func__);
+    pthread_mutex_lock(&mutex);
     if (-1 == xioctl(fd, VIDIOC_DQBUF, &buf)) {
         pthread_mutex_unlock(&mutex);
         printf("%s: DQBUFERR!\n", __func__);
@@ -279,42 +258,27 @@ static int read_frame1(struct camera_info *camera,unsigned int camera_seq)
     // process_image(&buffers[buf.index]);
     //printf("%s:buf.index1(%d)\n",__func__,buf.index);
     EnQueue(r2k_queue,buf.index);
-    mediactl_set_ae(ISP_R2K_PIPELINE);
+
+    if(isp_ae_status == 2 || isp_ae_status == 3)
+    {
+        mediactl_set_ae(ISP_R2K_PIPELINE);
+    }
+
     struct drm_buffer *fbuf;
     static struct v4l2_buffer old_buffer;
     static int screen_init_flag = 0;
 
+    // FIXME: some better way
+    fbuf = &drm_dev.drm_bufs[buf.index];
+    static int count = 0;
+    count += 1;
+    if (count >= 30) {
+        // write to isp-tuningd
+        write(pipe_fd, fbuf->map, fbuf->size);
+        count = 0;
+    }
+
    //printf("%s: show!\n", __func__);
-#if 0
-    /* drm show */
-#if 1
-    pthread_mutex_lock(&mutex);
-    if (drm_dev.req)
-      drm_wait_vsync();
-    pthread_mutex_unlock(&mutex);
-#else
-    if( drm_vsync == 0)
-    {
-        if (drm_dev.req)
-          drm_wait_vsync();
-        drm_vsync = 1;
-    }
-    else
-    {
-       drm_vsync = 0; 
-    }
-#endif
-    //printf("%s:called 3! \n", __func__);
-    fbuf = &drm_dev.drm_bufs[buf.index+BUFFERS_COUNT];
-    pthread_mutex_lock(&mutex); 
-    if(drm_dmabuf_set_plane2(fbuf)) {
-        pthread_mutex_unlock(&mutex);
-        printf("%s:camera %d Flush fail\n",__func__,camera_seq);
-        return -1;
-    }  
-    pthread_mutex_unlock(&mutex);
-#endif
-    //printf("%s:called 4! \n", __func__);
     pthread_mutex_lock(&mutex);
     if(screen_init_flag) // inited  //drm
     {
@@ -397,7 +361,7 @@ static int mainloop(struct camera_info *camera,unsigned int camera_seq)
  
         /* EAGAIN - continue select loop. */
     }
-    //printf("%s: cmaera %d fd(%d) mainloop end ret(%d)!\n", __func__,camera_seq,fd,ret);
+    //printf("%s: camera %d fd(%d) mainloop end ret(%d)!\n", __func__,camera_seq,fd,ret);
     return ret;
 }
 /**
@@ -552,14 +516,7 @@ static void uninit_device(struct camera_info *camera,struct drm_buffer *drm_bufs
 
     pr_debug("%s: called!\n", __func__);
     pthread_mutex_lock(&mutex);
-#if 0
-    if(drm_dev.fd)
-    {
-        for(i = 0; i < BUFFERS_COUNT; i++) {        
-            drm_destory_dumb(&drm_bufs[i]);
-        }
-    }
-#endif
+
     if(NULL != camera->buffers)
     {
         free(camera->buffers);
@@ -684,45 +641,6 @@ static int init_device(struct camera_info *camera,struct drm_buffer *drm_bufs) /
         return -1;
     }
 
-#if 0
-    /* Select video input, video standard and tune here. */
-    CLEAR(cropcap);
-    cropcap.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-    if (0 == xioctl(fd, VIDIOC_CROPCAP, &cropcap)) {
-        pr_debug("\tcropcap.type: %d\n", cropcap.type);
-        pr_debug("\tcropcap.bounds.left: %d\n", cropcap.bounds.left);
-        pr_debug("\tcropcap.bounds.top: %d\n", cropcap.bounds.top);
-        pr_debug("\tcropcap.bounds.width: %d\n", cropcap.bounds.width);
-        pr_debug("\tcropcap.bounds.height: %d\n", cropcap.bounds.height);
-
-        pr_debug("\tcropcap.defrect.left: %d\n", cropcap.defrect.left);
-        pr_debug("\tcropcap.defrect.top: %d\n", cropcap.defrect.top);
-        pr_debug("\tcropcap.defrect.width: %d\n", cropcap.defrect.width);
-        pr_debug("\tcropcap.defrect.height: %d\n", cropcap.defrect.height);
-
-        pr_debug("\tcropcap.pixelaspect.numerator: %d\n", cropcap.pixelaspect.numerator);
-        pr_debug("\tcropcap.pixelaspect.denominator: %d\n", cropcap.pixelaspect.denominator);
-        pr_debug("\n");
-
-        CLEAR(crop);
-        crop.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-        crop.c = cropcap.defrect; /* reset to default */
-
-        if (-1 == xioctl(fd, VIDIOC_S_CROP, &crop)) {
-            switch (errno) {
-            case EINVAL:
-                /* Cropping not supported. */
-                break;
-            default:
-                /* Errors ignored. */
-                pr_debug("\tcropping not supported\n");
-                break;
-            }
-        }
-    } else {
-        /* Errors ignored. */
-    }
-#endif
     CLEAR(fmt);
 
     fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
@@ -778,6 +696,7 @@ static void close_device(struct camera_info *camera)
         }     
         camera->fd = -1; 
     }
+#if 0
     if(drm_dev.fd &&(drm_dev.camera_num == 1) )
     {
         drm_exit(); 
@@ -786,7 +705,7 @@ static void close_device(struct camera_info *camera)
     {
         drm_dev.camera_num--;
     }   
-
+#endif
     pthread_mutex_unlock(&mutex);  
 }
 /**
@@ -837,6 +756,7 @@ static void usage(FILE *fp, int argc, char **argv)
          "Version 1.3\n"
          "Options:\n"
          "-f | --device cfg name   Video device cfg name [%s]\n"
+         "-e | --ae config   0 close all, 1 open f-2k ae, 2 open r-2k ae, 3 open all\n"
          "-h | --help          Print this message\n"
          "-v | --verbose       Verbose output\n"
          "",
@@ -881,14 +801,14 @@ void sighand(int signo)
  * @param info 
  * @return void* 
  */
-void run_f2k_video(void *info)
+void *run_f2k_video(void *info)
 {
     struct camera_info *camera = (struct camera_info *)info;
     int ret = 0;
     pthread_mutex_lock(&mutex);
     open_device(camera);
 
-    ret = init_device(camera,&drm_dev.drm_bufs[0]); 
+    ret = init_device(camera,&drm_dev.drm_bufs[camera->buffer_start]);  //0
     if(ret <0 )
     {
         pthread_mutex_unlock(&mutex);
@@ -913,7 +833,7 @@ void run_f2k_video(void *info)
 f2k_cleanup:
     stop_capturing(camera);
 
-    uninit_device(camera,&drm_dev.drm_bufs[0]);
+    uninit_device(camera,&drm_dev.drm_bufs[camera->buffer_start]); //0
     close_device(camera);
     //
 }
@@ -924,14 +844,14 @@ f2k_cleanup:
  * @param info 
  * @return void* 
  */
-void run_r2k_video(void *info)
+void *run_r2k_video(void *info)
 {
     struct camera_info *camera = (struct camera_info *)info;
     int ret = 0;
     pthread_mutex_lock(&mutex);
     open_device(camera);
 
-    ret = init_device(camera,&drm_dev.drm_bufs[BUFFERS_COUNT]); 
+    ret = init_device(camera,&drm_dev.drm_bufs[camera->buffer_start]); //BUFFERS_COUNT
     if(ret <0 )
     {
         pthread_mutex_unlock(&mutex);
@@ -956,7 +876,7 @@ void run_r2k_video(void *info)
 r2k_cleanup:
     stop_capturing(camera);
 
-    uninit_device(camera,&drm_dev.drm_bufs[BUFFERS_COUNT]);
+    uninit_device(camera,&drm_dev.drm_bufs[camera->buffer_start]);//BUFFERS_COUNT
     close_device(camera);
 }
 /**
@@ -970,6 +890,10 @@ static void cfg_noc_prior(void)
     system("devmem 0x970E00fc 32 0x0fffff00");
     system("devmem 0x970E0100 32 0x00000000");
     system("devmem 0x970E0104 32 0x00000000");
+
+    system("devmem 0x9990038c 32 0x00000000");
+    system("devmem 0x9990048c 32 0x00000001");
+    system("devmem 0x98000504 32 0x00010303");
 }
 
 /**
@@ -977,7 +901,7 @@ static void cfg_noc_prior(void)
  * 
  * @return void* 
  */
-void drm_show(void *info)
+void *drm_show(void *info)
 {
     struct video_info *dev_info = (struct video_info *)info;
     struct drm_buffer *fbuf,*fbuf2;
@@ -1045,6 +969,7 @@ void drm_show(void *info)
         }    
     }
     //
+#if 0
     if(drm_dev.fd)
     {
         printf("%s:drm_destory_dumb!\n",__func__);
@@ -1052,6 +977,7 @@ void drm_show(void *info)
             drm_destory_dumb(&drm_dev.drm_bufs[i]);
         }
     }
+#endif
     //
     printf("%s:DestroySequeue!\n",__func__);
     if(dev_info[0].video_used == 1)
@@ -1111,6 +1037,7 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
     int camera_num = 0;
 	struct sigaction actions;
 	pthread_t f2k_pid,r2k_pid,drm_pid;
+
     for (;;) {
         int idx;
         int c;
@@ -1147,6 +1074,7 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
 	 * to be freed cleanly.
 	 */
 	signal(SIGINT,sigint_handler);
+    signal(SIGTERM,sigint_handler);
     child_pid = spawn_isp_tuningd(&pipe_fd);
     //
     memset(&actions, 0, sizeof(actions)); 
@@ -1170,6 +1098,7 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
                 sprintf(&camera[0].video_name[0],"%s",dev_info[0].video_name[i]);
                 camera[0].size.width = dev_info[0].video_width[i];
                 camera[0].size.height = dev_info[0].video_height[i];
+                camera[0].buffer_start = 0;
                 camera_num++;
             }
         }        
@@ -1185,9 +1114,15 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
                 sprintf(&camera[1].video_name[0],"%s",dev_info[1].video_name[i]);
                 camera[1].size.width = dev_info[1].video_width[i];
                 camera[1].size.height = dev_info[1].video_height[i];
+                camera[1].buffer_start = BUFFERS_COUNT;
                 camera_num++;
             }
         }        
+    }
+    //
+    if(( 0 == dev_info[0].video_used ) && ( 1 == dev_info[1].video_used ))
+    {
+        camera[1].buffer_start = 0;//BUFFERS_COUNT;
     }
 
     printf("%s:size[0].width is %d size[0].height is %d,size[1].width is %d size[1].height is %d,camera_num(%d)\n",__func__,camera[0].size.width,camera[0].size.height,camera[1].size.width,camera[1].size.height,camera_num);
@@ -1221,6 +1156,7 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
         size[1].crtc_offset_h = 0;
     }    
 
+    drm_reset();
     drm_init(&size[0]); //drm init
 
     drm_dev.camera_num = camera_num;
@@ -1232,7 +1168,7 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
 	{	
 		pthread_create(&f2k_pid,NULL,run_f2k_video,(void *)&camera[0]);
 	}
-
+    //
 	if( dev_info[1].video_used == 1)
 	{
 		pthread_create(&r2k_pid,NULL,run_r2k_video,(void *)&camera[1]);
@@ -1265,9 +1201,12 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
 
     pthread_mutex_destroy(&mutex);
 	printf("Main completed/n");
-    if (child_pid > 0) {
-        kill(child_pid, SIGINT);
-    }
+
+    if(drm_dev.fd)
+    {
+        printf("%s:drm_exit\n",__func__);
+        drm_exit(); 
+    } 
     mediactl_exit();
     fprintf(stderr, "\n");
     return 0;

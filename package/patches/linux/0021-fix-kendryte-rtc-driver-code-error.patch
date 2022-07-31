@@ -1,0 +1,34 @@
+From 29675aced5a28c6621de02d3798c276e32d5de28 Mon Sep 17 00:00:00 2001
+From: wangjianxin <wangjianxin@canaan-creative.com>
+Date: Wed, 27 Jul 2022 17:39:51 +0800
+Subject: [PATCH] fix kendryte-rtc driver code error
+
+---
+ drivers/rtc/rtc-kendryte.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/rtc/rtc-kendryte.c b/drivers/rtc/rtc-kendryte.c
+index 6f1f952b..e6f5ec52 100755
+--- a/drivers/rtc/rtc-kendryte.c
++++ b/drivers/rtc/rtc-kendryte.c
+@@ -358,7 +358,7 @@ static int kendryte_rtc_setaie(struct device *dev, unsigned int enabled)
+ {
+ 	struct kendryte_rtc *rtc = dev_get_drvdata(dev);
+ 	
+-	printk( "k510_rtc set aie enabled is %d \n", enabled);
++	//printk( "k510_rtc set aie enabled is %d \n", enabled);
+ 	
+ 	if(enabled){
+ 		kendryte_rtc_alarm_set_interrupt(rtc, 1);
+@@ -397,7 +397,7 @@ static irqreturn_t kendryte_rtc_alarmirq(int irq, void *id)
+ /* IRQ Handlers */
+ static irqreturn_t kendryte_rtc_tickirq(int irq, void *id)
+ {
+-	struct kendryte_rtc *rtc = (struct kendryte_rtc *)rtc;
++	struct kendryte_rtc *rtc = (struct kendryte_rtc *)id;
+ 
+ 	printk("this is tickirq \n");
+ 	
+-- 
+2.30.2
+
