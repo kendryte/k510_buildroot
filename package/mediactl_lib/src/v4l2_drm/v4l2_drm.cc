@@ -82,8 +82,8 @@ typedef struct {
     uint32_t force;
     uint32_t width, height;
     uint32_t width_force, height_force;
-    uint32_t offset_x, offset_y;
-    uint32_t offset_x_force, offset_y_force;
+    int32_t offset_x, offset_y;
+    int32_t offset_x_force, offset_y_force;
 } video_in_cfg_t;
 static video_in_cfg_t video_in_cfg[2];
 
@@ -599,8 +599,8 @@ int video_resolution_adaptation(void)
     uint32_t sensor_active_height[2];
     uint32_t video_width[2];
     uint32_t video_height[2];
-    uint32_t video_offset_x[2] = {0, 0};
-    uint32_t video_offset_y[2] = {0, 0};
+    int32_t video_offset_x[2] = {0, 0};
+    int32_t video_offset_y[2] = {0, 0};
 
 #define SENSOR_1920x1080_TIMING(x) \
     do {\
@@ -702,6 +702,11 @@ int video_resolution_adaptation(void)
     } else {
         return -1;
     }
+    // force 16bytes aligned
+    for (int i = 0; i < 2; i++) {
+        video_width[i] = (video_width[i] + 15) & 0xFFF0;
+        video_height[i] = (video_height[i] + 15) & 0xFFF0;
+    }
     // force set resolution and offset (debug use)
     for (int i = 0; i < 2; i++) {
         if (video_in_cfg[i].force & RESOLUTION_FORCE) {
@@ -717,6 +722,10 @@ int video_resolution_adaptation(void)
             video_in_cfg[i].offset_x = video_offset_x[i];
             video_in_cfg[i].offset_y = video_offset_y[i];
         }
+        if (video_in_cfg[i].offset_x < 0)
+            video_in_cfg[i].offset_x = 0;
+        if (video_in_cfg[i].offset_y < 0)
+            video_in_cfg[i].offset_y = 0;
     }
     // update video config
     if (video_input_flag & VIDEO_INPUT_0_ENABLE) {
