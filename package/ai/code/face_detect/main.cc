@@ -213,7 +213,6 @@ void ai_worker(ai_worker_args ai_args)
 
         {
             ScopedTiming st("draw osd", enable_profile);
-            cv::Mat img_argb;        
             obj_cnt = 0;
             points_to_clear[index].clear();
             for (auto b : valid_box)
