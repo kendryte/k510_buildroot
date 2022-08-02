@@ -145,7 +145,9 @@ void ai_worker()
     while(quit.load()) 
     {
         bool ret = false;
+#if PROFILING
         ScopedTiming st("total");
+#endif
         mtx.lock();
         ret = capture.read(rgb24_img_for_ai);
         mtx.unlock();
@@ -278,7 +280,9 @@ void ai_worker()
                     origin.y = (int)(r.y1* screen_height / gnne_valid_height - 10);
                     std::string text = od.labels[r.label] + ":" + std::to_string(round(r.score * 100) / 100.0);
                     cv::putText(img_argb, text, origin, cv::FONT_HERSHEY_COMPLEX, 1.5, cv::Scalar(0, 0, 255, 255), 1, 8, 0);
+                    std::cout << obj_cnt << ":" << text<< ":" << frame.line_x_start <<":"<< frame.line_y_start <<":"<< frame.line_x_end <<":"<< frame.line_y_end << std::endl;
                 }
+                
                 obj_cnt += 1;
             }
         }
