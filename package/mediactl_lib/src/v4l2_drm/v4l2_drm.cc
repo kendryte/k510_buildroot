@@ -702,10 +702,10 @@ int video_resolution_adaptation(void)
     } else {
         return -1;
     }
-    // force 16bytes aligned
+    // force width 16 aligned and height 2 aligned
     for (int i = 0; i < 2; i++) {
         video_width[i] = (video_width[i] + 15) & 0xFFF0;
-        video_height[i] = (video_height[i] + 15) & 0xFFF0;
+        video_height[i] = (video_height[i] + 1) & 0xFFFE;
     }
     // force set resolution and offset (debug use)
     for (int i = 0; i < 2; i++) {
