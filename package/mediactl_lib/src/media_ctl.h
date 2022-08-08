@@ -80,6 +80,7 @@ struct video_info
 
 int mediactl_init(char *video_cfg_file,struct video_info *dev_info);
 void mediactl_exit(void);
+void mediactl_disable_ae(enum isp_pipeline_e pipeline);
 int mediactl_set_ae(enum isp_pipeline_e pipeline);
 int mediactl_set_ae_single(enum isp_pipeline_e pipeline);
 int mediactl_set_ae_sync(enum isp_pipeline_e pipeline);

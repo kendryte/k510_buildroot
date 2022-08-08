@@ -24,7 +24,6 @@
  */
 
 /* v4l2_test */
-#include <asm-generic/errno-base.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -871,6 +870,13 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
             usage(stderr, argc, argv);
             exit(EXIT_FAILURE);
         }
+    }
+
+    if ((isp_ae_status & 1) == 0) {
+        mediactl_disable_ae(ISP_F2K_PIPELINE);
+    }
+    if ((isp_ae_status & 2) == 0) {
+        mediactl_disable_ae(ISP_R2K_PIPELINE);
     }
 
     /* Register a signal handler for SIGINT, received when the user presses
