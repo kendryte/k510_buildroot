@@ -1,0 +1,40 @@
+From 0812c5c6e8390ae1c9eb6a35d3ad5dd53584cef3 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=E9=BB=84=E5=AD=90=E6=87=BF?=
+ <huangziyi@canaan-creative.com>
+Date: Mon, 8 Aug 2022 16:24:23 +0800
+Subject: [PATCH] Initialize VO before starting DSI
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Signed-off-by: 黄子懿 <huangziyi@canaan-creative.com>
+---
+ board/Canaan/dsi_logo/test/log/vo/vo_app.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/board/Canaan/dsi_logo/test/log/vo/vo_app.c b/board/Canaan/dsi_logo/test/log/vo/vo_app.c
+index b3f5af4f..1087268f 100755
+--- a/board/Canaan/dsi_logo/test/log/vo/vo_app.c
++++ b/board/Canaan/dsi_logo/test/log/vo/vo_app.c
+@@ -2929,8 +2929,6 @@ int VO_TEST_VideoOut(VO_TEST_CASE_E voTestCase)
+     int lcd_id = 0;
+     VO_INFO_S voInfo;
+ 
+-    //enable dsi output
+-    dsi_init(voTestCase);
+     //
+     VO_TEST_Init();
+     //table
+@@ -2941,6 +2939,9 @@ int VO_TEST_VideoOut(VO_TEST_CASE_E voTestCase)
+     VO_CORE_INFO_S *voCoreInfo = &voInfo.voCoreInfo;
+     VO_TEST_Core(voTestCase,voCoreInfo);
+ 
++    //enable dsi output
++    dsi_init(voTestCase);
++
+     hpd_state = lt9611_get_hpd_state();
+     lcd_id = get_lcd_id();
+     if (hpd_state) {
+-- 
+2.36.1
+
