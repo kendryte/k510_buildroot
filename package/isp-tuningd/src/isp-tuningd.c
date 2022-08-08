@@ -24,6 +24,7 @@
  */
 
 #include "uv/unix.h"
+#include <bits/getopt_core.h>
 #include <bits/pthreadtypes.h>
 #include <malloc.h>
 #include <pthread.h>
@@ -65,9 +66,9 @@
 #define ISP_TOF_ADDR_END (ISP_TOF_ADDR_START + 0x0400 + 0x0324)
 #define REGISTER_END_ADDR (0x0324 + 0x0400 + 0x92670000)
 #define DEFAULT_PORT 9982
-#define PIC_YUV_WIDTH 1088
-#define PIC_YUV_HEIGHT 1920
-#define PIC_YUV_SIZE (PIC_YUV_WIDTH * PIC_YUV_HEIGHT * 3 / 2)
+
+unsigned pic_yuv_width = 0, pic_yuv_height = 0;
+unsigned pic_yuv_size = 0;
 
 int page_size = 4096;
 unsigned offset_in_page = 0;
@@ -75,13 +76,14 @@ unsigned map_size = 1048576;
 void* map_base = MAP_FAILED;
 EncoderHandle* henc = NULL;
 EncoderHandle* henc_h264 = NULL;
-uint8_t pic_write_buffer_select = 0;
-uint8_t pic_write_buffer[2][PIC_YUV_SIZE + 6] = {
-    {0x99, 0x9a, PIC_YUV_SIZE & 0xff, (PIC_YUV_SIZE >> 8) & 0xff,
-     (PIC_YUV_SIZE >> 16) & 0xff, (PIC_YUV_SIZE >> 24) & 0xff},
-    {0x99, 0x9a, PIC_YUV_SIZE & 0xff, (PIC_YUV_SIZE >> 8) & 0xff,
-     (PIC_YUV_SIZE >> 16) & 0xff, (PIC_YUV_SIZE >> 24) & 0xff},
+struct __attribute__((__packed__)) command_buffer {
+  uint8_t head;
+  uint8_t command;
+  uint32_t size;
+  uint8_t buffer[0];
 };
+uint8_t pic_write_buffer_select = 0;
+struct command_buffer* pic_write_buffer[2];
 uint8_t* mem_yuv_logic_addr = MAP_FAILED;
 unsigned int mem_yuv_map_size = 0;
 unsigned int mem_yuv_phy_addr = 0;
@@ -436,13 +438,12 @@ void exec_cmd(void) {
   } else if (cmd == CMD_JPEG) {
     if (henc != NULL) {
       // encode JPEG
-      uint8_t *pic_nv12_buffer =
-          pic_write_buffer[pic_write_buffer_select ^ 1] + 6;
-      memcpy(mem_yuv_logic_addr, pic_nv12_buffer, PIC_YUV_SIZE);
+      uint8_t *pic_nv12_buffer = pic_write_buffer[pic_write_buffer_select ^ 1]->buffer;
+      memcpy(mem_yuv_logic_addr, pic_nv12_buffer, pic_yuv_size);
       EncInputFrame frame = {
-        .width = PIC_YUV_WIDTH,
-        .height = PIC_YUV_HEIGHT,
-        .stride = (PIC_YUV_WIDTH + 0x1F) & (~0x1F),
+        .width = pic_yuv_width,
+        .height = pic_yuv_height,
+        .stride = (pic_yuv_width + 0x1F) & (~0x1F),
         .data = (unsigned char *)mem_yuv_phy_addr
       };
       // FIXME: async
@@ -457,13 +458,12 @@ void exec_cmd(void) {
     // encode h264
     if (henc_h264 != NULL) {
       // encode h264
-      uint8_t *pic_nv12_buffer =
-          pic_write_buffer[pic_write_buffer_select ^ 1] + 6;
-      memcpy(mem_yuv_logic_addr, pic_nv12_buffer, PIC_YUV_SIZE);
+      uint8_t *pic_nv12_buffer = pic_write_buffer[pic_write_buffer_select ^ 1]->buffer;
+      memcpy(mem_yuv_logic_addr, pic_nv12_buffer, pic_yuv_size);
       EncInputFrame frame = {
-        .width = PIC_YUV_WIDTH,
-        .height = PIC_YUV_HEIGHT,
-        .stride = (PIC_YUV_WIDTH + 0x1F) & (~0x1F),
+        .width = pic_yuv_width,
+        .height = pic_yuv_height,
+        .stride = (pic_yuv_width + 0x1F) & (~0x1F),
         .data = (unsigned char *)mem_yuv_phy_addr
       };
       // FIXME: async
@@ -551,6 +551,13 @@ void sock_read(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
     }
 }
 
+void sock_report_write_done (uv_write_t *req, int status) {
+  if (status) {
+    fprintf(stderr, "Write error %s\n", uv_strerror(status));
+  }
+  free(req);
+}
+
 void on_new_connection(uv_stream_t *server, int status) {
     if (status < 0) {
       fprintf(stderr, "New connection error %s\n", uv_strerror(status));
@@ -562,6 +569,19 @@ void on_new_connection(uv_stream_t *server, int status) {
     struct list_node* n = &cw->node;
     uv_tcp_init(loop, client);
     if (uv_accept(server, (uv_stream_t*) client) == 0) {
+      // write message
+      struct command_buffer report_command = {
+        .head = 0x99,
+        .command = 0x91,
+        .size = 4
+      };
+      uint16_t report_data[2] = {pic_yuv_width, pic_yuv_height};
+      uv_buf_t buf[2] = {
+        uv_buf_init((char*)&report_command, sizeof(struct command_buffer)),
+        uv_buf_init((char*)report_data, 4)
+      };
+      uv_write_t* write_req = malloc(sizeof(uv_write_t));
+      uv_write(write_req, (uv_stream_t*)client, buf, 2, sock_report_write_done);
       uv_read_start((uv_stream_t*)client, alloc_buffer, sock_read);
       // insert to clients
       list_push_front(clients, n);
@@ -578,14 +598,14 @@ void stdin_read(uv_stream_t *stream, ssize_t nread, const uv_buf_t* buf)
     return;
   }
   static uint32_t ptr = 0;
-  uint8_t* pic_nv12_buffer = pic_write_buffer[pic_write_buffer_select] + 6;
-  size_t lack = PIC_YUV_SIZE - ptr;
+  uint8_t* pic_nv12_buffer = pic_write_buffer[pic_write_buffer_select]->buffer;
+  size_t lack = pic_yuv_size - ptr;
   if (nread >= lack) {
     static time_t last_time = 0;
     if (flag_send_pic && time(NULL) - last_time >= 1) {
       memcpy(pic_nv12_buffer + ptr, buf->base, lack);
       // broadcast
-      broadcast(pic_write_buffer[pic_write_buffer_select], sizeof(pic_write_buffer[0]), 1);
+      broadcast(pic_write_buffer[pic_write_buffer_select], sizeof(struct command_buffer) + pic_yuv_size, 1);
       static uint32_t pic_num = 0;
       printf("received pictures, #%d\r", pic_num++);
       fflush(stdout);
@@ -593,9 +613,9 @@ void stdin_read(uv_stream_t *stream, ssize_t nread, const uv_buf_t* buf)
     }
     // reset
     pic_write_buffer_select ^= 1;
-    pic_nv12_buffer = pic_write_buffer[pic_write_buffer_select] + 6;
-    // drop on too much data, align PIC_YUV_SIZE
-    ptr = (nread - lack) % PIC_YUV_SIZE;
+    pic_nv12_buffer = pic_write_buffer[pic_write_buffer_select]->buffer;
+    // drop on too much data, align pic_yuv_size
+    ptr = (nread - lack) % pic_yuv_size;
     if (flag_send_pic) {
       memcpy(pic_nv12_buffer, buf->base + (nread - ptr), ptr);
     }
@@ -612,9 +632,9 @@ void stdin_read(uv_stream_t *stream, ssize_t nread, const uv_buf_t* buf)
 }
 
 void idle_mock_stdin (uv_idle_t* idle) {
-  char *stack_dirty = malloc(PIC_YUV_SIZE);
-  uv_buf_t buf = {.base = stack_dirty, .len = PIC_YUV_SIZE};
-  stdin_read(NULL, PIC_YUV_SIZE, &buf);
+  char *stack_dirty = malloc(pic_yuv_size);
+  uv_buf_t buf = {.base = stack_dirty, .len = pic_yuv_size};
+  stdin_read(NULL, pic_yuv_size, &buf);
 }
 
 int share_mem_fd = -1, mem_fd = -1;
@@ -643,6 +663,52 @@ void before_exit(int sig) {
 }
 
 int main(int argc, char *argv[]) {
+  uint8_t flag_enable_codec = 0;
+  const char shortopts[] = "jw:h:";
+  int c = 0;
+  while (c != -1) {
+    c = getopt(argc, argv, shortopts);
+    switch (c) {
+      case -1: break;
+      case 'j': {
+        flag_enable_codec = 1;
+        break;
+      }
+      case 'w': {
+        pic_yuv_width = atol(optarg);
+        break;
+      }
+      case 'h': {
+        pic_yuv_height = atol(optarg);
+        break;
+      }
+      case '?':
+      default: {
+        fprintf(stderr,
+        "Usage: %s [options]\n\n"
+        "-w <width>\tImage width\n"
+        "-h <height>\tImage height\n"
+        "-j\tEnable hardware codec\n",
+        argv[0]);
+        return -1;
+      }
+    }
+  }
+  // FIXME: alignment
+  pic_yuv_size = pic_yuv_width * pic_yuv_height * 3 / 2;
+  if (pic_yuv_size > 0) {
+    pic_write_buffer[0] = malloc(sizeof(struct command_buffer) + pic_yuv_size);
+    pic_write_buffer[1] = malloc(sizeof(struct command_buffer) + pic_yuv_size);
+  }
+  pic_write_buffer[0]->head = 0x99;
+  pic_write_buffer[0]->command = 0x9A;
+  pic_write_buffer[0]->size = pic_yuv_size;
+  pic_write_buffer[1]->head = 0x99;
+  pic_write_buffer[1]->command = 0x9A;
+  pic_write_buffer[1]->size = pic_yuv_size;
+
+  fprintf(stderr, "width: %u, height: %u, frame size: %u\n", pic_yuv_width, pic_yuv_height, pic_yuv_size);
+  // uv
   loop = uv_default_loop();
   signal(SIGINT, before_exit);
   signal(SIGTERM, before_exit);
@@ -663,23 +729,23 @@ int main(int argc, char *argv[]) {
   assert(mem_fd >= 0);
   map_base = mmap(NULL, map_size, PROT_READ | PROT_WRITE, MAP_SHARED, mem_fd, REGISTER_BASE_ADDR & ~(off_t)(page_size - 1));
   assert(map_base != MAP_FAILED);
-  // for hd encoder
-  share_mem_fd = open("/dev/k510-share-memory", O_RDWR | O_SYNC);
-  assert(share_mem_fd >= 0);
-  assert(alloc_memory(share_mem_fd, PIC_YUV_SIZE, &mem_yuv_phy_addr,
-                      &mem_yuv_map_size) == 0);
-  mem_yuv_logic_addr = mmap(NULL, mem_yuv_map_size,
-                            PROT_READ | PROT_WRITE, MAP_SHARED,
-                            mem_fd, (uint64_t)mem_yuv_phy_addr | 0x100000000);
-  assert(mem_yuv_logic_addr != MAP_FAILED);
-  fprintf(stderr, "map share mem phy addr: 0x%08X, size: %u\n", mem_yuv_phy_addr, mem_yuv_map_size);
 
-  if (argc > 1 && strcmp(argv[1], "-j") == 0) {
+  if (flag_enable_codec && pic_yuv_size > 0) {
+    // for hd encoder
+    share_mem_fd = open("/dev/k510-share-memory", O_RDWR | O_SYNC);
+    assert(share_mem_fd >= 0);
+    assert(alloc_memory(share_mem_fd, pic_yuv_size, &mem_yuv_phy_addr,
+                        &mem_yuv_map_size) == 0);
+    mem_yuv_logic_addr = mmap(NULL, mem_yuv_map_size,
+                              PROT_READ | PROT_WRITE, MAP_SHARED,
+                              mem_fd, (uint64_t)mem_yuv_phy_addr | 0x100000000);
+    assert(mem_yuv_logic_addr != MAP_FAILED);
+    fprintf(stderr, "map share mem phy addr: 0x%08X, size: %u\n", mem_yuv_phy_addr, mem_yuv_map_size);
     // open encoder
     EncSettings encoder_settings = {
         .channel = 0,
-        .width = PIC_YUV_WIDTH,
-        .height = PIC_YUV_HEIGHT,
+        .width = pic_yuv_width,
+        .height = pic_yuv_height,
         .FrameRate = 30,
         .BitRate = 4000000,
         .MaxBitRate = 4000000,
@@ -700,8 +766,8 @@ int main(int argc, char *argv[]) {
     henc = VideoEncoder_Create(&encoder_settings);
     EncSettings encoder_settings_h264 = {
         .channel = 1,
-        .width = PIC_YUV_WIDTH,
-        .height = PIC_YUV_HEIGHT,
+        .width = pic_yuv_width,
+        .height = pic_yuv_height,
         .FrameRate = 30,
         .BitRate = 4000000,
         .MaxBitRate = 4000000,
