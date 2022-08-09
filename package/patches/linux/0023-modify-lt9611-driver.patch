@@ -1,0 +1,96 @@
+From 795845fa365e084909700d8008879b83ca98152b Mon Sep 17 00:00:00 2001
+From: wycwyhwyq <5f20.6d9b@gmail.com>
+Date: Thu, 11 Aug 2022 15:32:13 +0800
+Subject: [PATCH] modify lt9611 driver
+
+---
+ drivers/gpu/drm/bridge/lontium-lt9611.c | 52 +++++++++++++++++--------
+ 1 file changed, 36 insertions(+), 16 deletions(-)
+
+diff --git a/drivers/gpu/drm/bridge/lontium-lt9611.c b/drivers/gpu/drm/bridge/lontium-lt9611.c
+index 61366be3..01586ab1 100644
+--- a/drivers/gpu/drm/bridge/lontium-lt9611.c
++++ b/drivers/gpu/drm/bridge/lontium-lt9611.c
+@@ -713,7 +713,27 @@ lt9611_connector_mode_valid(struct drm_connector *connector,
+ 			    struct drm_display_mode *mode)
+ {
+ 	struct lt9611_mode *lt9611_mode = lt9611_find_mode(mode);
+-
++	// todo fix
++	unsigned char *vo_base = ioremap(0x92700000, 0x200);
++	unsigned int enable_flag = readl(vo_base + 0x118);
++	unsigned int disp_size = readl(vo_base + 0x11c);
++	unsigned int xzone = readl(vo_base + 0xc0);
++	unsigned int yzone = readl(vo_base + 0xc4);
++	iounmap(vo_base);
++	if ((enable_flag & 0x80) == 0) {
++		int htotal = disp_size & 0x1FFF;
++		int vtotal = (disp_size >> 16) & 0x1FFF;
++		int x1 = xzone & 0x1FFF;
++		int x2 = (xzone >> 16) & 0x1FFF;
++		int y1 = yzone & 0x1FFF;
++		int y2 = (yzone >> 16) & 0x1FFF;
++		int hdisplay = x2 - x1 + 1;
++		int vdisplay = y2 - y1 + 1;
++		if (hdisplay == mode->hdisplay && vdisplay == mode->vdisplay &&
++			htotal == mode->htotal && vtotal == mode->vtotal)
++			return MODE_OK;
++		return MODE_BAD;
++	}
+ 	return lt9611_mode ? MODE_OK : MODE_BAD;
+ }
+ 
+@@ -993,11 +1013,11 @@ static void lt9611_bridge_hpd_enable(struct drm_bridge *bridge)
+ static const struct drm_bridge_funcs lt9611_bridge_funcs = {
+ 	.attach = lt9611_bridge_attach,
+ 	.detach = lt9611_bridge_detach,
+-	.mode_valid = lt9611_bridge_mode_valid,
+-	.enable = lt9611_bridge_enable,
+-	.disable = lt9611_bridge_disable,
+-	.post_disable = lt9611_bridge_post_disable,
+-	.mode_set = lt9611_bridge_mode_set,
++	// .mode_valid = lt9611_bridge_mode_valid,
++	// .enable = lt9611_bridge_enable,
++	// .disable = lt9611_bridge_disable,
++	// .post_disable = lt9611_bridge_post_disable,
++	// .mode_set = lt9611_bridge_mode_set,
+ 	//.detect = lt9611_bridge_detect,
+ 	//.get_edid = lt9611_bridge_get_edid,
+ 	//.hpd_enable = lt9611_bridge_hpd_enable,
+@@ -1116,8 +1136,8 @@ static int lt9611_probe(struct i2c_client *client,
+ 	//if (ret)
+ 		//goto err_of_put;
+ 
+-	lt9611_reset(lt9611);
+-	printk("lt9611_reset success \n");
++	// lt9611_reset(lt9611);
++	// printk("lt9611_reset success \n");
+ 
+ 	ret = lt9611_read_device_rev(lt9611);
+ 	if (ret) {
+@@ -1126,14 +1146,14 @@ static int lt9611_probe(struct i2c_client *client,
+ 	}
+ 	printk("lt9611_read_device success \n");
+ 
+-	ret = devm_request_threaded_irq(dev, client->irq, NULL,
+-					lt9611_irq_thread_handler,
+-					IRQF_ONESHOT, "lt9611", lt9611);
+-	if (ret) {
+-		dev_err(dev, "failed to request irq\n");
+-		goto err_disable_regulators;
+-	}
+-	printk("lt9611_irq success \n");
++	// ret = devm_request_threaded_irq(dev, client->irq, NULL,
++	// 				lt9611_irq_thread_handler,
++	// 				IRQF_ONESHOT, "lt9611", lt9611);
++	// if (ret) {
++	// 	dev_err(dev, "failed to request irq\n");
++	// 	goto err_disable_regulators;
++	// }
++	// printk("lt9611_irq success \n");
+ 
+ 	i2c_set_clientdata(client, lt9611);
+ 
+-- 
+2.17.1
+
