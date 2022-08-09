@@ -2382,7 +2382,8 @@ int main(int argc, char *argv[])
           printf("slice qp error\n");
           return -1;
         }
-	pCtx->Cfg[i].MaxQP = 100;
+	if (pCtx->Cfg[i].SliceQP > pCtx->Cfg[i].MaxQP)
+	    pCtx->Cfg[i].MaxQP = pCtx->Cfg[i].SliceQP;
       }
       else
       {
