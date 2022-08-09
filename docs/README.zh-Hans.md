@@ -3,16 +3,6 @@
 
 * [English](../README.md)
 * [简体中文](README.zh-Hans.md)
-* [繁體中文](README.zh-Hant.md)
-* [Nederlands](README.nl.md)
-* [Français](README.fr.md)
-* [Deutsch](README.de.md)
-* [Italiano](README.it.md)
-* [日本語](README.ja.md)
-* [한국어](README.ko.md)
-* [Русский](README.ru.md)
-* [Español](README.es.md)
-* [Polski](README.pl.md)
   
 # K510 SDK
 

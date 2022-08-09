@@ -1,0 +1,190 @@
+From b3787918cd24a9d3ba9e863045ebfb3c7f57d541 Mon Sep 17 00:00:00 2001
+From: wycwyhwyq <5f20.6d9b@gmail.com>
+Date: Sun, 31 Jul 2022 17:49:23 +0800
+Subject: [PATCH] fix vo driver
+
+---
+ .../boot/dts/canaan/k510_crb_lp3_v1_2.dts     | 14 +++++-----
+ drivers/gpu/drm/canaan/kendryte_dsi.c         | 25 ++++++------------
+ drivers/gpu/drm/canaan/kendryte_vo.c          | 26 ++++++++++---------
+ 3 files changed, 29 insertions(+), 36 deletions(-)
+
+diff --git a/arch/riscv/boot/dts/canaan/k510_crb_lp3_v1_2.dts b/arch/riscv/boot/dts/canaan/k510_crb_lp3_v1_2.dts
+index 66ceff61..39e7b26b 100755
+--- a/arch/riscv/boot/dts/canaan/k510_crb_lp3_v1_2.dts
++++ b/arch/riscv/boot/dts/canaan/k510_crb_lp3_v1_2.dts
+@@ -549,8 +549,8 @@
+ 39 00 03 C0 25 5A
+ 39 00 03 B6 91 91
+ 39 00 02 D2 66
+-39 00 02 CC 08
+-39 00 02 36 03
++39 00 02 CC 00
++39 00 02 36 01
+ 05 00 01 11
+ 05 00 01 29
+         ];
+@@ -585,12 +585,12 @@
+                     clock-frequency = <74250000>;
+                     hactive = <1080>;
+                     vactive = <1920>;
+-                    hsync-len = <10>;
+-                    hfront-porch = <10>;
+-                    hback-porch = <200>;
++                    hsync-len = <20>;
++                    hfront-porch = <134>;
++                    hback-porch = <20>;
+                     vsync-len = <5>;
+-                    vfront-porch = <5>;
+-                    vback-porch = <10>;
++                    vfront-porch = <25>;
++                    vback-porch = <8>;
+                     hsync-active = <0>;
+                     vsync-active = <0>;
+                     de-active = <1>;
+diff --git a/drivers/gpu/drm/canaan/kendryte_dsi.c b/drivers/gpu/drm/canaan/kendryte_dsi.c
+index 98661bbe..68b12188 100755
+--- a/drivers/gpu/drm/canaan/kendryte_dsi.c
++++ b/drivers/gpu/drm/canaan/kendryte_dsi.c
+@@ -618,7 +618,7 @@ static void kendryte_dsi_init(struct kendryte_dsi *dsi, struct drm_display_mode
+ 
+     kendryte_dsi_dcs_write_reg(dsi, MCTL_DPHY_TIMEOUT1_OFFSET, 0xed8afffb);
+     kendryte_dsi_dcs_write_reg(dsi, MCTL_DPHY_TIMEOUT2_OFFSET, 0xf30fffff);
+-    kendryte_dsi_dcs_write_reg(dsi, MCTL_MAIN_DATA_CTL_OFFSET, 0x2e007); //[6] tvg_sel = 1  test video generator enabled   //default 0x27                         0x2e067
++    kendryte_dsi_dcs_write_reg(dsi, MCTL_MAIN_DATA_CTL_OFFSET, 0x2e027); //[6] tvg_sel = 1  test video generator enabled   //default 0x27                         0x2e067
+                                                         //[5] vid_en = 1   enable the video stream generator
+                                                         //[3:2] vid_if_select =2'b00  00:sdi;01:dpi��10:DSC
+                                                         //[1] sdi_if_vid_mode = 1  select video mode
+@@ -707,6 +707,13 @@ static void kendryte_dsi_encoder_enable(struct drm_encoder *encoder)
+     printk("dsi vdisplay %d\n", mode->vdisplay);
+     printk("dsi pclk %d\n", mode->clock);
+     printk("dsi refresh %d\n", drm_mode_vrefresh(mode));
++
++    kendryte_dsi_dcs_write_reg(dsi, VID_MODE_STS_CLR_OFFSET, 0x7ff);
++    msleep(50);
++    uint32_t vid_flag = kendryte_dsi_dcs_read_reg(dsi, VID_MODE_STS_OFFSET);
++    if (vid_flag & 0x001)
++        return;
++
+     kendryte_txdphy_init(dsi, mode);
+     kendryte_dsi_init(dsi, mode);
+ 
+@@ -731,22 +738,6 @@ static void kendryte_dsi_encoder_enable(struct drm_encoder *encoder)
+ 
+     kendryte_dsi_set_timing(dsi, mode);
+     kendryte_dsi_setup_format(dsi, mode);
+-
+-//    kendryte_dsi_get_reg_val(dsi);
+-    int try_count = 5;
+-    msleep(50);
+-    kendryte_dsi_dcs_write_reg(dsi, MCTL_MAIN_DATA_CTL_OFFSET, 0x2e027);
+-    while (try_count--) {
+-        kendryte_dsi_dcs_write_reg(dsi, VID_MODE_STS_CLR_OFFSET, 0xfff);
+-        msleep(1);
+-        if ((kendryte_dsi_dcs_read_reg(dsi, VID_MODE_STS_OFFSET) & 1))
+-            break;
+-        kendryte_dsi_dcs_write_reg(dsi, MCTL_MAIN_DATA_CTL_OFFSET, 0x2e007);
+-        msleep(50);
+-        kendryte_dsi_dcs_write_reg(dsi, MCTL_MAIN_DATA_CTL_OFFSET, 0x2e027);
+-        msleep(50);
+-    }
+-    printk("try_count %d\n", try_count);
+ }
+ 
+ 
+diff --git a/drivers/gpu/drm/canaan/kendryte_vo.c b/drivers/gpu/drm/canaan/kendryte_vo.c
+index 4c800402..295fac68 100755
+--- a/drivers/gpu/drm/canaan/kendryte_vo.c
++++ b/drivers/gpu/drm/canaan/kendryte_vo.c
+@@ -164,6 +164,13 @@ void kendryte_vo_set_mode(struct kendryte_vo *vo, struct drm_display_mode *mode)
+     printk("crtc vdisplay %d\n", vdisplay);
+     printk("crtc yzone_start %d\n", yzone_start);
+     printk("crtc yzone_stop %d\n", yzone_stop);
++    // update draw frame
++    reg_val = ((hdisplay - 1) & 0x1FFF) | (((vdisplay - 1) & 0x1FFF) << 16) | (1UL << 15);
++    writel(reg_val, vo->base + ADDR_VO_DISP_DRAW_FRAME_CMD);
++    uint32_t enable_flag = readl(vo->base + VO_DISP_ENABLE);
++    if ((enable_flag & 0x80) == 0)
++        return;
++    writel(0, vo->base + VO_DISP_ENABLE);
+ 
+     reg_val = 0x05 + (0x19 << 16);
+     writel(reg_val, vo->base + VO_DISP_HSYNC_CTL);
+@@ -182,11 +189,6 @@ void kendryte_vo_set_mode(struct kendryte_vo *vo, struct drm_display_mode *mode)
+ 
+     reg_val = yzone_start + ((yzone_stop -1) << 16);
+     writel(reg_val, vo->base + VO_DISP_YZONE_CTL);
+-    // update draw frame
+-    reg_val = ((hdisplay - 1) & 0x1FFF) | (((vdisplay - 1) & 0x1FFF) << 16) | (1UL << 15);
+-    writel(reg_val, vo->base + ADDR_VO_DISP_DRAW_FRAME_CMD);
+-
+-    writel(0x11, vo->base + VO_REG_LOAD_CTL);
+ }
+ 
+ void kendryte_vo_timing_init(struct kendryte_vo *vo, struct kendryte_vo_timing *vo_timing)
+@@ -434,7 +436,7 @@ void kendryte_set_layer_postion(struct kendryte_vo *vo, enum VO_LAYER layer, uin
+             val = (h_offset + hsa + hbp) + ((hpos + (h_offset + hsa + hbp) - 1) << 16);
+             writel(val, vo->base + VO_DISP_LAYER0_XCTL);
+             // set layer0 y start and stop
+-            val = (v_offset + vsa + vbp + 1) + ((vpos + (v_offset + vsa + vbp + 1)) << 16);
++            val = (v_offset + vsa + vbp + 1) + ((vpos + (v_offset + vsa + vbp)) << 16);
+             writel(val, vo->base + VO_DISP_LAYER0_YCTL);
+             break;
+ 
+@@ -446,7 +448,7 @@ void kendryte_set_layer_postion(struct kendryte_vo *vo, enum VO_LAYER layer, uin
+             val = (h_offset + hsa + hbp) + ((hpos + (h_offset + hsa + hbp) - 1) << 16);
+             writel(val, vo->base + VO_DISP_LAYER1_XCTL);
+             // set layer1 y start and stop
+-            val = (v_offset + vsa + vbp + 1) + ((vpos + (v_offset + vsa + vbp + 1)) << 16);
++            val = (v_offset + vsa + vbp + 1) + ((vpos + (v_offset + vsa + vbp)) << 16);
+             writel(val, vo->base + VO_DISP_LAYER1_YCTL);
+             break;
+         
+@@ -458,7 +460,7 @@ void kendryte_set_layer_postion(struct kendryte_vo *vo, enum VO_LAYER layer, uin
+             val = (h_offset + hsa + hbp) + ((hpos + (h_offset + hsa + hbp) - 1) << 16);
+             writel(val, vo->base + VO_DISP_LAYER2_XCTL);
+             // set layer2 y start and stop
+-            val = (v_offset + vsa + vbp + 1) + ((vpos + (v_offset + vsa + vbp + 1)) << 16);
++            val = (v_offset + vsa + vbp + 1) + ((vpos + (v_offset + vsa + vbp)) << 16);
+             writel(val, vo->base + VO_DISP_LAYER2_YCTL);
+ 
+             break;
+@@ -471,7 +473,7 @@ void kendryte_set_layer_postion(struct kendryte_vo *vo, enum VO_LAYER layer, uin
+             val = (h_offset + hsa + hbp) + ((hpos + (h_offset + hsa + hbp) - 1) << 16);
+             writel(val, vo->base + VO_DISP_LAYER3_XCTL);
+             // set layer3 y start and stop
+-            val = (v_offset + vsa + vbp + 1) + ((vpos + (v_offset + vsa + vbp + 1)) << 16);
++            val = (v_offset + vsa + vbp + 1) + ((vpos + (v_offset + vsa + vbp)) << 16);
+             writel(val, vo->base + VO_DISP_LAYER3_YCTL);
+             break;
+ 
+@@ -483,7 +485,7 @@ void kendryte_set_layer_postion(struct kendryte_vo *vo, enum VO_LAYER layer, uin
+             val = (h_offset + hsa + hbp) + ((hpos + (h_offset + hsa + hbp) - 1) << 16);
+             writel(val, vo->base + VO_DISP_LAYER4_XCTL);
+             // set osd0 y start and stop
+-            val = (v_offset + vsa + vbp + 1) + ((vpos + (v_offset + vsa + vbp + 1)) << 16);
++            val = (v_offset + vsa + vbp + 1) + ((vpos + (v_offset + vsa + vbp)) << 16);
+             writel(val, vo->base + VO_DISP_LAYER4_YCTL);
+             break;
+         case OSD1 :
+@@ -494,7 +496,7 @@ void kendryte_set_layer_postion(struct kendryte_vo *vo, enum VO_LAYER layer, uin
+             val = (h_offset + hsa + hbp) + ((hpos + (h_offset + hsa + hbp) - 1) << 16);
+             writel(val, vo->base + VO_DISP_LAYER5_XCTL);
+             // set osd1 y start and stop
+-            val = (v_offset + vsa + vbp + 1) + ((vpos + (v_offset + vsa + vbp + 1)) << 16);
++            val = (v_offset + vsa + vbp + 1) + ((vpos + (v_offset + vsa + vbp)) << 16);
+             writel(val, vo->base + VO_DISP_LAYER5_YCTL);
+ 
+             break;
+@@ -506,7 +508,7 @@ void kendryte_set_layer_postion(struct kendryte_vo *vo, enum VO_LAYER layer, uin
+             val = (h_offset + hsa + hbp) + ((hpos + (h_offset + hsa + hbp) - 1) << 16);
+             writel(val, vo->base + VO_DISP_LAYER6_XCTL);
+             // set osd2 y start and stop
+-            val = (v_offset + vsa + vbp + 1) + ((vpos + (v_offset + vsa + vbp + 1)) << 16);
++            val = (v_offset + vsa + vbp + 1) + ((vpos + (v_offset + vsa + vbp)) << 16);
+             writel(val, vo->base + VO_DISP_LAYER6_YCTL);
+             break;
+         default:
+-- 
+2.17.1
+
