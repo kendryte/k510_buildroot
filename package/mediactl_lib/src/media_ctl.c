@@ -1031,36 +1031,33 @@ int mediactl_all_set_ae(enum isp_pipeline_e pipeline)
 		}
 
 		struct media_entity *sensor0 = v4l_isp.sensor0;
-		if( ae_stats.ae_wren == 1)
+		ret = v4l2_subdev_open(sensor0);
+		if (ret < 0)
+			return ret;
+
+		struct v4l2_control  control_s;
+		control_s.id = V4L2_CID_EXPOSURE;
+		control_s.value = ae_stats.ae_expl ;
+		ret = ioctl(sensor0->fd,VIDIOC_S_CTRL,&control_s);
+		if (ret < 0)
 		{
-			ret = v4l2_subdev_open(sensor0);
-			if (ret < 0)
-				return ret;
-
-			struct v4l2_control  control_s;
-			control_s.id = V4L2_CID_EXPOSURE;
-			control_s.value = ae_stats.ae_expl ;
-			ret = ioctl(sensor0->fd,VIDIOC_S_CTRL,&control_s);
-			if (ret < 0)
-			{
-				printf("%s: ioctl(VIDIOC_S_CTRL-V4L2_CID_GAIN)failed ret(%d)\n", __func__,
-					  ret);
-				v4l2_subdev_close(sensor0);	  
-				return ret;
-			} 
-
-			control_s.id = V4L2_CID_GAIN;
-			control_s.value = ae_stats.ae_agco;
-			ret = ioctl(sensor0->fd,VIDIOC_S_CTRL,&control_s);
-			if (ret < 0)
-			{
-				printf("%s: ioctl(VIDIOC_S_CTRL-V4L2_CID_EXPOSURE)failed ret(%d)\n", __func__,
-					  ret);
-				v4l2_subdev_close(sensor0);
-				return ret;
-			} 		
+			printf("%s: ioctl(VIDIOC_S_CTRL-V4L2_CID_GAIN)failed ret(%d)\n", __func__,
+					ret);
 			v4l2_subdev_close(sensor0);
+			return ret;
 		}
+
+		control_s.id = V4L2_CID_GAIN;
+		control_s.value = ae_stats.ae_agco;
+		ret = ioctl(sensor0->fd,VIDIOC_S_CTRL,&control_s);
+		if (ret < 0)
+		{
+			printf("%s: ioctl(VIDIOC_S_CTRL-V4L2_CID_EXPOSURE)failed ret(%d)\n", __func__,
+					ret);
+			v4l2_subdev_close(sensor0);
+			return ret;
+		}
+		v4l2_subdev_close(sensor0);
 	}
 
 	if(ISP_R2K_PIPELINE == pipeline)
@@ -1091,247 +1088,93 @@ int mediactl_all_set_ae(enum isp_pipeline_e pipeline)
 		}
 
 		struct media_entity *sensor1 = v4l_isp.sensor1;
-		if( ae_stats.ae_wren == 1)
+		ret = v4l2_subdev_open(sensor1);
+		if (ret < 0)
+			return ret;
+
+		struct v4l2_control  control_s;
+		control_s.id = V4L2_CID_EXPOSURE;
+		control_s.value = ae_stats.ae_expl;
+		ret = ioctl(sensor1->fd,VIDIOC_S_CTRL,&control_s);
+		if (ret < 0)
 		{
-			ret = v4l2_subdev_open(sensor1);
-			if (ret < 0)
-				return ret;
-
-			struct v4l2_control  control_s;
-			control_s.id = V4L2_CID_EXPOSURE;
-			control_s.value = ae_stats.ae_expl;
-			ret = ioctl(sensor1->fd,VIDIOC_S_CTRL,&control_s);
-			if (ret < 0)
-			{
-				printf("%s: ioctl(VIDIOC_S_CTRL-V4L2_CID_GAIN)failed ret(%d)\n", __func__,
-					  ret);
-				v4l2_subdev_close(sensor1);
-				return ret;
-			} 
-
-			control_s.id = V4L2_CID_GAIN;
-			control_s.value = ae_stats.ae_agco;
-			ret = ioctl(sensor1->fd,VIDIOC_S_CTRL,&control_s);
-			if (ret < 0)
-			{
-				printf("%s: ioctl(VIDIOC_S_CTRL-V4L2_CID_EXPOSURE)failed ret(%d)\n", __func__,
-					  ret);
-				v4l2_subdev_close(sensor1);
-				return ret;
-			} 		
+			printf("%s: ioctl(VIDIOC_S_CTRL-V4L2_CID_GAIN)failed ret(%d)\n", __func__,
+					ret);
 			v4l2_subdev_close(sensor1);
-			// fprintf(stderr, "exp: %u\tagc: %u\n", ae_stats.ae_expl, ae_stats.ae_agco);
+			return ret;
 		}
+
+		control_s.id = V4L2_CID_GAIN;
+		control_s.value = ae_stats.ae_agco;
+		ret = ioctl(sensor1->fd,VIDIOC_S_CTRL,&control_s);
+		if (ret < 0)
+		{
+			printf("%s: ioctl(VIDIOC_S_CTRL-V4L2_CID_EXPOSURE)failed ret(%d)\n", __func__,
+					ret);
+			v4l2_subdev_close(sensor1);
+			return ret;
+		}
+		v4l2_subdev_close(sensor1);
 	}
 	
 	return 0;
 }
 
 #endif
+
+static volatile uint8_t flag_ae_enable = 3;
+
+void mediactl_disable_ae(enum isp_pipeline_e pipeline) {
+	if (pipeline == ISP_F2K_PIPELINE) {
+		flag_ae_enable &= ~1U;
+	} else if (pipeline == ISP_R2K_PIPELINE) {
+		flag_ae_enable &= ~2U;
+	}
+}
+
+
 /**
  * @brief 
  * 
  */
 
 #define F2K_AE_DEVICE           "/dev/f2k-ae"
-
-void *run_f2k_ae_video(void *info)
-{
-    int fd ;
-	int i = 0;
-    fd_set fds;
-    struct timeval tv;
-    int r;
-    int ret;
-
-    printf("run_f2k_ae_video ------------------- start  \n");
-    fd =  open(F2K_AE_DEVICE, O_RDWR);
-    if (fd < 0) {
-		printf("open %s error!\r\n", F2K_AE_DEVICE);
-		return 1;
-	}
-
-
-    FD_ZERO(&fds);
-    FD_SET(fd, &fds);
-    while (1) {
-        /* Timeout. */
-        tv.tv_sec = 5;
-        tv.tv_usec = 0;
-
-        r = select(fd + 1, &fds, NULL, NULL, &tv);        
-        if (-1 == r) {
-            if (EINTR == errno)
-                continue;
-            //errno_exit("select");
-            //done = true;
-            printf("error: ae select failed with %d\n",errno);
-            ret =  -1;
-            break;
-        }
-
-        if (0 == r) {
-            //done = true;
-            printf("%s:ae select timeout\n",__func__);
-            //exit(EXIT_FAILURE);
-            ret =  -1;
-            break;
-        }
-
-        //mediactl_set_ae();
-#if 0
-        if(Sensor1_Sync == FALSE)
-		{
-			ret = mediactl_set_ae_single(ISP_F2K_PIPELINE);
-		}
-		else
-		{
-			ret = mediactl_set_ae_sync(ISP_F2K_PIPELINE);
-			ret = mediactl_set_awb_sync(ISP_F2K_PIPELINE);	
-		}
-#else
-
-#if 0
-		if(i == 0)
-		{
-			usleep(3950);
-			mediactl_all_set_ae(ISP_F2K_PIPELINE);
-		}
-			
-		i ++;
-		if(i == 2)
-		{
-			i = 0;
-		}
-#else
-		// char tmp;
-		// read(fd, &tmp, 1);
-		//usleep(3900);
-		mediactl_all_set_ae(ISP_F2K_PIPELINE);
-#endif
-
-#endif
-		
-        /* EAGAIN - continue select loop. */
-    }
-
-    //printf("%s: camera %d fd(%d) mainloop end ret(%d)!\n", __func__,camera_seq,fd,ret);
-    return ret;
-}
-
-
-
 #define R2K_AE_DEVICE           "/dev/r2k-ae"
-
-void *run_r2k_ae_video(void *info)
-{
-    int fd ;
-
-    fd_set fds;
-    struct timeval tv;
-    int r;
-    int ret;
-	int i = 0;
-
-    printf("run_r2k_ae_video ------------------- start  \n");
-
-    fd =  open(R2K_AE_DEVICE, O_RDWR);
-    if (fd < 0) {
-		printf("open %s error!\r\n", R2K_AE_DEVICE);
-		return 1;
-	}
-
-
-    FD_ZERO(&fds);
-    FD_SET(fd, &fds);
-    while (1) { 
-        /* Timeout. */
-        tv.tv_sec = 5;
-        tv.tv_usec = 0;
-
-        r = select(fd + 1, &fds, NULL, NULL, &tv);        
-        if (-1 == r) {
-            if (EINTR == errno)
-                continue;
-            //errno_exit("select");
-            //done = true;
-            printf("error: ae select failed with %d\n",errno);
-            ret =  -1;
-            break;
-        }
-
-        if (0 == r) {
-            //done = true;
-            printf("%s:ae select timeout\n",__func__);
-            //exit(EXIT_FAILURE);
-            ret =  -1;
-            break;
-        }
-
-        //mediactl_set_ae();
-#if 0
-        if(Sensor1_Sync == FALSE)
-		{
-			ret = mediactl_set_ae_single(ISP_R2K_PIPELINE);
-		}
-		else
-		{
-			ret = mediactl_set_ae_sync(ISP_F2K_PIPELINE);
-			ret = mediactl_set_awb_sync(ISP_F2K_PIPELINE);	
-		}
-#else
-
-#if 0
-		if(i == 0)
-		{
-			usleep(3950);
-			mediactl_all_set_ae(ISP_R2K_PIPELINE);
-		}
-
-		i ++;
-		if(i == 2)
-		{
-			i = 0;
-		}
-#else
-		//usleep(3900);
-		mediactl_all_set_ae(ISP_R2K_PIPELINE);
-
-#endif
-
-#endif
-        /* EAGAIN - continue select loop. */
-    }
-    //printf("%s: camera %d fd(%d) mainloop end ret(%d)!\n", __func__,camera_seq,fd,ret);
-    return ret;
-}
-
 
 void run_all_ae_video(void *info)
 {
-    int fd[2];
+	if (flag_ae_enable == 0) {
+		return;
+	}
+    int fd[2] = {-1, -1};
 	int i = 0;
     fd_set fds;
+	FD_ZERO(&fds);
     struct timeval tv;
     int r;
 
-    printf("run_all_ae_video ------------------- start  \n");
+    printf("run_all_ae_video ------------------- start %d \n", flag_ae_enable);
 
-    fd[0] = open(F2K_AE_DEVICE, O_RDWR);
-    if (fd[0] < 0) {
-		printf("open %s error!\r\n", F2K_AE_DEVICE);
-		return;
+	if ((flag_ae_enable & 1) && v4l_isp.isp_pipeline[ISP_F2K].pipeline_en) {
+		fd[0] = open(F2K_AE_DEVICE, O_RDWR);
+		FD_SET(fd[0], &fds);
+		if (fd[0] < 0) {
+			printf("open %s error!\r\n", F2K_AE_DEVICE);
+			return;
+		}
+		fprintf(stderr, "enable F2K AE\n");
 	}
 
-	fd[1] = open(R2K_AE_DEVICE, O_RDWR);
-    if (fd[1] < 0) {
-		printf("open %s error!\r\n", F2K_AE_DEVICE);
-		return;
+	if ((flag_ae_enable & 2) && v4l_isp.isp_pipeline[ISP_R2K].pipeline_en) {
+		fd[1] = open(R2K_AE_DEVICE, O_RDWR);
+		FD_SET(fd[1], &fds);
+		if (fd[1] < 0) {
+			printf("open %s error!\r\n", F2K_AE_DEVICE);
+			return;
+		}
+		fprintf(stderr, "enable R2K AE\n");
 	}
 
-    FD_ZERO(&fds);
-    FD_SET(fd[0], &fds);
-	FD_SET(fd[1], &fds);
 	int max_fd = (fd[0] > fd[1] ? fd[0] : fd[1]) + 1;
     while (1) {
 		/*
@@ -1352,14 +1195,14 @@ void run_all_ae_video(void *info)
 		fd_set rfds = fds;
         r = select(max_fd, &rfds, NULL, NULL, &tv);
 		if (r > 0) {
-			if (FD_ISSET(fd[0], &rfds)) {
+			if (v4l_isp.isp_pipeline[ISP_F2K].pipeline_en && FD_ISSET(fd[0], &rfds)) {
 				struct timeval tv1, tv2;
 				// gettimeofday(&tv1, NULL);
 				mediactl_all_set_ae(ISP_F2K_PIPELINE);
 				// gettimeofday(&tv2, NULL);
 				// fprintf(stderr, "cam %d AE %ldus\n", 0, (tv2.tv_sec - tv1.tv_sec) * 1000000 + (tv2.tv_usec - tv1.tv_usec));
 			}
-			if (FD_ISSET(fd[1], &rfds)) {
+			if (v4l_isp.isp_pipeline[ISP_R2K].pipeline_en && FD_ISSET(fd[1], &rfds)) {
 				struct timeval tv1, tv2;
 				// gettimeofday(&tv1, NULL);
 				mediactl_all_set_ae(ISP_R2K_PIPELINE);
@@ -1608,15 +1451,7 @@ int mediactl_init(char *video_cfg_file,struct video_info *dev_info)
 		pthread_create(&isp_r2k_ae,NULL,run_r2k_ae_video,NULL);
 	}
 #else
-	if(v4l_isp.isp_pipeline[ISP_R2K].pipeline_en == 1 && v4l_isp.isp_pipeline[ISP_F2K].pipeline_en == 1) {
-		pthread_create(&isp_all_ae, NULL, run_all_ae_video, NULL);
-		//pthread_create(&isp_r2k_ae, NULL, run_r2k_ae_video, NULL);
-		//pthread_create(&isp_f2k_ae, NULL, run_f2k_ae_video, NULL);
-	} else if (v4l_isp.isp_pipeline[ISP_R2K].pipeline_en == 1) {
-		pthread_create(&isp_r2k_ae, NULL, run_r2k_ae_video, NULL);
-	} else if( v4l_isp.isp_pipeline[ISP_F2K].pipeline_en == 1 ) {
-		pthread_create(&isp_f2k_ae, NULL, run_f2k_ae_video, NULL);
-	}
+	pthread_create(&isp_all_ae, NULL, run_all_ae_video, NULL);
 
 #endif
 	return 0;

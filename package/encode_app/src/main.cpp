@@ -194,6 +194,7 @@ typedef struct
   unsigned char *out_framerate;
   int video_enabled;
   int ae_enable;
+  int setQos;
 
   /* audio */
   snd_pcm_t *pcmp;
@@ -1005,7 +1006,7 @@ int free_context(void *arg)
 }
 
 static void endof_encode()
-{
+{ 
   printf("endof_encode\n");
   // pCtx->start = 0;
   for(int i = 0; i < pCtx->ch_cnt; i++)
@@ -1087,24 +1088,24 @@ static void endof_encode()
       sem_destroy(&pCtx->pSemGetData[i]);
     }
   }
-
-  if(pCtx->video_enabled)
+  
+  if(pCtx->setQos)
   {
     unsigned char *reg;
     
-    reg=(unsigned char * )mmap(NULL, MEMORY_TEST_BLOCK_ALIGN, PROT_READ | PROT_WRITE, MAP_SHARED, pCtx->fd_ddr, MAILBOX_REG_BASE);
+    reg=(unsigned char * )mmap(NULL, MEMORY_TEST_BLOCK_ALIGN, PROT_READ | PROT_WRITE, MAP_SHARED, pCtx->fd_ddr, (uint64_t)MAILBOX_REG_BASE|0x100000000);
   	*(volatile unsigned int *)(reg+0xf4) = pCtx->reg_QoS_ctrl0;
   	*(volatile unsigned int *)(reg+0xf8) = pCtx->reg_QoS_ctrl1;
   	*(volatile unsigned int *)(reg+0xfc) = pCtx->reg_QoS_ctrl2;
   	munmap(reg, MEMORY_TEST_BLOCK_ALIGN);
-  	reg=(unsigned char * )mmap(NULL, MEMORY_TEST_BLOCK_ALIGN, PROT_READ | PROT_WRITE, MAP_SHARED, pCtx->fd_ddr, NOC_QOS_REG_BASE);
+  	reg=(unsigned char * )mmap(NULL, MEMORY_TEST_BLOCK_ALIGN, PROT_READ | PROT_WRITE, MAP_SHARED, pCtx->fd_ddr, (uint64_t)NOC_QOS_REG_BASE|0x100000000);
   	*(volatile unsigned int *)(reg+0x290) = pCtx->reg_h264_bw;
   	*(volatile unsigned int *)(reg+0x28c) = pCtx->reg_h264_mode;
   	*(volatile unsigned int *)(reg+0x388) = pCtx->reg_isp_pri;
   	*(volatile unsigned int *)(reg+0x38c) = pCtx->reg_isp_mode;
   	*(volatile unsigned int *)(reg+0x390) = pCtx->reg_isp_bw;
   	munmap(reg, MEMORY_TEST_BLOCK_ALIGN);
-  	reg=(unsigned char * )mmap(NULL, MEMORY_TEST_BLOCK_ALIGN, PROT_READ | PROT_WRITE, MAP_SHARED, pCtx->fd_ddr, DDR_CTRL_REG_BASE);
+  	reg=(unsigned char * )mmap(NULL, MEMORY_TEST_BLOCK_ALIGN, PROT_READ | PROT_WRITE, MAP_SHARED, pCtx->fd_ddr, (uint64_t)DDR_CTRL_REG_BASE|0x100000000);
   	*(volatile unsigned int *)(reg+0x504) = pCtx->reg_ddr_cli;
     munmap(reg, MEMORY_TEST_BLOCK_ALIGN);
     printf("QoS restore\n");
@@ -1181,6 +1182,8 @@ static void set_QoS()
   *(volatile unsigned int *)(reg+0x504) = 0x00010303;
   printf("0x98000504: from 0x%08x to 0x%08x\n", pCtx->reg_ddr_cli, *(volatile unsigned int *)(reg+0x504));
   munmap(reg, MEMORY_TEST_BLOCK_ALIGN);
+
+  pCtx->setQos = 1;
 }
 
 #if TEST_ISP

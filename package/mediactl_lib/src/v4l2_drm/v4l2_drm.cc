@@ -24,7 +24,6 @@
  */
 
 /* v4l2_test */
-#include <asm-generic/errno-base.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -82,8 +81,8 @@ typedef struct {
     uint32_t force;
     uint32_t width, height;
     uint32_t width_force, height_force;
-    uint32_t offset_x, offset_y;
-    uint32_t offset_x_force, offset_y_force;
+    int32_t offset_x, offset_y;
+    int32_t offset_x_force, offset_y_force;
 } video_in_cfg_t;
 static video_in_cfg_t video_in_cfg[2];
 
@@ -599,8 +598,8 @@ int video_resolution_adaptation(void)
     uint32_t sensor_active_height[2];
     uint32_t video_width[2];
     uint32_t video_height[2];
-    uint32_t video_offset_x[2] = {0, 0};
-    uint32_t video_offset_y[2] = {0, 0};
+    int32_t video_offset_x[2] = {0, 0};
+    int32_t video_offset_y[2] = {0, 0};
 
 #define SENSOR_1920x1080_TIMING(x) \
     do {\
@@ -702,6 +701,11 @@ int video_resolution_adaptation(void)
     } else {
         return -1;
     }
+    // force width 16 aligned and height 2 aligned
+    for (int i = 0; i < 2; i++) {
+        video_width[i] = (video_width[i] + 15) & 0xFFF0;
+        video_height[i] = (video_height[i] + 1) & 0xFFFE;
+    }
     // force set resolution and offset (debug use)
     for (int i = 0; i < 2; i++) {
         if (video_in_cfg[i].force & RESOLUTION_FORCE) {
@@ -717,6 +721,10 @@ int video_resolution_adaptation(void)
             video_in_cfg[i].offset_x = video_offset_x[i];
             video_in_cfg[i].offset_y = video_offset_y[i];
         }
+        if (video_in_cfg[i].offset_x < 0)
+            video_in_cfg[i].offset_x = 0;
+        if (video_in_cfg[i].offset_y < 0)
+            video_in_cfg[i].offset_y = 0;
     }
     // update video config
     if (video_input_flag & VIDEO_INPUT_0_ENABLE) {
@@ -862,6 +870,13 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
             usage(stderr, argc, argv);
             exit(EXIT_FAILURE);
         }
+    }
+
+    if ((isp_ae_status & 1) == 0) {
+        mediactl_disable_ae(ISP_F2K_PIPELINE);
+    }
+    if ((isp_ae_status & 2) == 0) {
+        mediactl_disable_ae(ISP_R2K_PIPELINE);
     }
 
     /* Register a signal handler for SIGINT, received when the user presses

@@ -109,12 +109,12 @@ dl:
 	wget -c  https://github.com/kendryte/k510_buildroot/releases/download/v1.6/dl.tar.gz  -O pkg-download/dl.tar.gz;
 	tar -zxf pkg-download/dl.tar.gz;
 	mkdir -p  dl/ai/; wget -c https://github.com/kendryte/k510_buildroot/releases/download/v1.7/ai_kmodel_data.tar.xz  -O dl/ai/ai_kmodel_data.tar.xz;
-	(set -x;   NNCASE_VER=v1.7.0 ;\
+	(set -xe;   NNCASE_VER=v1.7.1 ;\
 		NNCASE_SITE=https://github.com/kendryte/nncase/releases/download;\
-		NNCASE_PIP_VD=1.7.0.20220530		; \
-		NNCASE_PIP_K510_VD=1.7.0.20220606 ;\
+		NNCASE_PIP_VD=1.7.1.20220701		; \
+		NNCASE_PIP_K510_VD=1.7.1.20220701 ;\
 		mkdir -p dl/nncase_linux_runtime;  cd dl/nncase_linux_runtime;		\
-		wget -c $${NNCASE_SITE}/$${NNCASE_VER}/nncaseruntime-k510-v1.7.0.tgz  ; \
+		wget -c $${NNCASE_SITE}/$${NNCASE_VER}/nncaseruntime-k510-v1.7.1.tgz  ; \
 		wget -c $${NNCASE_SITE}/$${NNCASE_VER}/nncase-$${NNCASE_PIP_VD}-cp310-cp310-manylinux_2_24_x86_64.whl; \
 		wget -c $${NNCASE_SITE}/$${NNCASE_VER}/nncase-$${NNCASE_PIP_VD}-cp36-cp36m-manylinux_2_24_x86_64.whl;\
 		wget -c $${NNCASE_SITE}/$${NNCASE_VER}/nncase-$${NNCASE_PIP_VD}-cp37-cp37m-manylinux_2_24_x86_64.whl;\
