@@ -444,7 +444,7 @@ void exec_cmd(void) {
         .width = pic_yuv_width,
         .height = pic_yuv_height,
         .stride = (pic_yuv_width + 0x1F) & (~0x1F),
-        .data = (unsigned char *)mem_yuv_phy_addr
+        .data = (unsigned char *)(uint64_t)mem_yuv_phy_addr
       };
       // FIXME: async
       printf("encode jpeg start...\n");
@@ -464,7 +464,7 @@ void exec_cmd(void) {
         .width = pic_yuv_width,
         .height = pic_yuv_height,
         .stride = (pic_yuv_width + 0x1F) & (~0x1F),
-        .data = (unsigned char *)mem_yuv_phy_addr
+        .data = (unsigned char *)(uint64_t)mem_yuv_phy_addr
       };
       // FIXME: async
       printf("encode h264 start...\n");
