@@ -70,6 +70,7 @@ static int verbose = 0;
 
 static int isp_ae_status = 0;
 //static int r_2k_status = 0;
+
 static uint32_t screen_width, screen_height;
 #define VIDEO_INPUT_0_ENABLE 1
 #define VIDEO_INPUT_1_ENABLE 2
