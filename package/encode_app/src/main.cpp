@@ -1301,10 +1301,12 @@ int init_v4l2()
         if((pCtx->dev_name[i][10] >= '2') && (pCtx->dev_name[i][10] <= '5') && (!ae_disabled[0]))
         {
           mediactl_disable_ae(ISP_F2K_PIPELINE);
+          ae_disabled[0] = 1;
         }
         else if((pCtx->dev_name[i][10] >= '6') && (pCtx->dev_name[i][10] <= '9') && (!ae_disabled[1]))
         {
           mediactl_disable_ae(ISP_R2K_PIPELINE);
+          ae_disabled[1] = 1;
         }
       }
     }
