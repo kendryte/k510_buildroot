@@ -96,6 +96,7 @@ telnetd
 
 cd /etc/init.d
 sh ./get_version.sh
+sh ./ws2812.sh
 cd /
 
 ntpdate  ntp.aliyun.com >/dev/null 2>&1 &
