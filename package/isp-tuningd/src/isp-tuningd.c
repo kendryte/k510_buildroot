@@ -699,13 +699,13 @@ int main(int argc, char *argv[]) {
   if (pic_yuv_size > 0) {
     pic_write_buffer[0] = malloc(sizeof(struct command_buffer) + pic_yuv_size);
     pic_write_buffer[1] = malloc(sizeof(struct command_buffer) + pic_yuv_size);
+    pic_write_buffer[0]->head = 0x99;
+    pic_write_buffer[0]->command = 0x9A;
+    pic_write_buffer[0]->size = pic_yuv_size;
+    pic_write_buffer[1]->head = 0x99;
+    pic_write_buffer[1]->command = 0x9A;
+    pic_write_buffer[1]->size = pic_yuv_size;
   }
-  pic_write_buffer[0]->head = 0x99;
-  pic_write_buffer[0]->command = 0x9A;
-  pic_write_buffer[0]->size = pic_yuv_size;
-  pic_write_buffer[1]->head = 0x99;
-  pic_write_buffer[1]->command = 0x9A;
-  pic_write_buffer[1]->size = pic_yuv_size;
 
   fprintf(stderr, "width: %u, height: %u, frame size: %u\n", pic_yuv_width, pic_yuv_height, pic_yuv_size);
   // uv
@@ -802,16 +802,17 @@ int main(int argc, char *argv[]) {
   assert(setsockopt(server.io_watcher.fd, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) == 0);
   assert(uv_listen((uv_stream_t*)&server, 128, on_new_connection) == 0);
 
-  uv_tty_t input;
-  uv_handle_type t = uv_guess_handle(STDIN_FILENO);
-  if (t == UV_TTY) {
-    
-  } else if (t == UV_FILE) {
-    // TODO: read from file
-    printf("stdin is not stdin\n");
+  if (pic_yuv_size > 0) {
+    uv_tty_t input;
+    uv_handle_type t = uv_guess_handle(STDIN_FILENO);
+    if (t == UV_TTY) {
+    } else if (t == UV_FILE) {
+      // TODO: read from file
+      printf("stdin is not stdin\n");
+    }
+    uv_tty_init(loop, &input, STDIN_FILENO, 1);
+    uv_read_start((uv_stream_t*)&input, alloc_buffer, stdin_read);
   }
-  uv_tty_init(loop, &input, STDIN_FILENO, 1);
-  uv_read_start((uv_stream_t*)&input, alloc_buffer, stdin_read);
 #if DEBUG_STDIN
   uv_idle_t idle_task;
   uv_idle_init(loop, &idle_task);
