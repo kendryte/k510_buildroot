@@ -1,0 +1,88 @@
+From f0616fcadc3c836500318896752e19ee0e687a57 Mon Sep 17 00:00:00 2001
+From: wycwyhwyq <5f20.6d9b@gmail.com>
+Date: Sat, 30 Jul 2022 17:25:52 +0800
+Subject: [PATCH] modify lcd init config
+
+---
+ .../bsp/controler/video/mipi/dsi/cnds_dsi_test.c   | 14 +++++---------
+ board/Canaan/dsi_logo/test/log/vo/vo_app.c         |  8 +++++---
+ 2 files changed, 10 insertions(+), 12 deletions(-)
+
+diff --git a/board/Canaan/dsi_logo/bsp/controler/video/mipi/dsi/cnds_dsi_test.c b/board/Canaan/dsi_logo/bsp/controler/video/mipi/dsi/cnds_dsi_test.c
+index b248d98d..08d2c3ad 100755
+--- a/board/Canaan/dsi_logo/bsp/controler/video/mipi/dsi/cnds_dsi_test.c
++++ b/board/Canaan/dsi_logo/bsp/controler/video/mipi/dsi/cnds_dsi_test.c
+@@ -1719,12 +1719,8 @@ int32_t hx8399_read_id(void)
+             usleep(1000);
+             retry--;
+             cmd_sts = DsiRegRd(DIRECT_CMD_STS_OFFSET);
+-            if (retry == 0){
+-				printf("lcd id can not read ,reboot device \n");
+-				usleep(1000);
+-				writel(0x10001, 0x97000060);
+-	            return -1;
+-            }
++            if (retry == 0)
++                return -1;
+         }
+ 
+         err = DsiRegRd(DIRECT_CMD_RD_STS_OFFSET);
+@@ -1752,7 +1748,7 @@ void hx8399_v2_init(void)
+ 	uint8_t param12[] = {0xD8, 0xE2, 0xAA, 0x03, 0xF0, 0xE2, 0xAA, 0x03, 0xF0};
+ 	uint8_t param13[] = {0xBD, 0x00};
+ 	uint8_t param14[] = {0xB6, 0x8D, 0x8D};
+-	uint8_t param15[] = {0xCC, 0x09};
++	uint8_t param15[] = {0xCC, 0x04};
+ 	uint8_t param16[] = {0xC6, 0xFF, 0xF9};
+ 	uint8_t param22[] = {0xE0, 0x00, 0x12, 0x1f, 0x1a, 0x40, 0x4a, 0x59, 0x55, 0x5e, 0x67, 0x6f, 0x75, 0x7a, 0x82, 0x8b, 0x90, 0x95, 0x9f, 0xa3, 0xad, 0xa2, 0xb2, 0xB6, 0x5e, 0x5a, 0x65, 0x77, 0x00, 0x12, 0x1f, 0x1a, 0x40, 0x4a, 0x59, 0x55, 0x5e, 0x67, 0x6f, 0x75, 0x7a, 0x82, 0x8b, 0x90, 0x95, 0x9f, 0xa3, 0xad, 0xa2, 0xb2, 0xB6, 0x5e, 0x5a, 0x65, 0x77};
+ 	dsc_cmd_send_buff(param1, sizeof(param1));
+@@ -1886,9 +1882,9 @@ void hx8399_c_init(void)
+ 
+         dsc_cmd_send(2, 0xD2, 0x66);
+         msleep(2);
+-        dsc_cmd_send(2, 0xCC, 0x08);   //0xCC, 0x08  
++        dsc_cmd_send(2, 0xCC, 0x00);
+         msleep(2);            
+-        dsc_cmd_send(2, 0x36, 0x08);  //0x36, 0x08
++        dsc_cmd_send(2, 0x36, 0x01);
+         msleep(2);
+ 
+         dsc_cmd_send_short_pag(0x11);
+diff --git a/board/Canaan/dsi_logo/test/log/vo/vo_app.c b/board/Canaan/dsi_logo/test/log/vo/vo_app.c
+index 5b5bad26..b3f5af4f 100755
+--- a/board/Canaan/dsi_logo/test/log/vo/vo_app.c
++++ b/board/Canaan/dsi_logo/test/log/vo/vo_app.c
+@@ -1094,8 +1094,8 @@ static int VO_TEST_BRINGUP_DSI_GetCtl(VO_CTL_S *voCtl)
+ #if 1
+     dispCtl->total_size.Width = 1254;//1340;  1125 
+     dispCtl->total_size.Height = 1958;//1958;//1938???  2200
+-    dispCtl->disp_start.Width = (5+20+20+1);  // 46
+-    dispCtl->disp_stop.Width = 1080 +(5+20+20+1);
++    dispCtl->disp_start.Width = 20 + 20;
++    dispCtl->disp_stop.Width = 1080 + 20 + 20;
+     dispCtl->disp_start.Height = (5+8+1);   //14
+     dispCtl->disp_stop.Height = 1920 + (5+8+1);  // 1958 - 1920 - 14 = 24
+ #else
+@@ -2940,16 +2940,18 @@ int VO_TEST_VideoOut(VO_TEST_CASE_E voTestCase)
+     //core
+     VO_CORE_INFO_S *voCoreInfo = &voInfo.voCoreInfo;
+     VO_TEST_Core(voTestCase,voCoreInfo);
+-    VO_TEST_Start();
+ 
+     hpd_state = lt9611_get_hpd_state();
+     lcd_id = get_lcd_id();
+     if (hpd_state) {
++        *(uint32_t *)0x92700118 = 0x80;
+         set_bootcmd("k510-hdmi.dtb");
+         display_switch_hdmi_gpio();
+     } else if (lcd_id == 0x0C9983 || lcd_id == 0x1C9983) {
++        VO_TEST_Start();
+         set_bootcmd("k510.dtb");
+     } else {
++        *(uint32_t *)0x92700118 = 0x80;
+         set_bootcmd("k510-hdmi.dtb");
+         display_switch_hdmi_gpio();
+     }
+-- 
+2.17.1
+
