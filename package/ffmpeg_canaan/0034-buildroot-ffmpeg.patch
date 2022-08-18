@@ -11,6 +11,14 @@ Index: b/libavcodec/libk510_h264.c
      Cfg.sliceSplitCfg.bSplitEnable                      = false;
      
      printf("Encoder Settings:\n");
+@@ -428,7 +428,6 @@ static const AVOption options[] =
+   {     "4:3",                "",  0, AV_OPT_TYPE_CONST, { .i64 = ASPECT_RATIO_4_3 },     0, 0, FLAGS, "ar_flags" },
+   {     "16:9",               "",  0, AV_OPT_TYPE_CONST, { .i64 = ASPECT_RATIO_16_9 },   0, 0, FLAGS, "ar_flags" },
+   {     "none",               "",  0, AV_OPT_TYPE_CONST, { .i64 = ASPECT_RATIO_NONE },     0, 0, FLAGS, "ar_flags" },
+-  { "framesToEncode",       "set the libk510_h264 framesToEncode",            OFFSET(framesToEncode),   AV_OPT_TYPE_INT,  { .i64 = -1 }, -1, INT_MAX, FLAGS },
+   {NULL}
+ };
+ 
 Index: b/libavcodec/libk510_jpeg.c
 ===================================================================
 --- a/libavcodec/libk510_jpeg.c
