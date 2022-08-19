@@ -1919,7 +1919,14 @@ int alloc_context(void *arg)
   pCtx->ae_disable      = (uint32_t*)malloc(sizeof(uint32_t) * pCtx->ch_cnt);
   pCtx->out_framerate   = (unsigned char*)malloc(sizeof(unsigned char) * pCtx->ch_cnt);
 
-  memset(pCtx->Cfg,0,sizeof(EncSettings));
+  memset(pCtx->Cfg, 0, sizeof(EncSettings)*pCtx->ch_cnt);
+
+  for(int i = 0; i < pCtx->ch_cnt; i++)
+  {
+    pCtx->Cfg[i].profile     = (AVC_Profile)0xff;
+    pCtx->Cfg[i].rcMode      = (RateCtrlMode)0xff; 
+    pCtx->Cfg[i].AspectRatio = (AVC_AspectRatio)0xff;
+  }
 
   return 0;
 }
@@ -2037,16 +2044,7 @@ int parse_cmd(int argc, char *argv[])
           printf("Cannot open output file!\n");
           return -1;
         }
-        pCtx->outfilename[cur_ch] = argv[i+1];
-#if 0
-        char *ptr=strchr(pCtx->outfilename[cur_ch], '.');
-        if(strcmp(ptr, ".jpg") == 0 || strcmp(ptr, ".mjpeg") == 0)
-        {
-          pCtx->Cfg[cur_ch].profile = JPEG;
-          pCtx->Cfg[cur_ch].rcMode = CONST_QP; 
-          printf("JPEG encode\n");
-        }
-#endif 
+        pCtx->outfilename[cur_ch] = argv[i+1]; 
       }
     }
     else if(strcmp(argv[i], "-w") == 0)
@@ -2103,7 +2101,7 @@ int parse_cmd(int argc, char *argv[])
     else if (strcmp(argv[i],"-profile") == 0 )
     {
       int nProfile = atoi(argv[i+1]);
-      if (nProfile > 2 || nProfile < 0)
+      if (nProfile > 3 || nProfile < 0)
       {
         printf("profile:%d error\n",nProfile);
         return -1;
@@ -2282,27 +2280,27 @@ int main(int argc, char *argv[])
     {
       pCtx->ch[i] = i;
       pCtx->Cfg[i].channel     = i;
-      if(!pCtx->framerate[i])             pCtx->framerate[i]       = 30;
-      if(!pCtx->out_framerate[i])         pCtx->out_framerate[i]   = pCtx->framerate[i];
-      if(!pCtx->Cfg[i].width)             pCtx->Cfg[i].width       = 1920;
-      if(!pCtx->Cfg[i].height)            pCtx->Cfg[i].height      = 1080;
-      if(!pCtx->Cfg[i].BitRate)           pCtx->Cfg[i].BitRate     = 4000000;
-      if(!pCtx->Cfg[i].MaxBitRate)        pCtx->Cfg[i].MaxBitRate  = 4000000;
-      if(!pCtx->Cfg[i].level)             pCtx->Cfg[i].level       = 42;
-      if(!pCtx->Cfg[i].profile)           pCtx->Cfg[i].profile     = AVC_HIGH;
-      if(!pCtx->Cfg[i].rcMode)            pCtx->Cfg[i].rcMode      = CBR; 
-      if(!pCtx->Cfg[i].SliceQP)           pCtx->Cfg[i].SliceQP     = 25;
-      if(!pCtx->Cfg[i].FreqIDR)           pCtx->Cfg[i].FreqIDR     = 25;
-      if(!pCtx->Cfg[i].gopLen)            pCtx->Cfg[i].gopLen      = 25;
-      if(!pCtx->Cfg[i].AspectRatio)       pCtx->Cfg[i].AspectRatio = ASPECT_RATIO_AUTO;
-      if(!pCtx->Cfg[i].MinQP)             pCtx->Cfg[i].MinQP       = 0;//from 0 to SliceQP
-      if(!pCtx->Cfg[i].MaxQP)             pCtx->Cfg[i].MaxQP       = 51;//from SliceQP to 51
-      if(!pCtx->Cfg[i].roiCtrlMode)       pCtx->Cfg[i].roiCtrlMode = ROI_QP_TABLE_NONE;
+      if(!pCtx->framerate[i])               pCtx->framerate[i]       = 30;
+      if(!pCtx->out_framerate[i])           pCtx->out_framerate[i]   = pCtx->framerate[i];
+      if(!pCtx->Cfg[i].width)               pCtx->Cfg[i].width       = 1920;
+      if(!pCtx->Cfg[i].height)              pCtx->Cfg[i].height      = 1080;
+      if(!pCtx->Cfg[i].BitRate)             pCtx->Cfg[i].BitRate     = 4000000;
+      if(!pCtx->Cfg[i].MaxBitRate)          pCtx->Cfg[i].MaxBitRate  = 4000000;
+      if(!pCtx->Cfg[i].level)               pCtx->Cfg[i].level       = 42;
+      if(pCtx->Cfg[i].profile != 0xff)      pCtx->Cfg[i].profile     = AVC_HIGH;
+      if(pCtx->Cfg[i].rcMode != 0xff)       pCtx->Cfg[i].rcMode      = CBR; 
+      if(!pCtx->Cfg[i].SliceQP)             pCtx->Cfg[i].SliceQP     = 25;
+      if(!pCtx->Cfg[i].FreqIDR)             pCtx->Cfg[i].FreqIDR     = 25;
+      if(!pCtx->Cfg[i].gopLen)              pCtx->Cfg[i].gopLen      = 25;
+      if(pCtx->Cfg[i].AspectRatio != 0xff)  pCtx->Cfg[i].AspectRatio = ASPECT_RATIO_AUTO;
+      if(!pCtx->Cfg[i].MinQP)               pCtx->Cfg[i].MinQP       = 0;//from 0 to SliceQP
+      if(!pCtx->Cfg[i].MaxQP)               pCtx->Cfg[i].MaxQP       = 51;//from SliceQP to 51
+      if(!pCtx->Cfg[i].roiCtrlMode)         pCtx->Cfg[i].roiCtrlMode = ROI_QP_TABLE_NONE;
 
       pCtx->Cfg[i].encDblkCfg.disable_deblocking_filter_idc        = 0;
       pCtx->Cfg[i].encDblkCfg.slice_beta_offset_div2               = 1;
       pCtx->Cfg[i].encDblkCfg.slice_alpha_c0_offset_div2           = 1;
-      pCtx->Cfg[i].entropyMode                                     = ENTROPY_MODE_CAVLC;
+      pCtx->Cfg[i].entropyMode                                     = ENTROPY_MODE_CABAC;
       pCtx->Cfg[i].sliceSplitCfg.bSplitEnable                      = false;
 
       
