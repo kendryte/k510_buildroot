@@ -1,0 +1,69 @@
+From 85730268ce0503c0b666432aa3b868a2a3ba56e7 Mon Sep 17 00:00:00 2001
+From: "Chenggen.Wang" <wangchenggen@canaan-creative.com>
+Date: Tue, 23 Aug 2022 19:41:44 +0800
+Subject: [PATCH 2/2] display: add bootargs:panel.id
+
+Signed-off-by: Chenggen.Wang <wangchenggen@canaan-creative.com>
+---
+ board/Canaan/dsi_logo/test/log/vo/vo_app.c |  4 ++++
+ common/fdt_support.c                       | 19 +++++++++++++++++++
+ 2 files changed, 23 insertions(+)
+ mode change 100644 => 100755 common/fdt_support.c
+
+diff --git a/board/Canaan/dsi_logo/test/log/vo/vo_app.c b/board/Canaan/dsi_logo/test/log/vo/vo_app.c
+index 4cf1dd6a..f923c545 100755
+--- a/board/Canaan/dsi_logo/test/log/vo/vo_app.c
++++ b/board/Canaan/dsi_logo/test/log/vo/vo_app.c
+@@ -3189,6 +3189,10 @@ int VO_TEST_VideoOut(VO_TEST_CASE_E voTestCase)
+         display_switch_hdmi_gpio();
+     } else if (lcd_id == 0x0C9983 || lcd_id == 0x1C9983 || lcd_id == 0x46593) {
+         VO_TEST_Start();
++        char panel_id[16];
++        memset(panel_id, 0, sizeof(panel_id));
++        snprintf(panel_id, sizeof(panel_id), "0x%06X", lcd_id);
++        env_set("panel-id", panel_id);
+         set_bootcmd("k510.dtb");
+     } else {
+         *(uint32_t *)0x92700118 = 0x80;
+diff --git a/common/fdt_support.c b/common/fdt_support.c
+old mode 100644
+new mode 100755
+index 02cf5c62..694d2897
+--- a/common/fdt_support.c
++++ b/common/fdt_support.c
+@@ -277,6 +277,9 @@ int fdt_chosen(void *fdt)
+ 	int   nodeoffset;
+ 	int   err;
+ 	char  *str;		/* used to set string properties */
++	char  *env_buf;
++	char  *panel_id;
++	int len;
+ 
+ 	err = fdt_check_header(fdt);
+ 	if (err < 0) {
+@@ -289,6 +292,22 @@ int fdt_chosen(void *fdt)
+ 	if (nodeoffset < 0)
+ 		return nodeoffset;
+ 
++	str = env_get("bootargs");
++
++	panel_id = env_get("panel-id");
++	if (panel_id && str) {
++		len = strlen(str) + 1 + sizeof(" panel.id=") + strlen(panel_id) + 1;
++		env_buf = malloc(len);
++		if (env_buf) {
++			memset(env_buf, 0, len);
++			snprintf(env_buf, len, "%s%s%s", str, " panel.id=", panel_id);
++			env_set("bootargs", env_buf);
++			free(env_buf);
++		} else {
++			printf("malloc %d buffer failed\n", len);
++		}
++	}
++
+ 	str = env_get("bootargs");
+ 	if (str) {
+ 		err = fdt_setprop(fdt, nodeoffset, "bootargs", str,
+-- 
+2.17.1
+
