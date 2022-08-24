@@ -16,10 +16,10 @@ CROSS_COMPILE = riscv64-linux-
 CC=$(CROSS_COMPILE)gcc
 LD=$(CROSS_COMPILE)ld
 
-CCFLAGS=-g -Wall -lm -L ./ -O2
+CCFLAGS=-g -Wall -lm -L./ -Iadaptive -ladaptive -I3actl -l3actl -O2
 
 ${TARGET}: ${OBJ}
-	${LD} ${OBJ} -shared  -o $@
+	${LD} ${OBJ} -L./ -ladaptive -l3actl -shared  -o $@
 	@echo "Compile done."
 
 $(OBJ):%.o:%.c
