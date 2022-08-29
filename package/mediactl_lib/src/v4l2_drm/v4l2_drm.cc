@@ -155,9 +155,9 @@ int readframe(int fd, struct v4l2_buffer* vbuf) {
 }
 
 /**
- * @brief 
- * 
- * @param camera 
+ * @brief
+ *
+ * @param camera
  */
 static int stop_capturing(struct camera_info *camera)
 {
@@ -168,23 +168,23 @@ static int stop_capturing(struct camera_info *camera)
     pthread_mutex_lock(&mutex);
     if(fd)
     {
-        type = V4L2_BUF_TYPE_VIDEO_CAPTURE;        
+        type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
         if (-1 == xioctl(fd, VIDIOC_STREAMOFF, &type))
         {
             pthread_mutex_unlock(&mutex);
             //  errno_exit("VIDIOC_STREAMOFF");
             printf("%s:VIDIOC_STREAMOFF failed!\n",__func__);
             return -1;
-        }        
+        }
     }
     pthread_mutex_unlock(&mutex);
     printf("%s: end!\n", __func__);
     return 0;
 }
 /**
- * @brief 
- * 
- * @param camera 
+ * @brief
+ *
+ * @param camera
  */
 static int start_capturing(struct camera_info *camera)
 {
@@ -199,7 +199,7 @@ static int start_capturing(struct camera_info *camera)
 
     pr_debug("\tn_buffers: %d\n", n_buffers);
 
-    for (i = 0; i < n_buffers; ++i) {        
+    for (i = 0; i < n_buffers; ++i) {
         struct v4l2_buffer buf;
         pr_debug("\ti: %d\n", i);
 
@@ -227,15 +227,15 @@ static int start_capturing(struct camera_info *camera)
     {
         //errno_exit("VIDIOC_STREAMON");
         return -1;
-    }        
+    }
     pr_debug("After STREAMON\n");
     return 0;
 }
 /**
- * @brief 
- * 
- * @param camera 
- * @param drm_bufs 
+ * @brief
+ *
+ * @param camera
+ * @param drm_bufs
  */
 static void uninit_device(struct camera_info *camera,struct drm_buffer *drm_bufs)
 {
@@ -251,16 +251,16 @@ static void uninit_device(struct camera_info *camera,struct drm_buffer *drm_bufs
     pthread_mutex_unlock(&mutex);
 }
 /**
- * @brief 
- * 
- * @param camera 
+ * @brief
+ *
+ * @param camera
  */
 static int init_mmap(struct camera_info *camera,struct drm_buffer *drm_bufs)  //（3）
 {
     struct v4l2_requestbuffers req;
     int fd = camera->fd;
-    struct buffer *buffers; 
-    unsigned int     n_buffers;  
+    struct buffer *buffers;
+    unsigned int     n_buffers;
     char  dev_name[50];
     pr_debug("%s: called!\n", __func__);
     sprintf(&dev_name[0],"%s",&camera->video_name[0]);
@@ -316,10 +316,10 @@ static int init_mmap(struct camera_info *camera,struct drm_buffer *drm_bufs)  //
     return ret;
 }
 /**
- * @brief 
- * 
- * @param camera 
- * @param drm_bufs 
+ * @brief
+ *
+ * @param camera
+ * @param drm_bufs
  */
 static int init_device(struct camera_info *camera,struct drm_buffer *drm_bufs) //static表示次函数只能在本文件中调用
 {
@@ -388,8 +388,8 @@ static int init_device(struct camera_info *camera,struct drm_buffer *drm_bufs) /
     if (-1 == xioctl(fd, VIDIOC_S_FMT, &fmt))
     {
         //errno_exit("VIDIOC_S_FMT");
-        return -errno; 
-    }    
+        return -errno;
+    }
     /* Note VIDIOC_S_FMT may change width and height. */
 
     /* Buggy driver paranoia. */
@@ -405,9 +405,9 @@ static int init_device(struct camera_info *camera,struct drm_buffer *drm_bufs) /
     return ret;
 }
 /**
- * @brief 
- * 
- * @param camera 
+ * @brief
+ *
+ * @param camera
  */
 static void close_device(struct camera_info *camera)
 {
@@ -420,32 +420,32 @@ static void close_device(struct camera_info *camera)
         {
             pthread_mutex_unlock(&mutex);
             errno_exit("close");
-        }     
-        camera->fd = -1; 
+        }
+        camera->fd = -1;
     }
 #if 0
     if(drm_dev.fd &&(drm_dev.camera_num == 1) )
     {
-        drm_exit(); 
-    } 
+        drm_exit();
+    }
     else
     {
         drm_dev.camera_num--;
-    }   
+    }
 #endif
-    pthread_mutex_unlock(&mutex);  
+    pthread_mutex_unlock(&mutex);
 }
 /**
- * @brief 
- * 
- * @param camera 
+ * @brief
+ *
+ * @param camera
  */
 static void open_device(struct camera_info *camera)//
 {
     struct stat st;
     int fd;
     char dev_name[50];
-    sprintf(&dev_name[0],"%s",&camera->video_name[0]); 
+    sprintf(&dev_name[0],"%s",&camera->video_name[0]);
     printf("%s: dev_name %s called!\n", __func__,&dev_name[0]);//_func_表示此时在那个函数里面
 
     if (-1 == stat(dev_name, &st)) {//获取文件信息
@@ -470,11 +470,11 @@ static void open_device(struct camera_info *camera)//
     printf("%s:fd (%d) open\n",__func__,fd);
 }
 /**
- * @brief 
- * 
- * @param fp 
- * @param argc 
- * @param argv 
+ * @brief
+ *
+ * @param fp
+ * @param argc
+ * @param argv
  */
 static void usage(FILE *fp, int argc, char **argv)
 {
@@ -487,11 +487,14 @@ static void usage(FILE *fp, int argc, char **argv)
          "-v | --verbose       Verbose output\n"
          "-s | --single[(0|1),[,width*height[,x*y]]] display sensor (0|1)\n"
          "-d | --double[width*height,x*y,width*height,x*y] display double sensor\n"
+         "-a | --anti-clicker-enable (0: all disable | 1: f 2k enable | 2: r 2k enable | 3: f&r 2k enable)\n"
+         "-x | --ae-select sw/hw select (default 0: sw ae | 1: hw ae)\n"
+         "-l | --adaptive enable (0: disable | 1: enable, default: enable)\n"
          "",
          argv[0], video_cfg_file);
 }
 
-static const char short_options[] = "f:e:hvs::d::";// 短选项 ：表示带参数
+static const char short_options[] = "f:e:hvs::d::s:a:x:l:";// 短选项 ：表示带参数
 
 static const struct option //长选项
 long_options[] = {
@@ -501,6 +504,9 @@ long_options[] = {
     { "verbose", no_argument,      NULL, 'v' },
     { "single", optional_argument,      NULL, 's' },
     { "double", optional_argument,      NULL, 'd' },
+    { "anfi-flicker-enable", required_argument, NULL, 'a' },
+    { "ae-select", required_argument, NULL, 'x' },
+    { "adaptive", required_argument, NULL, 'l' },
     { 0, 0, 0, 0 }
 };
 
@@ -514,16 +520,16 @@ static void sigint_handler(int signal __attribute__((__unused__)))
 }
 
 /**
- * @brief 
- * 
- * @param signo 
+ * @brief
+ *
+ * @param signo
  */
-void sighand(int signo) 
-{ 
-    pthread_t  tid = pthread_self(); 
-   
-    printf("Thread %lu in signal handler/n", tid); 
-    return; 
+void sighand(int signo)
+{
+    pthread_t  tid = pthread_self();
+
+    printf("Thread %lu in signal handler/n", tid);
+    return;
 }
 
 int init_isp(struct camera_info *camera) {
@@ -550,8 +556,8 @@ void deinit_isp(struct camera_info *camera) {
     close_device(camera);
 }
 /**
- * @brief 
- * 
+ * @brief
+ *
  */
 static void cfg_noc_prior(void)
 {
@@ -784,11 +790,11 @@ int video_resolution_adaptation(void)
 }
 
 /**
- * @brief 
- * 
- * @param __attribute__ 
- * @param __attribute__ 
- * @return int 
+ * @brief
+ *
+ * @param __attribute__
+ * @param __attribute__
+ * @return int
  */
 int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unused__)))
 {
@@ -814,7 +820,7 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
         switch (c) {
         case 0: /* getopt_long() flag */
             break;
-        case 'e': 
+        case 'e':
             isp_ae_status = atol(optarg);//dev_name = ;
             break;
 
@@ -865,7 +871,15 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
                 video_in_cfg[1].force |= OFFSET_FORCE;
             }
             break;
-
+        case 'a':
+            anti_flicker_init(atoi(optarg));
+            break;
+        case 'x':
+            ae_select_init(atoi(optarg));
+            break;
+        case 'l':
+            adaptive_enable(atoi(optarg));
+            break;
         default:
             usage(stderr, argc, argv);
             exit(EXIT_FAILURE);
@@ -886,12 +900,12 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
 	signal(SIGINT, sigint_handler);
     signal(SIGTERM, sigint_handler);
     //
-    memset(&actions, 0, sizeof(actions)); 
-    sigemptyset(&actions.sa_mask); /* 将参数set信号集初始化并清空 */ 
-    actions.sa_flags = 0; 
-    actions.sa_handler = sighand;   
-    /* 设置SIGALRM的处理函数 */ 
-    sigaction(SIGALRM,&actions,NULL); 
+    memset(&actions, 0, sizeof(actions));
+    sigemptyset(&actions.sa_mask); /* 将参数set信号集初始化并清空 */
+    actions.sa_flags = 0;
+    actions.sa_handler = sighand;
+    /* 设置SIGALRM的处理函数 */
+    sigaction(SIGALRM,&actions,NULL);
     //
     cfg_noc_prior();
     // get screen resolution
@@ -923,7 +937,7 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
                 camera[0].buffer_start = 0;
                 camera_num++;
             }
-        }        
+        }
     }
     //
     printf("%s:dev_info[1].video_used(%d)\n",__func__,dev_info[1].video_used);
@@ -939,7 +953,7 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
                 camera[1].buffer_start = BUFFERS_COUNT;
                 camera_num++;
             }
-        }        
+        }
     }
 
     printf("%s:size[0].width is %d size[0].height is %d,size[1].width is %d size[1].height is %d,camera_num(%d)\n",__func__,camera[0].size.width,camera[0].size.height,camera[1].size.width,camera[1].size.height,camera_num);
@@ -960,7 +974,7 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
         size[0].src_offset_w = 0;
         size[0].src_offset_h = 0;
         size[0].crtc_offset_w = 0;
-        size[0].crtc_offset_h = 200;  
+        size[0].crtc_offset_h = 200;
         size[1].src_offset_w = 0;
         size[1].src_offset_h = 0;
         size[1].crtc_offset_w = 0;
@@ -1139,8 +1153,8 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
             printf("Flush fail\n");
             goto cleanup;
         }
-    } 
-    else if(dev_info[0].video_used) { 
+    }
+    else if(dev_info[0].video_used) {
         if (drm_dmabuf_set_plane(&drm_dev.drm_bufs[vbuf[1][0].index])) {
             printf("Flush fail\n");
             goto cleanup;
@@ -1269,8 +1283,8 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
                 printf("Flush fail\n");
                 break;
             }
-        } 
-        else if(dev_info[0].video_used) { 
+        }
+        else if(dev_info[0].video_used) {
             if (drm_dmabuf_set_plane(&drm_dev.drm_bufs[vbuf[vbuf_ptr[0]][0].index])) {
                 printf("Flush fail\n");
                 break;
@@ -1290,7 +1304,7 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
 cleanup:
     if(drm_dev.fd) {
         fprintf(stderr, "drm_exit\n");
-        drm_exit(); 
+        drm_exit();
     }
     if(dev_info[0].video_used) {
         deinit_isp(&camera[0]);
