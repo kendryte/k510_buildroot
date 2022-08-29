@@ -1,0 +1,84 @@
+From 87fea9bd776a68f26e40024e9256d67e9885de67 Mon Sep 17 00:00:00 2001
+From: wycwyhwyq <5f20.6d9b@gmail.com>
+Date: Wed, 24 Aug 2022 10:42:28 +0800
+Subject: [PATCH] Add get phys address ioctl to dma-buf
+
+---
+ drivers/dma-buf/dma-buf.c    | 31 +++++++++++++++++++++++++++++++
+ include/uapi/linux/dma-buf.h |  5 +++++
+ 2 files changed, 36 insertions(+)
+
+diff --git a/drivers/dma-buf/dma-buf.c b/drivers/dma-buf/dma-buf.c
+index d78d5fc1..4d4b58b4 100644
+--- a/drivers/dma-buf/dma-buf.c
++++ b/drivers/dma-buf/dma-buf.c
+@@ -34,6 +34,7 @@
+ #include <linux/poll.h>
+ #include <linux/reservation.h>
+ #include <linux/mm.h>
++#include <linux/device.h>
+ 
+ #include <uapi/linux/dma-buf.h>
+ 
+@@ -287,6 +288,36 @@ static long dma_buf_ioctl(struct file *file,
+ 	dmabuf = file->private_data;
+ 
+ 	switch (cmd) {
++	case DMA_BUF_IOCTL_PHYS: {
++		struct dma_buf_attachment *attachment = NULL;
++		struct sg_table *sgt = NULL;
++		unsigned long phys = 0;
++		struct device dev;
++
++		if (!dmabuf || IS_ERR(dmabuf)) {
++			return -EFAULT;
++		}
++		memset(&dev, 0, sizeof(dev));
++		device_initialize(&dev);
++		dev.coherent_dma_mask = DMA_BIT_MASK(64);
++		dev.dma_mask = &dev.coherent_dma_mask;
++		arch_setup_dma_ops(&dev, 0, 0, NULL, false);
++		attachment = dma_buf_attach(dmabuf, &dev);
++		if (!attachment || IS_ERR(attachment)) {
++			return -EFAULT;
++		}
++
++		sgt = dma_buf_map_attachment(attachment, DMA_BIDIRECTIONAL);
++		if (sgt && !IS_ERR(sgt)) {
++			phys = sg_dma_address(sgt->sgl);
++			dma_buf_unmap_attachment(attachment, sgt,
++					DMA_BIDIRECTIONAL);
++		}
++		dma_buf_detach(dmabuf, attachment);
++		if (copy_to_user((void __user *) arg, &phys, sizeof(phys)))
++			return -EFAULT;
++		return 0;
++	}
+ 	case DMA_BUF_IOCTL_SYNC:
+ 		if (copy_from_user(&sync, (void __user *) arg, sizeof(sync)))
+ 			return -EFAULT;
+diff --git a/include/uapi/linux/dma-buf.h b/include/uapi/linux/dma-buf.h
+index d75df521..514beecd 100644
+--- a/include/uapi/linux/dma-buf.h
++++ b/include/uapi/linux/dma-buf.h
+@@ -27,6 +27,10 @@ struct dma_buf_sync {
+ 	__u64 flags;
+ };
+ 
++struct dma_buf_phys {
++	unsigned long phys;
++};
++
+ #define DMA_BUF_SYNC_READ      (1 << 0)
+ #define DMA_BUF_SYNC_WRITE     (2 << 0)
+ #define DMA_BUF_SYNC_RW        (DMA_BUF_SYNC_READ | DMA_BUF_SYNC_WRITE)
+@@ -37,5 +41,6 @@ struct dma_buf_sync {
+ 
+ #define DMA_BUF_BASE		'b'
+ #define DMA_BUF_IOCTL_SYNC	_IOW(DMA_BUF_BASE, 0, struct dma_buf_sync)
++#define DMA_BUF_IOCTL_PHYS	_IOW(DMA_BUF_BASE, 1, struct dma_buf_phys)
+ 
+ #endif
+-- 
+2.17.1
+

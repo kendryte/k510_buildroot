@@ -1,0 +1,116 @@
+Index: b/libavcodec/libk510_h264.c
+===================================================================
+--- a/libavcodec/libk510_h264.c
++++ b/libavcodec/libk510_h264.c
+@@ -55,7 +55,7 @@ typedef struct libk510_h264Context {
+     int             idrFreq;
+     int             profile;
+     int             level;
+-    AVC_AspectRatio ar;
++    AVC_AspectRatio aratio;
+     int             framesToEncode;    
+     int             out_pic;
+     int             in_pic;
+@@ -172,7 +172,7 @@ static av_cold int k510_h264_encode_init
+     Cfg.FreqIDR = pCtx->idrFreq;
+     Cfg.gopLen = pCtx->gop_size;
+     Cfg.FrameRate = pCtx->framerate;
+-    Cfg.AspectRatio = pCtx->ar; 
++    Cfg.AspectRatio = pCtx->aratio; 
+     Cfg.MinQP       = 0;//from 0 to SliceQP
+     Cfg.MaxQP    = 51;//from SliceQP to 51
+     Cfg.roiCtrlMode = ROI_QP_TABLE_NONE;
+@@ -194,6 +194,7 @@ static av_cold int k510_h264_encode_init
+ 	  printf("  SliceQP         : %d\n", Cfg.SliceQP);
+ 	  printf("  bitrate         : %d\n", Cfg.BitRate);
+ 	  printf("  maxbitrate      : %d\n", Cfg.MaxBitRate);
++	  printf("  AspectRatio     : %d\n", Cfg.AspectRatio);
+     pCtx->hEnc = VideoEncoder_Create(&Cfg);
+ 
+     pCtx->pts = 0;
+@@ -408,23 +409,25 @@ static const AVOption options[] =
+   //{ option name,            description,                            offset in the context object,    type             default, min, max, flags, unit}
+   // ***** GOP options ******
+   { "g",                    "Set gop size",                                   OFFSET(gop_size),        AV_OPT_TYPE_INT,  {.i64 = 25}, 0, 1000, FLAGS },
+-  { "b",                    "Set video bitrate",                              OFFSET(bit_rate),        AV_OPT_TYPE_INT,  {.i64 = 4000000}, 0, 100000000, FLAGS },
+-  { "r",                    "Set video framerate",                            OFFSET(framerate),       AV_OPT_TYPE_INT,  {.i64 = 30}, 25, 60, FLAGS },
++  { "b",                    "Set video bitrate",                              OFFSET(bit_rate),        AV_OPT_TYPE_INT,  {.i64 = 4000000}, 0, 20000000, FLAGS },
++  { "r",                    "Set video framerate",                            OFFSET(framerate),       AV_OPT_TYPE_INT,  {.i64 = 30}, 30, 30, FLAGS },
+   { "ch",                   "Set encode channel ",                            OFFSET(channel),         AV_OPT_TYPE_INT,  {.i64 = 0}, 0, (VENC_MAX_CHANNELS-1), FLAGS },
+   { "idr_freq",             "IDR frequency. -1=No IDRs",                      OFFSET(idrFreq),         AV_OPT_TYPE_INT,  {.i64 = 25 }, -1, 256, FLAGS },
+   // ***** Rate Control options ******
+-  { "qp",                   "Use constant QP for encoding.",                  OFFSET(cqp),             AV_OPT_TYPE_INT,  {.i64 = -1}, -1, 100, FLAGS },
+-  { "maxrate",              "Maximum bitrate. (0=ignore)",                    OFFSET(maxrate),         AV_OPT_TYPE_INT,  {.i64 = 0}, 0, 100000000, FLAGS },
++  { "qp",                   "Use constant QP for encoding.",                  OFFSET(cqp),             AV_OPT_TYPE_INT,  {.i64 = -1}, -1, 51, FLAGS },
++  { "maxrate",              "Maximum bitrate. (0=ignore)",                    OFFSET(maxrate),         AV_OPT_TYPE_INT,  {.i64 = 0}, 0, 20000000, FLAGS },
+   // ***** Input/Output options ******
+   { "profile",              "Set profile restrictions",                       OFFSET(profile),         AV_OPT_TYPE_INT,  {.i64 = AVC_HIGH}, AVC_C_BASELINE, AVC_HIGH, FLAGS, "profile_flags"},
+-  {     "baseline",           "",  0, AV_OPT_TYPE_CONST, { .i64 = AVC_C_BASELINE },     0, 0, FLAGS, "profile_flags" },
++  {     "baseline",           "",  0, AV_OPT_TYPE_CONST, { .i64 = AVC_C_BASELINE },   0, 0, FLAGS, "profile_flags" },
+   {     "main",               "",  0, AV_OPT_TYPE_CONST, { .i64 = AVC_MAIN },     0, 0, FLAGS, "profile_flags" },
+   {     "high",               "",  0, AV_OPT_TYPE_CONST, { .i64 = AVC_HIGH },   0, 0, FLAGS, "profile_flags" },
+   { "level",                "Specify level",                                  OFFSET(level),           AV_OPT_TYPE_INT,  {.i64 = 42}, 10, 42, FLAGS, "level_flags"},
+-  { "ar",                   "Set aspect ratio",                               OFFSET(ar),         AV_OPT_TYPE_INT,  {.i64 = ASPECT_RATIO_AUTO}, ASPECT_RATIO_AUTO, ASPECT_RATIO_16_9, FLAGS, "ar_flags"},
++  { "aratio",               "Set aspect ratio",                               OFFSET(aratio),         AV_OPT_TYPE_INT,  {.i64 = ASPECT_RATIO_AUTO}, ASPECT_RATIO_AUTO, ASPECT_RATIO_MAX, FLAGS, "ar_flags"},
+   {     "auto",               "",  0, AV_OPT_TYPE_CONST, { .i64 = ASPECT_RATIO_AUTO },     0, 0, FLAGS, "ar_flags" },
++  {     "1:1",                "",  0, AV_OPT_TYPE_CONST, { .i64 = ASPECT_RATIO_1_1 },     0, 0, FLAGS, "ar_flags" },
+   {     "4:3",                "",  0, AV_OPT_TYPE_CONST, { .i64 = ASPECT_RATIO_4_3 },     0, 0, FLAGS, "ar_flags" },
+   {     "16:9",               "",  0, AV_OPT_TYPE_CONST, { .i64 = ASPECT_RATIO_16_9 },   0, 0, FLAGS, "ar_flags" },
++  {     "none",               "",  0, AV_OPT_TYPE_CONST, { .i64 = ASPECT_RATIO_NONE },     0, 0, FLAGS, "ar_flags" },
+   { "framesToEncode",       "set the libk510_h264 framesToEncode",            OFFSET(framesToEncode),   AV_OPT_TYPE_INT,  { .i64 = -1 }, -1, INT_MAX, FLAGS },
+   {NULL}
+ };
+Index: b/libavcodec/libk510_jpeg.c
+===================================================================
+--- a/libavcodec/libk510_jpeg.c
++++ b/libavcodec/libk510_jpeg.c
+@@ -129,16 +129,16 @@ static av_cold int k510_jpeg_encode_init
+     Cfg.height = avctx->height;
+     Cfg.profile = JPEG;    
+     Cfg.FrameRate = pCtx->framerate;
+-    Cfg.AspectRatio = pCtx->ar; 
++    Cfg.AspectRatio = ASPECT_RATIO_AUTO; 
+     Cfg.rcMode = CONST_QP;
+     Cfg.SliceQP = pCtx->cqp;
+-    Cfg.BitRate = pCtx->bit_rate;
+-    Cfg.MaxBitRate = pCtx->maxrate;
++    Cfg.BitRate = 4000000;
++    Cfg.MaxBitRate = 4000000;
+     Cfg.level = 42;
+     Cfg.FreqIDR = 25;
+     Cfg.gopLen = 25;
+-    Cfg.MinQP       = 0;//from 0 to SliceQP
+-    Cfg.MaxQP    = 51;//from SliceQP to 51
++    Cfg.MinQP  = 0;
++    Cfg.MaxQP  = 100;
+     Cfg.roiCtrlMode = ROI_QP_TABLE_NONE;
+     Cfg.encDblkCfg.disable_deblocking_filter_idc        = 0;
+     Cfg.encDblkCfg.slice_beta_offset_div2               = 1;
+@@ -151,11 +151,7 @@ static av_cold int k510_jpeg_encode_init
+     printf("  height          : %d\n", Cfg.height);
+     printf("  profile         : %d\n", Cfg.profile); 
+     printf("  FrameRate       : %d\n", Cfg.FrameRate);
+-    printf("  rcMode          : %d\n", Cfg.rcMode);
+ 	  printf("  SliceQP         : %d\n", Cfg.SliceQP);
+-	  printf("  bitrate         : %d\n", Cfg.BitRate);
+-	  printf("  maxbitrate      : %d\n", Cfg.MaxBitRate);
+-	  printf("  AspectRatio     : %d\n", Cfg.AspectRatio);
+ 	  
+     pCtx->hEnc = VideoEncoder_Create(&Cfg);
+ 
+@@ -308,14 +304,8 @@ static const AVOption options[] =
+ { 
+   //{ option name,            description,                            offset in the context object,    type             default, min, max, flags, unit}
+   { "qp",                   "Use constant QP for encoding.",                  OFFSET(cqp),             AV_OPT_TYPE_INT,  {.i64 = 25}, -1, 100, FLAGS },
+-  { "r",                    "Set video framerate",                            OFFSET(framerate),       AV_OPT_TYPE_INT,  {.i64 = 30}, 25, 60, FLAGS },
+-  { "b",                    "Set video bitrate",                              OFFSET(bit_rate),        AV_OPT_TYPE_INT,  {.i64 = 4000000}, 0, 100000000, FLAGS },
++  { "r",                    "Set video framerate",                            OFFSET(framerate),       AV_OPT_TYPE_INT,  {.i64 = 30}, 30, 30, FLAGS },
+   { "ch",                   "Set encode channel ",                            OFFSET(channel),         AV_OPT_TYPE_INT,  {.i64 = 0}, 0, (VENC_MAX_CHANNELS-1), FLAGS },
+-  { "maxrate",              "Maximum bitrate. (0=ignore)",                    OFFSET(maxrate),         AV_OPT_TYPE_INT,  {.i64 = 4000000}, 0, 100000000, FLAGS },
+-  { "ar",                   "Set aspect ratio",                               OFFSET(ar),         AV_OPT_TYPE_INT,  {.i64 = ASPECT_RATIO_AUTO}, ASPECT_RATIO_AUTO, ASPECT_RATIO_16_9, FLAGS, "ar_flags"},
+-  {     "auto",               "",  0, AV_OPT_TYPE_CONST, { .i64 = ASPECT_RATIO_AUTO },     0, 0, FLAGS, "ar_flags" },
+-  {     "4:3",                "",  0, AV_OPT_TYPE_CONST, { .i64 = ASPECT_RATIO_4_3 },     0, 0, FLAGS, "ar_flags" },
+-  {     "16:9",               "",  0, AV_OPT_TYPE_CONST, { .i64 = ASPECT_RATIO_16_9 },   0, 0, FLAGS, "ar_flags" },
+   {NULL}
+ };
+ 
