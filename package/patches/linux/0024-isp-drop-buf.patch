@@ -1,0 +1,184 @@
+From 31c99a47c62123c0fb02d0830b76d27b90e86a6f Mon Sep 17 00:00:00 2001
+From: longyiluo <longyiluo@canaan-creative.com>
+Date: Thu, 18 Aug 2022 16:15:09 +0800
+Subject: [PATCH] isp-drop-buf
+
+---
+ .../platform/canaan-isp/isp_2k/isp_f2k.c      | 19 +++++++++++++------
+ .../platform/canaan-isp/isp_2k/isp_r2k.c      | 19 +++++++++++++------
+ .../media/platform/canaan-isp/k510isp_com.h   |  4 ++--
+ 3 files changed, 28 insertions(+), 14 deletions(-)
+
+diff --git a/drivers/media/platform/canaan-isp/isp_2k/isp_f2k.c b/drivers/media/platform/canaan-isp/isp_2k/isp_f2k.c
+index 87a7fdfe..f743cc6b 100755
+--- a/drivers/media/platform/canaan-isp/isp_2k/isp_f2k.c
++++ b/drivers/media/platform/canaan-isp/isp_2k/isp_f2k.c
+@@ -2861,14 +2861,14 @@ static void video_buffer_next(struct isp_f2k_device *f2k, enum video_type dsNum)
+ 
+ 	buf = list_first_entry(&video->dmaqueue, struct k510isp_buffer, irqlist);	
+ 
+-	if(dsNum == DS0_VIDEO && f2k->profile.drop_threshold > 0LL && f2k->profile.buf_set_time != 0)
++	if(f2k->profile.drop_threshold > 0LL && f2k->profile.buf_set_time[dsNum] != 0)
+ 	{	  
+ 	  unsigned long long delta;
+-	  delta = get_usec() - f2k->profile.buf_set_time;
++	  delta = get_usec() - f2k->profile.buf_set_time[dsNum];
+ 	  if(delta > f2k->profile.drop_threshold)
+ 	  {
+       drop = 1;
+-      f2k->profile.drop_cnt++;
++      f2k->profile.drop_cnt[dsNum]++;
+ 	  }
+ 	}
+ 
+@@ -2982,6 +2982,7 @@ static void f2k_isr_main_buffer(struct isp_f2k_device *f2k)
+ 
+ 	video_buffer_next(f2k, MAIN_VIDEO);	
+ 
++	f2k->profile.buf_set_time[MAIN_VIDEO] = get_usec();
+ 	pipe->state |= ISP_PIPELINE_IDLE_OUTPUT;
+ 
+ 	return buffer != NULL;
+@@ -3006,7 +3007,7 @@ static void f2k_isr_out0_buffer(struct isp_f2k_device *f2k)
+ 
+ 	video_buffer_next(f2k, DS0_VIDEO);
+ 
+-	f2k->profile.buf_set_time = get_usec();
++	f2k->profile.buf_set_time[DS0_VIDEO] = get_usec();
+ 
+ 	pipe->state |= ISP_PIPELINE_IDLE_OUTPUT;	
+ 
+@@ -3031,6 +3032,7 @@ static void f2k_isr_out1_buffer(struct isp_f2k_device *f2k)
+ 	}
+ 
+ 	video_buffer_next(f2k, DS1_VIDEO);	
++	f2k->profile.buf_set_time[DS1_VIDEO] = get_usec();
+ 
+ 	pipe->state |= ISP_PIPELINE_IDLE_OUTPUT;
+ 
+@@ -3335,6 +3337,7 @@ static int f2k_set_stream(struct v4l2_subdev *sd, int enable)
+ 	struct k510_isp_device *isp = to_isp_device(f2k);
+ 	struct device *dev = to_device(f2k);
+ 	int ret;
++	int i;
+ 	dev_dbg(f2k->isp->dev,"%s:enable(0x%d)\n",__func__,enable);
+ 
+ 	struct isp_cfg_info *isp_cfg = &f2k->isp_cfg;
+@@ -3374,7 +3377,7 @@ static int f2k_set_stream(struct v4l2_subdev *sd, int enable)
+ 
+ 		memset(&f2k->profile,0,sizeof(struct k510_isp_profile));
+ 		if(isp_cfg->isp_ds_cfg.dsInSizeInfo.Width == 1920 &&
+-		  isp_cfg->isp_ds_cfg.dsInSizeInfo.Height == 1080)
++		  isp_cfg->isp_ds_cfg.dsInSizeInfo.Height >= 1080)
+ 		{
+ 		  f2k->profile.drop_threshold = 1000000LL/30 + DROP_THRESHOLD_GAP;
+ 		}
+@@ -3405,7 +3408,11 @@ static int f2k_set_stream(struct v4l2_subdev *sd, int enable)
+ 		{
+ 		  dev_info(f2k->isp->dev,"f2k interrupt: max duration %lld us, big_cnt %d\n", f2k->profile.max_int_duration, f2k->profile.big_dur_cnt);
+ 		  dev_info(f2k->isp->dev,"f2k interrupt: max interval %lld us, big_cnt %d\n", f2k->profile.max_int_interval, f2k->profile.big_inter_cnt);
+-		  dev_info(f2k->isp->dev,"f2k jump drop_cnt %d\n", f2k->profile.drop_cnt);
++		  for(i=0; i<VIDEO_NUM_MAX; i++)
++		  {
++		    if(f2k->profile.drop_cnt[i] > 0)
++		      dev_info(f2k->isp->dev,"f2k ds%d jump drop_cnt %d\n", i, f2k->profile.drop_cnt[i]);
++		  }
+ 		}		
+ 		dev_info(f2k->isp->dev,"f2k dmaErrCnt %d, no_buf_drop_cnt %d, total %d\n", f2k->profile.dmaErrCnt, f2k->profile.no_buf_drop_cnt, f2k->profile.pic_cnt);
+ 		break;
+diff --git a/drivers/media/platform/canaan-isp/isp_2k/isp_r2k.c b/drivers/media/platform/canaan-isp/isp_2k/isp_r2k.c
+index c7e73698..e878d5a8 100755
+--- a/drivers/media/platform/canaan-isp/isp_2k/isp_r2k.c
++++ b/drivers/media/platform/canaan-isp/isp_2k/isp_r2k.c
+@@ -2479,14 +2479,14 @@ static void video_buffer_next(struct isp_r2k_device *r2k, enum video_type dsNum)
+ 
+ 	buf = list_first_entry(&video->dmaqueue, struct k510isp_buffer, irqlist);
+ 	
+-	if(dsNum == DS0_VIDEO && r2k->profile.drop_threshold > 0LL && r2k->profile.buf_set_time != 0)
++	if(r2k->profile.drop_threshold > 0LL && r2k->profile.buf_set_time[dsNum] != 0)
+ 	{	  
+ 	  unsigned long long delta;
+-	  delta = get_usec() - r2k->profile.buf_set_time;
++	  delta = get_usec() - r2k->profile.buf_set_time[dsNum];
+ 	  if(delta > r2k->profile.drop_threshold)
+ 	  {
+       drop = 1;
+-      r2k->profile.drop_cnt++;
++      r2k->profile.drop_cnt[dsNum]++;
+ 	  }
+ 	}
+ 
+@@ -2596,6 +2596,7 @@ static void r2k_isr_main_buffer(struct isp_r2k_device *r2k)
+ 
+ 	video_buffer_next(r2k, MAIN_VIDEO);	
+ 
++	r2k->profile.buf_set_time[MAIN_VIDEO] = get_usec();
+ 	pipe->state |= ISP_PIPELINE_IDLE_OUTPUT;
+ 
+ 	return buffer != NULL;
+@@ -2617,7 +2618,7 @@ static void r2k_isr_out0_buffer(struct isp_r2k_device *r2k)
+ 
+ 	video_buffer_next(r2k, DS0_VIDEO);
+ 
+-	r2k->profile.buf_set_time = r2k->profile.buf_set_time;
++	r2k->profile.buf_set_time[DS0_VIDEO] = get_usec();
+ 
+ 	pipe->state |= ISP_PIPELINE_IDLE_OUTPUT;
+ 
+@@ -2638,6 +2639,7 @@ static void r2k_isr_out1_buffer(struct isp_r2k_device *r2k)
+ 	}
+ 
+ 	video_buffer_next(r2k, DS1_VIDEO);	
++	r2k->profile.buf_set_time[DS1_VIDEO] = get_usec();
+ 
+ 	pipe->state |= ISP_PIPELINE_IDLE_OUTPUT;
+ 
+@@ -2934,6 +2936,7 @@ static int r2k_set_stream(struct v4l2_subdev *sd, int enable)
+ 	struct k510_isp_device *isp = to_isp_device(r2k);
+ 	struct device *dev = to_device(r2k);
+ 	int ret;
++	int i;
+ 	dev_dbg(r2k->isp->dev,"%s:enable(0x%d)\n",__func__,enable);
+ 
+ 	struct isp_cfg_info *isp_cfg = &r2k->isp_cfg;
+@@ -2975,7 +2978,7 @@ static int r2k_set_stream(struct v4l2_subdev *sd, int enable)
+ 
+ 		memset(&r2k->profile,0,sizeof(struct k510_isp_profile));
+ 		if(isp_cfg->isp_ds_cfg.dsInSizeInfo.Width == 1920 &&
+-		  isp_cfg->isp_ds_cfg.dsInSizeInfo.Height == 1080)
++		  isp_cfg->isp_ds_cfg.dsInSizeInfo.Height >= 1080)
+ 		{
+ 		  r2k->profile.drop_threshold = 1000000LL/30 + DROP_THRESHOLD_GAP;
+ 		}
+@@ -3008,7 +3011,11 @@ static int r2k_set_stream(struct v4l2_subdev *sd, int enable)
+ 		{
+ 		  dev_info(r2k->isp->dev,"r2k interrupt: max duration %lld us, big_cnt %d\n", r2k->profile.max_int_duration, r2k->profile.big_dur_cnt);
+ 		  dev_info(r2k->isp->dev,"r2k interrupt: max interval %lld us, big_cnt %d\n", r2k->profile.max_int_interval, r2k->profile.big_inter_cnt);
+-		  dev_info(r2k->isp->dev,"r2k jump drop_cnt %d\n", r2k->profile.drop_cnt);
++		  for(i=0; i<VIDEO_NUM_MAX; i++)
++		  {
++		    if(r2k->profile.drop_cnt[i] > 0)
++		      dev_info(r2k->isp->dev,"r2k ds%d jump drop_cnt %d\n", i, r2k->profile.drop_cnt[i]);
++		  }
+ 		}		
+ 		dev_info(r2k->isp->dev,"r2k dmaErrCnt %d, no_buf_drop_cnt %d, total %d\n", r2k->profile.dmaErrCnt, r2k->profile.no_buf_drop_cnt, r2k->profile.pic_cnt);
+ 		break;
+diff --git a/drivers/media/platform/canaan-isp/k510isp_com.h b/drivers/media/platform/canaan-isp/k510isp_com.h
+index 96eb1ad5..ec9648fa 100755
+--- a/drivers/media/platform/canaan-isp/k510isp_com.h
++++ b/drivers/media/platform/canaan-isp/k510isp_com.h
+@@ -479,9 +479,9 @@ struct k510_isp_profile {
+ 	unsigned long long cur_int_interval;
+ 	int big_dur_cnt;
+ 	int big_inter_cnt;
+-	unsigned long long buf_set_time;
++	unsigned long long buf_set_time[4];
+ 	unsigned long long drop_threshold;
+-	int drop_cnt;
++	int drop_cnt[4];
+ 	int no_buf_drop_cnt;
+ };
+ 
+-- 
+2.17.1
+

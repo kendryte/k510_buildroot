@@ -1,0 +1,47 @@
+Index: b/libavcodec/libk510_h264.c
+===================================================================
+--- a/libavcodec/libk510_h264.c
++++ b/libavcodec/libk510_h264.c
+@@ -179,7 +179,7 @@ static av_cold int k510_h264_encode_init
+     Cfg.encDblkCfg.disable_deblocking_filter_idc        = 0;
+     Cfg.encDblkCfg.slice_beta_offset_div2               = 1;
+     Cfg.encDblkCfg.slice_alpha_c0_offset_div2           = 1;
+-    Cfg.entropyMode                                     = ENTROPY_MODE_CAVLC;
++    Cfg.entropyMode                                     = ENTROPY_MODE_CABAC;
+     Cfg.sliceSplitCfg.bSplitEnable                      = false;
+     
+     printf("Encoder Settings:\n");
+@@ -428,7 +428,6 @@ static const AVOption options[] =
+   {     "4:3",                "",  0, AV_OPT_TYPE_CONST, { .i64 = ASPECT_RATIO_4_3 },     0, 0, FLAGS, "ar_flags" },
+   {     "16:9",               "",  0, AV_OPT_TYPE_CONST, { .i64 = ASPECT_RATIO_16_9 },   0, 0, FLAGS, "ar_flags" },
+   {     "none",               "",  0, AV_OPT_TYPE_CONST, { .i64 = ASPECT_RATIO_NONE },     0, 0, FLAGS, "ar_flags" },
+-  { "framesToEncode",       "set the libk510_h264 framesToEncode",            OFFSET(framesToEncode),   AV_OPT_TYPE_INT,  { .i64 = -1 }, -1, INT_MAX, FLAGS },
+   {NULL}
+ };
+ 
+Index: b/libavcodec/libk510_jpeg.c
+===================================================================
+--- a/libavcodec/libk510_jpeg.c
++++ b/libavcodec/libk510_jpeg.c
+@@ -143,7 +143,7 @@ static av_cold int k510_jpeg_encode_init
+     Cfg.encDblkCfg.disable_deblocking_filter_idc        = 0;
+     Cfg.encDblkCfg.slice_beta_offset_div2               = 1;
+     Cfg.encDblkCfg.slice_alpha_c0_offset_div2           = 1;
+-    Cfg.entropyMode                                     = ENTROPY_MODE_CAVLC;
++    Cfg.entropyMode                                     = ENTROPY_MODE_CABAC;
+     Cfg.sliceSplitCfg.bSplitEnable                      = false;
+ 
+     printf("Encoder Settings:\n");
+Index: b/libavfilter/af_audio3a.c
+===================================================================
+--- a/libavfilter/af_audio3a.c
++++ b/libavfilter/af_audio3a.c
+@@ -143,7 +143,7 @@ typedef struct Audio3aContext {
+ #define AF  AV_OPT_FLAG_AUDIO_PARAM|AV_OPT_FLAG_FILTERING_PARAM       
+ 
+ static const AVOption audio3a_options[] = {
+-    {"sample_rate", "set sample_rate", OFFSET(sample_rate), AV_OPT_TYPE_INT, {.i64 = 16000}, 1, INT_MAX, AF},
++    {"sample_rate", "set sample_rate", OFFSET(sample_rate), AV_OPT_TYPE_INT, {.i64 = 16000}, 16000, 16000, AF},
+     {"agc",         "set agc mode", OFFSET(agc_mode), AV_OPT_TYPE_INT, {.i64 = AgcModeFixedDigital}, AgcModeUnchanged, AgcModeFixedDigital, AF, "agc_mode"},
+     {   "AgcModeUnchanged",         "", 0, AV_OPT_TYPE_CONST, {.i64 = AgcModeUnchanged}, 0, 0, AF, "agc_mode"},
+     {   "AgcModeAdaptiveAnalog",    "", 0, AV_OPT_TYPE_CONST, {.i64 = AgcModeAdaptiveAnalog}, 0, 0, AF, "agc_mode"},
