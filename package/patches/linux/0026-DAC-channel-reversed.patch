@@ -1,0 +1,25 @@
+From f1cc881b652a0b003d7d447dd7e578667b87e4b0 Mon Sep 17 00:00:00 2001
+From: gh-sxp <sunxiaopeng@canaan-creative.com>
+Date: Sun, 28 Aug 2022 14:27:15 +0800
+Subject: [PATCH] modify nau8822
+
+---
+ sound/soc/codecs/nau8822.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/sound/soc/codecs/nau8822.c b/sound/soc/codecs/nau8822.c
+index bb061740..0086a471 100644
+--- a/sound/soc/codecs/nau8822.c
++++ b/sound/soc/codecs/nau8822.c
+@@ -40,7 +40,7 @@ static const struct reg_default nau8822_reg_defaults[] = {
+ 	{ NAU8822_REG_POWER_MANAGEMENT_1, 0x0000 },
+ 	{ NAU8822_REG_POWER_MANAGEMENT_2, 0x0000 },
+ 	{ NAU8822_REG_POWER_MANAGEMENT_3, 0x0000 },
+-	{ NAU8822_REG_AUDIO_INTERFACE, 0x0050 },
++	{ NAU8822_REG_AUDIO_INTERFACE, 0x0054 },
+ 	{ NAU8822_REG_COMPANDING_CONTROL, 0x0000 },
+ 	{ NAU8822_REG_CLOCKING, 0x0140 },
+ 	{ NAU8822_REG_ADDITIONAL_CONTROL, 0x0000 },
+-- 
+2.36.1
+

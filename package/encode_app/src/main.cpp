@@ -154,8 +154,6 @@ typedef struct
   long *shared_phyAddr;
   void **shared_vAddr;
   unsigned int *shared_size;
-  unsigned int *exp;
-  unsigned int *agc;
   int *stride;
   int *width;
   int *height;
@@ -190,10 +188,9 @@ typedef struct
   uint32_t *drop;
   uint32_t *drop_en;
   uint32_t *framerate_mod;
-  int *set_ae;
   unsigned char *out_framerate;
   int video_enabled;
-  int ae_enable;
+  uint32_t *ae_disable;
   int setQos;
 
   /* audio */
@@ -462,19 +459,6 @@ static void enqueue_buf(unsigned char index, int channel)
     }
 }
 
-static void set_ae(char* dev_name, int ae_enable)
-{
-  if((dev_name[10] >= '2') && (dev_name[10] <= '5') && (ae_enable & 0x1))
-  {
-    mediactl_set_ae(ISP_F2K_PIPELINE);
-  }
-  else if((dev_name[10] >= '6') && (dev_name[10] <= '9') && (ae_enable & 0x1))
-  {
-    mediactl_set_ae(ISP_R2K_PIPELINE);
-  }
-  return;
-}
-
 static void *v4l2_output(void *arg)
 {
   printf("%s\n", __FUNCTION__);
@@ -506,8 +490,6 @@ static void *v4l2_output(void *arg)
     buf.memory = V4L2_MEMORY_USERPTR;
         
     res = ioctl(pCtx->fd_v4l2[channel], VIDIOC_DQBUF, &buf);
-
-    set_ae(pCtx->dev_name[channel], pCtx->ae_enable);
     
     if (res < 0 || errno == EINTR)
     {
@@ -974,8 +956,6 @@ int free_context(void *arg)
   free(pCtx->shared_phyAddr  );
   free(pCtx->shared_vAddr    );
   free(pCtx->shared_size     );
-  free(pCtx->exp             );
-  free(pCtx->agc             );
   free(pCtx->stride          );
   free(pCtx->width           );
   free(pCtx->height          );
@@ -1000,7 +980,7 @@ int free_context(void *arg)
   free(pCtx->drop            );
   free(pCtx->drop_en         );
   free(pCtx->out_framerate   );
-  free(pCtx->set_ae   );
+  free(pCtx->ae_disable      );
 
   return 0;
 }
@@ -1241,17 +1221,6 @@ static int init_isp()
 
     pCtx->fd_isp = isp_video(&ds1_info, sensor_type, lcd_type);
 
-    if(pCtx->exp[0] > 0)
-    {
-      printf("isp exp = %d\n", pCtx->exp[0]);
-      video_set_ae_dgain_cfg(pCtx->exp[0]);
-    }
-    if(pCtx->agc[0] > 0)
-    {
-      printf("isp agc = %d\n", pCtx->agc[0]);
-      video_set_ae_again_cfg(pCtx->agc[0]);
-    }
-
     printf("%s>fd_isp: 0x%x\n", __FUNCTION__, pCtx->fd_isp);
 
     sleep(1);  //It seems ISP output is not stable at the beginning
@@ -1309,6 +1278,7 @@ int init_v4l2()
     struct v4l2_format fmt;
     int i;
     int f2k=0, r2k=0;
+    int ae_disabled[2] = {0};
 
     for(int j = 0; j < pCtx->ch_cnt; j++)
     {
@@ -1322,6 +1292,23 @@ int init_v4l2()
     for(int i = 0; i < pCtx->ch_cnt; i++)
     {
       sem_init(&pCtx->pSemGetData[i],0,0);
+    }
+
+    for(i = 0; i < pCtx->ch_cnt; i++)
+    {
+      if(pCtx->ae_disable[i])
+      {
+        if((pCtx->dev_name[i][10] >= '2') && (pCtx->dev_name[i][10] <= '5') && (!ae_disabled[0]))
+        {
+          mediactl_disable_ae(ISP_F2K_PIPELINE);
+          ae_disabled[0] = 1;
+        }
+        else if((pCtx->dev_name[i][10] >= '6') && (pCtx->dev_name[i][10] <= '9') && (!ae_disabled[1]))
+        {
+          mediactl_disable_ae(ISP_R2K_PIPELINE);
+          ae_disabled[1] = 1;
+        }
+      }
     }
 
     if(mediactl_init(REAL_CONF_FILENAME, &(pCtx->dev_info[0])) < 0)
@@ -1905,8 +1892,6 @@ int alloc_context(void *arg)
   pCtx->shared_phyAddr  = (long*)malloc(sizeof(long) * pCtx->ch_cnt);
   pCtx->shared_vAddr    = (void**)malloc(sizeof(void*) * pCtx->ch_cnt);
   pCtx->shared_size     = (unsigned int*)malloc(sizeof(unsigned int) * pCtx->ch_cnt);
-  pCtx->exp             = (unsigned int*)malloc(sizeof(unsigned int) * pCtx->ch_cnt);
-  pCtx->agc             = (unsigned int*)malloc(sizeof(unsigned int) * pCtx->ch_cnt);
   pCtx->stride          = (int*)malloc(sizeof(int) * pCtx->ch_cnt);
   pCtx->width           = (int*)malloc(sizeof(int) * pCtx->ch_cnt);
   pCtx->height          = (int*)malloc(sizeof(int) * pCtx->ch_cnt);
@@ -1931,10 +1916,17 @@ int alloc_context(void *arg)
   pCtx->drop            = (uint32_t*)malloc(sizeof(uint32_t) * pCtx->ch_cnt);
   pCtx->drop_en         = (uint32_t*)malloc(sizeof(uint32_t) * pCtx->ch_cnt);
   pCtx->framerate_mod   = (uint32_t*)malloc(sizeof(uint32_t) * pCtx->ch_cnt);
+  pCtx->ae_disable      = (uint32_t*)malloc(sizeof(uint32_t) * pCtx->ch_cnt);
   pCtx->out_framerate   = (unsigned char*)malloc(sizeof(unsigned char) * pCtx->ch_cnt);
-  pCtx->set_ae          = (int*)malloc(sizeof(int) * pCtx->ch_cnt);
 
-  memset(pCtx->Cfg,0,sizeof(EncSettings));
+  memset(pCtx->Cfg, 0, sizeof(EncSettings)*pCtx->ch_cnt);
+
+  for(int i = 0; i < pCtx->ch_cnt; i++)
+  {
+    pCtx->Cfg[i].profile     = (AVC_Profile)0xff;
+    pCtx->Cfg[i].rcMode      = (RateCtrlMode)0xff; 
+    pCtx->Cfg[i].AspectRatio = (AVC_AspectRatio)0xff;
+  }
 
   return 0;
 }
@@ -1957,8 +1949,6 @@ int parse_cmd(int argc, char *argv[])
       printf("-o: output file name or rtsp\n");
       printf("-w: width\n");
       printf("-h: height\n");
-      printf("-e: set sensor exposure rate\n");
-      printf("-ag: analog gain\n");
       printf("-fps: sensor input framerate\n");
       printf("-r: encoder output framrate\n");
       printf("-inframes: input frames for input file\n");
@@ -1976,7 +1966,7 @@ int parse_cmd(int argc, char *argv[])
       printf("-GDRMode: GDR mode 0:GDR_VERTICAL 1:GDR_HORIZONTAL\n");
       printf("-enableLTR: enbale long term reference picture and specifies LTR refresh frequency in number of frames,0 to disable use refresh frequency\n");
       printf("-roi: roi config file\n");
-      printf("-ae: enable ae\n");
+      printf("-disableAE: disable ae\n");
       printf("-conf: v4l2 config file\n");
       /* audio */
       printf("-alsa: enable audio\n");
@@ -1984,7 +1974,6 @@ int parse_cmd(int argc, char *argv[])
       printf("-ar: audio sample rate\n");
       printf("-af: auido sample format\n");
       printf("-ad: audio device");
-      printf("-lossless: enable jpeg lossless encode");
       // printf("-aof: audio output frames\n");
       return 1;
     }
@@ -2055,16 +2044,7 @@ int parse_cmd(int argc, char *argv[])
           printf("Cannot open output file!\n");
           return -1;
         }
-        pCtx->outfilename[cur_ch] = argv[i+1];
-#if 0
-        char *ptr=strchr(pCtx->outfilename[cur_ch], '.');
-        if(strcmp(ptr, ".jpg") == 0 || strcmp(ptr, ".mjpeg") == 0)
-        {
-          pCtx->Cfg[cur_ch].profile = JPEG;
-          pCtx->Cfg[cur_ch].rcMode = CONST_QP; 
-          printf("JPEG encode\n");
-        }
-#endif 
+        pCtx->outfilename[cur_ch] = argv[i+1]; 
       }
     }
     else if(strcmp(argv[i], "-w") == 0)
@@ -2076,27 +2056,6 @@ int parse_cmd(int argc, char *argv[])
     {
       pCtx->Cfg[cur_ch].height = atoi(argv[i+1]);
       printf("height %d\n", pCtx->Cfg[cur_ch].height);
-    }
-    else if(strcmp(argv[i], "-e") == 0)
-    {
-      pCtx->exp[cur_ch] = atoi(argv[i+1]);
-      printf("exp = %d\n", pCtx->exp[cur_ch]);
-      if(pCtx->exp[cur_ch] <= 0 || pCtx->exp[cur_ch] > 128)
-      {
-        printf("wrong exp = %d\n", pCtx->exp[cur_ch]);
-        return -1;
-      }
-      pCtx->exp[cur_ch] *= 8;
-    }
-    else if(strcmp(argv[i], "-ag") == 0)
-    {
-      pCtx->agc[cur_ch] = atoi(argv[i+1]);
-      printf("agc = %d\n", pCtx->agc[cur_ch]);
-      if(pCtx->agc[cur_ch] < 0 || pCtx->agc[cur_ch] > 232)
-      {
-        printf("wrong agc = %d\n", pCtx->agc[cur_ch]);
-        return -1;
-      }
     }
     else if(strcmp(argv[i], "-fps") == 0)
     {
@@ -2142,7 +2101,7 @@ int parse_cmd(int argc, char *argv[])
     else if (strcmp(argv[i],"-profile") == 0 )
     {
       int nProfile = atoi(argv[i+1]);
-      if (nProfile > 2 || nProfile < 0)
+      if (nProfile > 3 || nProfile < 0)
       {
         printf("profile:%d error\n",nProfile);
         return -1;
@@ -2166,12 +2125,6 @@ int parse_cmd(int argc, char *argv[])
       int nqp = atoi(argv[i+1]);
       pCtx->Cfg[cur_ch].SliceQP = nqp;
       printf("sliceqp %d\n", nqp);
-    }
-    else if (strcmp(argv[i],"-lossless") == 0 )
-    {
-      int lossless = atoi(argv[i+1]);
-      pCtx->Cfg[cur_ch].lossless = lossless;
-      printf("lossless %d\n", lossless);
     }
     else if (strcmp(argv[i],"-minqp") == 0 )
     {
@@ -2240,9 +2193,9 @@ int parse_cmd(int argc, char *argv[])
         printf("roi_parse_conf ok\n");
       }
     }
-    else if(strcmp(argv[i], "-ae") == 0)
+    else if(strcmp(argv[i], "-disableAE") == 0)
     {
-      pCtx->ae_enable = atoi(argv[i+1]);
+      pCtx->ae_disable[cur_ch] = atoi(argv[i+1]);
     }
     else if(strcmp(argv[i], "-conf") == 0)
     {
@@ -2327,27 +2280,27 @@ int main(int argc, char *argv[])
     {
       pCtx->ch[i] = i;
       pCtx->Cfg[i].channel     = i;
-      if(!pCtx->framerate[i])             pCtx->framerate[i]       = 30;
-      if(!pCtx->out_framerate[i])         pCtx->out_framerate[i]   = pCtx->framerate[i];
-      if(!pCtx->Cfg[i].width)             pCtx->Cfg[i].width       = 1920;
-      if(!pCtx->Cfg[i].height)            pCtx->Cfg[i].height      = 1080;
-      if(!pCtx->Cfg[i].BitRate)           pCtx->Cfg[i].BitRate     = 4000000;
-      if(!pCtx->Cfg[i].MaxBitRate)        pCtx->Cfg[i].MaxBitRate  = 4000000;
-      if(!pCtx->Cfg[i].level)             pCtx->Cfg[i].level       = 42;
-      if(!pCtx->Cfg[i].profile)           pCtx->Cfg[i].profile     = AVC_HIGH;
-      if(!pCtx->Cfg[i].rcMode)            pCtx->Cfg[i].rcMode      = CBR; 
-      if(!pCtx->Cfg[i].SliceQP)           pCtx->Cfg[i].SliceQP     = 25;
-      if(!pCtx->Cfg[i].FreqIDR)           pCtx->Cfg[i].FreqIDR     = 25;
-      if(!pCtx->Cfg[i].gopLen)            pCtx->Cfg[i].gopLen      = 25;
-      if(!pCtx->Cfg[i].AspectRatio)       pCtx->Cfg[i].AspectRatio = ASPECT_RATIO_AUTO;
-      if(!pCtx->Cfg[i].MinQP)             pCtx->Cfg[i].MinQP       = 0;//from 0 to SliceQP
-      if(!pCtx->Cfg[i].MaxQP)             pCtx->Cfg[i].MaxQP       = 51;//from SliceQP to 51
-      if(!pCtx->Cfg[i].roiCtrlMode)       pCtx->Cfg[i].roiCtrlMode = ROI_QP_TABLE_NONE;
+      if(!pCtx->framerate[i])               pCtx->framerate[i]       = 30;
+      if(!pCtx->out_framerate[i])           pCtx->out_framerate[i]   = pCtx->framerate[i];
+      if(!pCtx->Cfg[i].width)               pCtx->Cfg[i].width       = 1920;
+      if(!pCtx->Cfg[i].height)              pCtx->Cfg[i].height      = 1080;
+      if(!pCtx->Cfg[i].BitRate)             pCtx->Cfg[i].BitRate     = 4000000;
+      if(!pCtx->Cfg[i].MaxBitRate)          pCtx->Cfg[i].MaxBitRate  = 4000000;
+      if(!pCtx->Cfg[i].level)               pCtx->Cfg[i].level       = 42;
+      if(pCtx->Cfg[i].profile != 0xff)      pCtx->Cfg[i].profile     = AVC_HIGH;
+      if(pCtx->Cfg[i].rcMode != 0xff)       pCtx->Cfg[i].rcMode      = CBR; 
+      if(!pCtx->Cfg[i].SliceQP)             pCtx->Cfg[i].SliceQP     = 25;
+      if(!pCtx->Cfg[i].FreqIDR)             pCtx->Cfg[i].FreqIDR     = 25;
+      if(!pCtx->Cfg[i].gopLen)              pCtx->Cfg[i].gopLen      = 25;
+      if(pCtx->Cfg[i].AspectRatio != 0xff)  pCtx->Cfg[i].AspectRatio = ASPECT_RATIO_AUTO;
+      if(!pCtx->Cfg[i].MinQP)               pCtx->Cfg[i].MinQP       = 0;//from 0 to SliceQP
+      if(!pCtx->Cfg[i].MaxQP)               pCtx->Cfg[i].MaxQP       = 51;//from SliceQP to 51
+      if(!pCtx->Cfg[i].roiCtrlMode)         pCtx->Cfg[i].roiCtrlMode = ROI_QP_TABLE_NONE;
 
       pCtx->Cfg[i].encDblkCfg.disable_deblocking_filter_idc        = 0;
       pCtx->Cfg[i].encDblkCfg.slice_beta_offset_div2               = 1;
       pCtx->Cfg[i].encDblkCfg.slice_alpha_c0_offset_div2           = 1;
-      pCtx->Cfg[i].entropyMode                                     = ENTROPY_MODE_CAVLC;
+      pCtx->Cfg[i].entropyMode                                     = ENTROPY_MODE_CABAC;
       pCtx->Cfg[i].sliceSplitCfg.bSplitEnable                      = false;
 
       

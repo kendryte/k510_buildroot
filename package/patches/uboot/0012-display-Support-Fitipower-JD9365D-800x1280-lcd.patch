@@ -1,0 +1,934 @@
+From 2dbf4ca40ebbedcc4432bfd23a1f02c23561a4ed Mon Sep 17 00:00:00 2001
+From: "Chenggen.Wang" <wangchenggen@canaan-creative.com>
+Date: Tue, 23 Aug 2022 19:34:11 +0800
+Subject: [PATCH 1/2] display: Support Fitipower JD9365D 800x1280 lcd.
+
+Signed-off-by: Chenggen.Wang <wangchenggen@canaan-creative.com>
+---
+ .../controler/video/mipi/dsi/cnds_dsi_test.c  | 516 +++++++++++++++---
+ .../bsp/include/controler/video/isp_com.h     |   1 +
+ .../controler/video/mipi/dsi/cnds_dsi_test.h  |   2 +-
+ board/Canaan/dsi_logo/test/log/main.c         |  14 +-
+ board/Canaan/dsi_logo/test/log/vo/vo.h        |   4 +
+ board/Canaan/dsi_logo/test/log/vo/vo_app.c    | 241 +++++++-
+ 6 files changed, 706 insertions(+), 72 deletions(-)
+
+diff --git a/board/Canaan/dsi_logo/bsp/controler/video/mipi/dsi/cnds_dsi_test.c b/board/Canaan/dsi_logo/bsp/controler/video/mipi/dsi/cnds_dsi_test.c
+index 08d2c3ad..1cc6d998 100755
+--- a/board/Canaan/dsi_logo/bsp/controler/video/mipi/dsi/cnds_dsi_test.c
++++ b/board/Canaan/dsi_logo/bsp/controler/video/mipi/dsi/cnds_dsi_test.c
+@@ -2190,67 +2190,67 @@ void test(void)
+ 
+ void dsi_prepare(void)
+ {
+-        DsiRegWr(MCTL_MAIN_PHY_CTL_OFFSET,
+-                0x3C17); //[6]  lane1_ulp_en = 1   正常的   0x3C17 clk_continuous
+-                        //[4]  clk_continuous  =1
+-                        //[2]  lane4_en =1
+-                        //[1]  lane3_en =1
+-                        //[0]  lane2_en =1
+-
+-        //[0]  lane2_en =1
+-
+-        DsiRegWr(MCTL_DPHY_TIMEOUT1_OFFSET, 0xed8afffb);
+-        DsiRegWr(MCTL_DPHY_TIMEOUT2_OFFSET, 0xf30fffff);
+-        DsiRegWr(MCTL_MAIN_DATA_CTL_OFFSET,
+-                0x2e027); //[6] tvg_sel = 1  test video generator enabled   //default
+-                        //0x27                         0x2e067 [5] vid_en = 1
+-                        //enable the video stream generator [3:2] vid_if_select
+-                        //=2'b00  00:sdi;01:dpi��10:DSC [1] sdi_if_vid_mode = 1
+-                        //select video mode [0] link_en = 1; // enable link
+-
+-        DsiRegWr(MCTL_MAIN_EN_OFFSET,
+-                0x40f9); // 4 lan
+-                        //[15]   if3_en: enable dsc interface
+-                        //[14]   if2_en: enable dpi interface   =1
+-                        //[13]   if1_en: enable sdi interface
+-                        //[9]   lane1_ulp_req =1
+-                        //[7]   dat4_en
+-        //[6]   dat3_en
+-        //[5]   dat2_en
+-        //[4]   dat1_en
+-        //[3]   cklane_en
+-
+-        // disable status detection
+-        unsigned int data = DsiRegRd(CMD_MODE_STS_CTL_OFFSET);
+-        k510_logci("CMD_MODE_STS_CTL_OFFSET data 0x%x\n", data);
+-        data &= ~(1 << 0);
+-        DsiRegWr(CMD_MODE_STS_CTL_OFFSET, data);
+-
+-        wait_phy_pll_locked();
+-        k510_logci("phy pll locked ");
+-
+-        wait_cklane_rdy();
+-        k510_logci("cklane  is ready!!! ");
+-        wait_dat1_rdy();
+-        k510_logci("dat1  is ready!!! ");
+-        wait_dat2_rdy();
+-        k510_logci("dat2  is ready!!! ");
+-
+-        wait_dat3_rdy();
+-        k510_logci("dat3  is ready!!! ");
+-        wait_dat4_rdy();
+-        k510_logci("dat4  is ready!!! ");
+-
+-        // will init lcd
+-        DsiRegWr(MCTL_ULPOUT_TIME_OFFSET, 0x0003ab05);
+-        /*
+-                //fork  hs_skewcal_force_en
+-                reg = DsiRegRd(MCTL_MAIN_PHY_CTL_OFFSET);
+-                reg = reg | (1 << 29);
+-                DsiRegWr(MCTL_MAIN_PHY_CTL_OFFSET, reg);
+-                reg = DsiRegRd(MCTL_MAIN_PHY_CTL_OFFSET);
+-                k510_logci("reg is %x \n", reg);
+-        */
++    DsiRegWr(MCTL_MAIN_PHY_CTL_OFFSET,
++            0x3C07); //[6]  lane1_ulp_en = 1   正常的   0x3C17 clk_continuous
++                    //[4]  clk_continuous  =1
++                    //[2]  lane4_en =1
++                    //[1]  lane3_en =1
++                    //[0]  lane2_en =1
++
++    //[0]  lane2_en =1
++
++    DsiRegWr(MCTL_DPHY_TIMEOUT1_OFFSET, 0xed8afffb);
++    DsiRegWr(MCTL_DPHY_TIMEOUT2_OFFSET, 0xf30fffff);
++    DsiRegWr(MCTL_MAIN_DATA_CTL_OFFSET,
++            0x2e027); //[6] tvg_sel = 1  test video generator enabled   //default
++                    //0x27                         0x2e067 [5] vid_en = 1
++                    //enable the video stream generator [3:2] vid_if_select
++                    //=2'b00  00:sdi;01:dpi��10:DSC [1] sdi_if_vid_mode = 1
++                    //select video mode [0] link_en = 1; // enable link
++
++    DsiRegWr(MCTL_MAIN_EN_OFFSET,
++            0x40f9); // 4 lan
++                    //[15]   if3_en: enable dsc interface
++                    //[14]   if2_en: enable dpi interface   =1
++                    //[13]   if1_en: enable sdi interface
++                    //[9]   lane1_ulp_req =1
++                    //[7]   dat4_en
++    //[6]   dat3_en
++    //[5]   dat2_en
++    //[4]   dat1_en
++    //[3]   cklane_en
++
++    // disable status detection
++    unsigned int data = DsiRegRd(CMD_MODE_STS_CTL_OFFSET);
++    k510_logci("CMD_MODE_STS_CTL_OFFSET data 0x%x\n", data);
++    data &= ~(1 << 0);
++    DsiRegWr(CMD_MODE_STS_CTL_OFFSET, data);
++
++    wait_phy_pll_locked();
++    k510_logci("phy pll locked ");
++
++    wait_cklane_rdy();
++    k510_logci("cklane  is ready!!! ");
++    wait_dat1_rdy();
++    k510_logci("dat1  is ready!!! ");
++    wait_dat2_rdy();
++    k510_logci("dat2  is ready!!! ");
++
++    wait_dat3_rdy();
++    k510_logci("dat3  is ready!!! ");
++    wait_dat4_rdy();
++    k510_logci("dat4  is ready!!! ");
++
++    // will init lcd
++    DsiRegWr(MCTL_ULPOUT_TIME_OFFSET, 0x0003ab05);
++    /*
++            //fork  hs_skewcal_force_en
++            reg = DsiRegRd(MCTL_MAIN_PHY_CTL_OFFSET);
++            reg = reg | (1 << 29);
++            DsiRegWr(MCTL_MAIN_PHY_CTL_OFFSET, reg);
++            reg = DsiRegRd(MCTL_MAIN_PHY_CTL_OFFSET);
++            k510_logci("reg is %x \n", reg);
++    */
+ }
+ 
+ static int32_t lcd_id = 0;
+@@ -2259,6 +2259,46 @@ int32_t get_lcd_id(void)
+     return lcd_id;
+ }
+ 
++int32_t get_panel_id(void)
++{
++    int32_t reg;
++    int32_t cmd_sts = 0;
++    int32_t err;
++    int32_t size;
++    int32_t retry = 5;
++
++    dsi_prepare();
++    DsiRegWr(DPI_IRQ_EN_OFFSET, 0); // enable dpi overflow int
++    msleep(100);
++
++    dsc_cmd_send_37(3);
++
++    DsiRegWr(DIRECT_CMD_STS_CLR_OFFSET, 0xffffffff);
++    DsiRegWr(DIRECT_CMD_RD_STS_CLR_OFFSET, 0xffffffff);
++    DsiRegWr(DIRECT_CMD_FIFO_RST_OFFSET, 0xffffffff);
++
++    reg = 0x01000601 | (1 << 16);
++    DsiRegWr(DIRECT_CMD_MAIN_SETTINGS_OFFSET, reg);
++    DsiRegWr(DIRECT_CMD_WRDAT_OFFSET, 0x04);
++    DsiRegWr(DIRECT_CMD_SEND_OFFSET, 0xffffffff);
++
++    while ((cmd_sts & 0x08) != 0x08) {
++        usleep(1000);
++        retry--;
++        cmd_sts = DsiRegRd(DIRECT_CMD_STS_OFFSET);
++        if (retry == 0) {
++            lcd_id = -1;
++            return -1;
++        }
++    }
++
++    err = DsiRegRd(DIRECT_CMD_RD_STS_OFFSET);
++    size = DsiRegRd(DIRECT_CMD_RD_PROPERTY_OFFSET);
++    lcd_id = DsiRegRd(DIRECT_CMD_RDDAT_OFFSET);
++    printf("panel_id [%02X]\n", lcd_id);
++    return lcd_id;
++}
++
+ void dsi_init_1080x1920()
+ {
+         int HACT = 1080;
+@@ -2275,11 +2315,6 @@ void dsi_init_1080x1920()
+         uint32_t reg = 0;
+         uint32_t val = 0;
+ 
+-        dsi_prepare();
+-        DsiRegWr(DPI_IRQ_EN_OFFSET, 0); // enable dpi overflow int
+-        msleep(100);
+-
+-        lcd_id = hx8399_read_id();
+         if (lcd_id == -1) {
+                 sysctl_reset(SYSCTL_RESET_DSI);
+                 mipi_txdphy_init();
+@@ -2357,3 +2392,352 @@ void dsi_init_1080x1920()
+ }
+ 
+ 
++
++void gd9365da_800x1280(void)
++{
++    dsc_cmd_read(0x04);
++
++    dsc_cmd_send(2,0xE1,0x93);
++
++    dsc_cmd_send(2,0xE2,0x65);
++    dsc_cmd_send(2,0xE3,0xF8);
++    dsc_cmd_send(2,0x80,0x03);
++
++    dsc_cmd_send(2,0xE0,0x01);
++
++ //   dsc_cmd_send(2,0x4a,0x35);      // test mode ??
++
++    dsc_cmd_send(2,0x00,0x00);
++    dsc_cmd_send(2,0x01,0x2A);
++    dsc_cmd_send(2,0x03,0x00);
++    dsc_cmd_send(2,0x04,0x30);
++    dsc_cmd_send(2,0x17,0x00);
++    dsc_cmd_send(2,0x18,0xE7);
++    dsc_cmd_send(2,0x19,0x00);
++    dsc_cmd_send(2,0x1A,0x00);
++    dsc_cmd_send(2,0x1B,0xE7);
++    dsc_cmd_send(2,0x1C,0x00);
++    dsc_cmd_send(2,0x35,0x23);
++    dsc_cmd_send(2,0x37,0x09);
++    dsc_cmd_send(2,0x38,0x04);
++    dsc_cmd_send(2,0x39,0x08);
++    dsc_cmd_send(2,0x3A,0x12);
++    dsc_cmd_send(2,0x3C,0x78);
++    dsc_cmd_send(2,0x3D,0xFF);
++    dsc_cmd_send(2,0x3E,0xFF);
++    dsc_cmd_send(2,0x3F,0xFF);
++    dsc_cmd_send(2,0x40,0x06);
++    dsc_cmd_send(2,0x41,0xA0);
++    dsc_cmd_send(2,0x43,0x14);
++    dsc_cmd_send(2,0x44,0x0F);
++    dsc_cmd_send(2,0x45,0x30);
++
++    dsc_cmd_send(2,0x4B,0x04);
++    dsc_cmd_send(2,0x55,0x02);
++    dsc_cmd_send(2,0x57,0x65);
++    dsc_cmd_send(2,0x59,0x0A);
++    dsc_cmd_send(2,0x5A,0x28);
++    dsc_cmd_send(2,0x5B,0x15);
++    dsc_cmd_send(2,0x5D,0x7C);
++    dsc_cmd_send(2,0x5E,0x5A);
++    dsc_cmd_send(2,0x5F,0x45);
++    dsc_cmd_send(2,0x60,0x36);
++    dsc_cmd_send(2,0x61,0x2F);
++    dsc_cmd_send(2,0x62,0x20);
++    dsc_cmd_send(2,0x63,0x24);
++    dsc_cmd_send(2,0x64,0x0F);
++    dsc_cmd_send(2,0x65,0x2C);
++    dsc_cmd_send(2,0x66,0x2E);
++    dsc_cmd_send(2,0x67,0x31);
++    dsc_cmd_send(2,0x68,0x52);
++    dsc_cmd_send(2,0x69,0x40);
++    dsc_cmd_send(2,0x6A,0x49);
++    dsc_cmd_send(2,0x6B,0x3E);
++    dsc_cmd_send(2,0x6C,0x3B);
++    dsc_cmd_send(2,0x6D,0x30);
++    dsc_cmd_send(2,0x6E,0x21);
++    dsc_cmd_send(2,0x6F,0x0C);
++    dsc_cmd_send(2,0x70,0x7C);
++    dsc_cmd_send(2,0x71,0x5A);
++    dsc_cmd_send(2,0x72,0x45);
++    dsc_cmd_send(2,0x73,0x36);
++    dsc_cmd_send(2,0x74,0x2F);
++    dsc_cmd_send(2,0x75,0x20);
++    dsc_cmd_send(2,0x76,0x24);
++    dsc_cmd_send(2,0x77,0x0F);
++    dsc_cmd_send(2,0x78,0x2C);
++    dsc_cmd_send(2,0x79,0x2E);
++    dsc_cmd_send(2,0x7A,0x31);
++    dsc_cmd_send(2,0x7B,0x52);
++    dsc_cmd_send(2,0x7C,0x40);
++    dsc_cmd_send(2,0x7D,0x49);
++    dsc_cmd_send(2,0x7E,0x3E);
++    dsc_cmd_send(2,0x7F,0x3B);
++    dsc_cmd_send(2,0x80,0x30);
++    dsc_cmd_send(2,0x81,0x21);
++    dsc_cmd_send(2,0x82,0x0C);
++
++    dsc_cmd_send(2,0xE0,0x02);
++    dsc_cmd_send(2,0x00,0x5F);
++    dsc_cmd_send(2,0x01,0x5F);
++    dsc_cmd_send(2,0x02,0x53);
++    dsc_cmd_send(2,0x03,0x51);
++    dsc_cmd_send(2,0x04,0x4B);
++    dsc_cmd_send(2,0x05,0x49);
++    dsc_cmd_send(2,0x06,0x47);
++    dsc_cmd_send(2,0x07,0x45);
++    dsc_cmd_send(2,0x08,0x41);
++    dsc_cmd_send(2,0x09,0x43);
++    dsc_cmd_send(2,0x0A,0x5F);
++    dsc_cmd_send(2,0x0B,0x5F);
++    dsc_cmd_send(2,0x0C,0x5F);
++    dsc_cmd_send(2,0x0D,0x5F);
++    dsc_cmd_send(2,0x0E,0x5F);
++    dsc_cmd_send(2,0x0F,0x5F);
++    dsc_cmd_send(2,0x10,0x5F);
++    dsc_cmd_send(2,0x11,0x5F);
++    dsc_cmd_send(2,0x12,0x5F);
++    dsc_cmd_send(2,0x13,0x5F);
++    dsc_cmd_send(2,0x14,0x5F);
++    dsc_cmd_send(2,0x15,0x5F);
++    dsc_cmd_send(2,0x16,0x5F);
++    dsc_cmd_send(2,0x17,0x5F);
++    dsc_cmd_send(2,0x18,0x52);
++    dsc_cmd_send(2,0x19,0x50);
++    dsc_cmd_send(2,0x1A,0x4A);
++    dsc_cmd_send(2,0x1B,0x48);
++    dsc_cmd_send(2,0x1C,0x46);
++    dsc_cmd_send(2,0x1D,0x44);
++    dsc_cmd_send(2,0x1E,0x40);
++    dsc_cmd_send(2,0x1F,0x42);
++    dsc_cmd_send(2,0x20,0x5F);
++    dsc_cmd_send(2,0x21,0x5F);
++    dsc_cmd_send(2,0x22,0x5F);
++    dsc_cmd_send(2,0x23,0x5F);
++    dsc_cmd_send(2,0x24,0x5F);
++    dsc_cmd_send(2,0x25,0x5F);
++    dsc_cmd_send(2,0x26,0x5F);
++    dsc_cmd_send(2,0x27,0x5F);
++    dsc_cmd_send(2,0x28,0x5F);
++    dsc_cmd_send(2,0x29,0x5F);
++    dsc_cmd_send(2,0x2A,0x5F);
++    dsc_cmd_send(2,0x2B,0x5F);
++    dsc_cmd_send(2,0x2C,0x1F);
++    dsc_cmd_send(2,0x2D,0x1F);
++    dsc_cmd_send(2,0x2E,0x00);
++    dsc_cmd_send(2,0x2F,0x02);
++    dsc_cmd_send(2,0x30,0x08);
++    dsc_cmd_send(2,0x31,0x0A);
++    dsc_cmd_send(2,0x32,0x04);
++    dsc_cmd_send(2,0x33,0x06);
++    dsc_cmd_send(2,0x34,0x12);
++    dsc_cmd_send(2,0x35,0x10);
++    dsc_cmd_send(2,0x36,0x1F);
++    dsc_cmd_send(2,0x37,0x1F);
++    dsc_cmd_send(2,0x38,0x1F);
++    dsc_cmd_send(2,0x39,0x1F);
++    dsc_cmd_send(2,0x3A,0x1F);
++    dsc_cmd_send(2,0x3B,0x1F);
++    dsc_cmd_send(2,0x3C,0x1F);
++    dsc_cmd_send(2,0x3D,0x1F);
++    dsc_cmd_send(2,0x3E,0x1F);
++    dsc_cmd_send(2,0x3F,0x1F);
++    dsc_cmd_send(2,0x40,0x1F);
++    dsc_cmd_send(2,0x41,0x1F);
++    dsc_cmd_send(2,0x42,0x1F);
++    dsc_cmd_send(2,0x43,0x1F);
++    dsc_cmd_send(2,0x44,0x01);
++    dsc_cmd_send(2,0x45,0x03);
++    dsc_cmd_send(2,0x46,0x09);
++    dsc_cmd_send(2,0x47,0x0B);
++    dsc_cmd_send(2,0x48,0x05);
++    dsc_cmd_send(2,0x49,0x07);
++    dsc_cmd_send(2,0x4A,0x13);
++    dsc_cmd_send(2,0x4B,0x11);
++    dsc_cmd_send(2,0x4C,0x1F);
++    dsc_cmd_send(2,0x4D,0x1F);
++    dsc_cmd_send(2,0x4E,0x1F);
++    dsc_cmd_send(2,0x4F,0x1F);
++    dsc_cmd_send(2,0x50,0x1F);
++    dsc_cmd_send(2,0x51,0x1F);
++    dsc_cmd_send(2,0x52,0x1F);
++    dsc_cmd_send(2,0x53,0x1F);
++    dsc_cmd_send(2,0x54,0x1F);
++    dsc_cmd_send(2,0x55,0x1F);
++    dsc_cmd_send(2,0x56,0x1F);
++    dsc_cmd_send(2,0x57,0x1F);
++    dsc_cmd_send(2,0x58,0x40);
++    dsc_cmd_send(2,0x59,0x00);
++    dsc_cmd_send(2,0x5A,0x00);
++    dsc_cmd_send(2,0x5B,0x30);
++    dsc_cmd_send(2,0x5C,0x09);
++    dsc_cmd_send(2,0x5D,0x30);
++    dsc_cmd_send(2,0x5E,0x01);
++    dsc_cmd_send(2,0x5F,0x02);
++    dsc_cmd_send(2,0x60,0x30);
++    dsc_cmd_send(2,0x61,0x03);
++    dsc_cmd_send(2,0x62,0x04);
++    dsc_cmd_send(2,0x63,0x1C);
++    dsc_cmd_send(2,0x64,0x6A);
++    dsc_cmd_send(2,0x65,0x75);
++    dsc_cmd_send(2,0x66,0x0D);
++    dsc_cmd_send(2,0x67,0x72);
++    dsc_cmd_send(2,0x68,0x0C);
++    dsc_cmd_send(2,0x69,0x1C);
++    dsc_cmd_send(2,0x6A,0x6A);
++    dsc_cmd_send(2,0x6B,0x08);
++    dsc_cmd_send(2,0x6C,0x00);
++    dsc_cmd_send(2,0x6D,0x00);
++    dsc_cmd_send(2,0x6E,0x00);
++    dsc_cmd_send(2,0x6F,0x88);
++    dsc_cmd_send(2,0x70,0x00);
++    dsc_cmd_send(2,0x71,0x00);
++    dsc_cmd_send(2,0x72,0x06);
++    dsc_cmd_send(2,0x73,0x7B);
++    dsc_cmd_send(2,0x74,0x00);
++    dsc_cmd_send(2,0x75,0xBB);
++    dsc_cmd_send(2,0x76,0x01);
++    dsc_cmd_send(2,0x77,0x0D);
++    dsc_cmd_send(2,0x78,0x24);
++    dsc_cmd_send(2,0x79,0x00);
++    dsc_cmd_send(2,0x7A,0x00);
++    dsc_cmd_send(2,0x7B,0x00);
++    dsc_cmd_send(2,0x7C,0x00);
++    dsc_cmd_send(2,0x7D,0x03);
++    dsc_cmd_send(2,0x7E,0x7B);
++
++    dsc_cmd_send(2,0xE0,0x04);
++    dsc_cmd_send(2,0x00,0x0E);
++    dsc_cmd_send(2,0x02,0xB3);
++    dsc_cmd_send(2,0x0E,0x4A);
++
++    dsc_cmd_send(2,0xE0,0x00);
++    dsc_cmd_send(2,0xE6,0x02);
++    dsc_cmd_send(2,0xE7,0x0C);
++
++    dsc_cmd_send_short_pag(0x11);  	// SLPOUT
++    msleep(120);
++
++    dsc_cmd_send_short_pag(0x29);  	// DSPON
++    msleep(5);
++
++    dsc_cmd_send(2,0x35,0x00);    
++}
++//b cnds_dsi_test.c:901
++void dsi_init_800x1280()
++{
++#if 1
++    int HACT = 800;
++    int HSA = 24;
++    int HBP = 24 ;
++    int HFP = 30 ;
++
++    int VACT = 1280;
++    int VSA = 4;
++    int VBP = 12;
++    int VFP = 8;
++#else
++    int  HACT=800;
++    int  VACT=1280;
++    int  HSA=20;
++    int  HBP=20;
++    int  HFP=120;//220;    //144
++
++    int  VSA=5;
++    int  VBP=8;
++    int  VFP=5;
++#endif
++    printf("dsi for lcd init start\n");
++
++    gd9365da_800x1280();
++
++    DsiRegWr(MCTL_MAIN_DATA_CTL_OFFSET, 0x1e021);
++    DsiRegWr(MCTL_MAIN_EN_OFFSET, 0x40f9);
++    //[6] tvg_sel = 1  test video generator enabled
++    //[5] vid_en = 1   enable the video stream generator
++    //[3:2] vid_if_select =2'b00  00:sdi;01:dpi��10:DSC
++    //[1] sdi_if_vid_mode = 1  select video mode
++    //[0] link_en = 1; // enable link
++
++    DsiRegWr(TVG_IMG_SIZE_OFFSET, (VACT << 16) + HACT * 3);
++    DsiRegWr(TVG_COLOR1_OFFSET, (0xFFF << 12) + 0); //[23:12] col1_green
++                                                    //[11:0]  col1_red
++    DsiRegWr(TVG_COLOR1_BIS_OFFSET, 0);             //[11:0]  col1_blue
++    DsiRegWr(TVG_COLOR2_OFFSET, (0x000 << 12) + 0x000);     //[23:12] col2_green
++                                                    //[11:0]  col2_red
++    DsiRegWr(TVG_COLOR2_BIS_OFFSET, 0xFFF);         //[11:0]  col2_blue
++
++    DsiRegWr(VID_VSIZE1_OFFSET, (VFP << 12) + (VBP << 6) + VSA);
++    //[19:12] vfp_length
++    //[11:6]  vbp_length
++    //[5:0]   vsa_length
++    DsiRegWr(VID_VSIZE2_OFFSET, VACT); //[12:0] vact_length
++    DsiRegWr(VID_HSIZE1_OFFSET, ((HBP * 3 - 12) << 16) + (HSA * 3 - 14));
++    //[31:16] hbp_length  =(dpi_hbp*24/8-12)
++    //[9:0]   hsa_length  =(dpi_hsa*24/8-14)
++
++    DsiRegWr(VID_HSIZE2_OFFSET, ((HFP * 3 - 6) << 16) + (HACT * 3));
++    //[26:16] hfp_length  =(dpi_hfp*24/8-6) >hss+hsa+hse+hbp
++    //[14:0] rgb_size
++    DsiRegWr(VID_BLKSIZE2_OFFSET, (HBP + HFP + HACT) * 3 - 6);
++    //[14:0] blkline_pulse_pck = (dpi_hsa+dpi_hbp+dpi_hact+dpi_hfp)*24/8-20-((dpi_hsa*24/8)-14)=3342
++    // DsiRegWr(VID_DPHY_TIME_OFFSET, (0x38 << 17) + (((HBP + HFP + HACT) * 3 + 3) / 4));
++    DsiRegWr(VID_DPHY_TIME_OFFSET, (0x38 << 17) + ((HSA + HBP + HFP + HACT) * 3 / 4) - ((HSA * 3 - 14) / 4));
++    //[16:0] reg_line_duration =(line_total_)
++    //[27:17] reg_wakeup_time
++    DsiRegWr(VID_VCA_SETTING1_OFFSET, 0);
++    DsiRegWr(VID_VCA_SETTING2_OFFSET, (((HBP + HFP + HACT) * 3 - 6 - 6) << 16));
++    //[31:16] max_line_limit = gen_blkline_pulse_pck-6;
++    DsiRegWr(VID_MAIN_CTL_OFFSET, (0x1 << 31) + (0x1 << 25) + (0x0 << 21) + (1 << 20) + (1 << 19) + (3 << 14) + (0x3e << 8) + 0);
++    //[31] vid_ignore_miss_vsync =1
++    //[26:25] recovery_mode
++    //[24:23] reg_blkeol_mode : same as reg_blkline_mode but using in burst mode
++    //[22:21] reg_blkline_mode : 1x: LP
++    //                            01: blanking packet
++    //                            00: null packet
++    //[20] sync_pulse_horizontal:syncs are pulse(1) or event(0)
++    //[19] sync_pulse_active :1
++    //[18] burst mode
++    //[17:14] vid_pixel_mode  0000: 16 bits RGB
++    //                        0001: 18 bits RGB
++    //                        0010: 18 bits RGB(loose)
++    //                        0011: 24 bits RGB
++    //                        0100: 30 bits RGB
++    //                        0101: 36 bits RGB
++    //                        1000: 12 bits YCbCr
++    //                        1001: 16 bits YCbCr
++    //                        1010: 20 bits YCbCr
++    //                        1011: 24 bits YCbCr
++    //                        1100: DSC Compressed
++    //[13:0] Header:  Datatype of RGB packets "0x3e  rgb24
++    //[1:0]  start mode:start_mode=0
++    //         DsiRegWr(TVG_CTL_OFFSET,(6<<5)+(2<<3) + (2<<1) + 1 ) ;//[7:5]tvg_stripe_size
++    //[4:3] tvg_mode 00:single color
++    //                01:reserved
++    //                10:verical  stripes
++    //                11:horizontal  stripes
++    //[2:1] tvg_stopmode  00: at the end of frame
++    //                     01: at the end of line
++    //                      1x: immediate
++    //[0]   tvg run
++
++    printf("dsi for lcd init done\n");
++
++    printf("TVG start\n");
++#if 0
++    //test mode
++     DsiRegWr(MCTL_MAIN_DATA_CTL_OFFSET, 0x1e061);    //test mode
++    volatile uint8_t test_mode = 3;
++    DsiRegWr(TVG_CTL_OFFSET, (6 << 5) + (test_mode << 3) + (0 << 1) + 1);
++#endif  
++    // sleep(2);
++  //  while (1);
++    // DsiRegWr(TVG_CTL_OFFSET, (3 << 5) + (2 << 3) + (0 << 1) + 0);
++    // DsiRegWr(MCTL_MAIN_DATA_CTL_OFFSET, 0x1e000);
++    // DsiRegWr(VID_MODE_STS_CLR_OFFSET, 0x7ff);
++    // DsiRegWr(TG_STS_CLR_OFFSET, 0x1);
++    // msleep(100);
++    // DsiRegWr(MCTL_MAIN_DATA_CTL_OFFSET, 0x1e021);
++    // printf("TVG stop\n");
++
++}
+diff --git a/board/Canaan/dsi_logo/bsp/include/controler/video/isp_com.h b/board/Canaan/dsi_logo/bsp/include/controler/video/isp_com.h
+index c07d57e8..1e5561e1 100755
+--- a/board/Canaan/dsi_logo/bsp/include/controler/video/isp_com.h
++++ b/board/Canaan/dsi_logo/bsp/include/controler/video/isp_com.h
+@@ -451,6 +451,7 @@ typedef enum _VO_TEST_CASE_E
+ 	VO_CASE_LAYER0_420_F23S_IRS238C,
+ 	VO_CASE_LAYER0_420_1280x720_1920x1080,
+ 	VO_DSI_MIPI_BRINGUP,
++    VO_DSI_MIPI_800x1280,
+     VO_BT1120_HDMI_BRINGUP,
+     VO_TEST_CASE_MAX,
+ }VO_TEST_CASE_E;
+diff --git a/board/Canaan/dsi_logo/bsp/include/controler/video/mipi/dsi/cnds_dsi_test.h b/board/Canaan/dsi_logo/bsp/include/controler/video/mipi/dsi/cnds_dsi_test.h
+index b510e853..e1c999bd 100755
+--- a/board/Canaan/dsi_logo/bsp/include/controler/video/mipi/dsi/cnds_dsi_test.h
++++ b/board/Canaan/dsi_logo/bsp/include/controler/video/mipi/dsi/cnds_dsi_test.h
+@@ -40,6 +40,6 @@
+ void  dsc_cmd_send(int par, int data1, int data2);
+ void  aml_lcd_init();
+ void dsi_init_1080x1920();
+-
++void dsi_init_800x1280();
+ 
+ #endif /* CNDS_DSI_TEST_H_ */
+diff --git a/board/Canaan/dsi_logo/test/log/main.c b/board/Canaan/dsi_logo/test/log/main.c
+index efbf31c5..cff381ed 100755
+--- a/board/Canaan/dsi_logo/test/log/main.c
++++ b/board/Canaan/dsi_logo/test/log/main.c
+@@ -160,19 +160,19 @@ int load_dsi_logo_to_ddr()
+ int main_logo(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
+ {
+ 	unsigned long time;
++	int panel_id;
+ 
+ 	*(uint32_t *)0x970E00FC = 0x0fffff00;// (0x2 << 8) | (0x2 << 12) | (0x2 << 16) | (0x2 << 20) | (0x2 << 24);
+ 	*(uint32_t *)0x970E0100 = 0x000000ff;// (0x3 << 4) | 0x3;
+ 	*(uint32_t *)0x970E00F4 = 0x00550000;// (0x5 << 16) | (0x5 << 20);
+ 
+ 	load_dsi_logo_to_ddr();
+-	printf("dsi logo start");
++	printf("dsi logo start\n");
+ 	time = get_timer(0);
+ 
+     // hardware init
+     display_gpio_init();
+ 
+-
+     SYSCTL_DRV_Init();
+     
+     mipi_rxdphy_init(RXDPHY_SPEED_MODE_1500M, RXDPHY_CHCFG_1X4);
+@@ -181,12 +181,18 @@ int main_logo(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
+ 
+     VO_DRV_Init();
+ 
+-    VO_TEST_VideoOut(VO_DSI_MIPI_BRINGUP);
++    panel_id = get_panel_id();
++    if (panel_id == 0x46593) {
++        sysctl_clk_set_leaf_div(SYSCTL_CLK_DISPLAY_PIXEL,1, 16);
++        mipi_txdphy_set_pll(890, 24, 3);
++        VO_TEST_VideoOut(VO_DSI_MIPI_800x1280);
++    } else {
++        VO_TEST_VideoOut(VO_DSI_MIPI_BRINGUP);
++    }
+ 
+ 	time = get_timer(time);
+ 	printf("dsi logo end use %lu msec\n", time);
+     return 0;
+-
+ }
+ 
+ DECLARE_GLOBAL_DATA_PTR;
+diff --git a/board/Canaan/dsi_logo/test/log/vo/vo.h b/board/Canaan/dsi_logo/test/log/vo/vo.h
+index a61e4b94..c0ace7aa 100755
+--- a/board/Canaan/dsi_logo/test/log/vo/vo.h
++++ b/board/Canaan/dsi_logo/test/log/vo/vo.h
+@@ -217,6 +217,8 @@ typedef enum _VO_SYSTEM_MODE_E
+     VO_SYSTEM_MODE_1280x720x60P,
+     //! System mode is 1080x1920 at 30 Hz.
+     VO_SYSTEM_MODE_1080x1920x30P,
++    //! System mode is 800x1280 at 30 Hz.
++    VO_SYSTEM_MODE_800x1280x30P,
+     
+ }VO_SYSTEM_MODE_E;
+ 
+@@ -736,4 +738,6 @@ int VO_TEST_SetCore(VO_CORE_INFO_S *voCoreInfo);
+ int VO_TEST_SetRemap(unsigned int draw_num,VO_REMAP_INFO_S *voRemapInfo);
+ //
+ int VO_TEST_VideoOut(VO_TEST_CASE_E voTestCase);
++int32_t get_panel_id(void);
++
+ #endif /*_VO_DEF_H_*/
+diff --git a/board/Canaan/dsi_logo/test/log/vo/vo_app.c b/board/Canaan/dsi_logo/test/log/vo/vo_app.c
+index 1087268f..4cf1dd6a 100755
+--- a/board/Canaan/dsi_logo/test/log/vo/vo_app.c
++++ b/board/Canaan/dsi_logo/test/log/vo/vo_app.c
+@@ -183,6 +183,36 @@ static int VO_TEST_SetFrameBit(VO_DISP_CTL_INFO_S *dispCtl,VO_DISP_INFO_S *dispI
+ 		//	dispInfo->vsize= 0x53c;
+ 		//	dispInfo->hsize= 0x7a6;  
+             break; 
++        case VO_SYSTEM_MODE_800x1280x30P:
++
++            printf("------------------------VO_SYSTEM_MODE_800x1280x30P  \n");
++#if 0 
++            dispInfo->dispHsyncCtl_start= 0x5;                              // HSA = 0x19 - 0x5 = 20
++			dispInfo->dispHsyncCtl_stop= 0x19;//0x25;
++		
++			dispInfo->dispHsync1Ctl_start= 0x1;                             //  VSA = 0x05 - 0x01 = 0x04
++			dispInfo->dispHsync1Ctl_stop= 0x5;
++            
++			dispInfo->dispVsync1Ctl_start= 0x1;
++			dispInfo->dispVsync1Ctl_stop= 0x1;
++
++            dispInfo->dispHsync2Ctl_start= 0x1;                             // 可以不配
++			dispInfo->dispHsync2Ctl_stop= 0x5;                              // 可以不配
++
++			dispInfo->dispVsync2Ctl_start= 0x1;
++			dispInfo->dispVsync2Ctl_stop= 0x1;
++#else
++            dispInfo->dispHsyncCtl_start= 5;                              // HSA = 0x19 - 0x5 = 20
++			dispInfo->dispHsyncCtl_stop= 10;
++		
++			dispInfo->dispHsync1Ctl_start= 1;                             //  VSA = 0x05 - 0x01 = 0x04
++			dispInfo->dispHsync1Ctl_stop= 5;
++            
++			dispInfo->dispVsync1Ctl_start= 1;
++			dispInfo->dispVsync1Ctl_stop= 1;
++#endif
++
++            break;   
+         default:
+             VO_PRINTF_FUNC("ERR_VO_ILLEGAL_PARAM!\n");
+             break;     
+@@ -1080,6 +1110,207 @@ static int VO_TEST_BRINGUP_BT1120_GetCtl(VO_CTL_S *voCtl)
+ }
+ #endif
+ 
++/************************************************************************
++*VO/DSI/DPHY Bringup*
++*************************************************************************/
++static int VO_TEST_800x1280_GetCtl(VO_CTL_S *voCtl)
++{
++
++
++    int HACT = 800;
++    int HSA = 24;
++    int HBP = 24;
++    int HFP = 30;
++
++    int VACT = 1280;
++    int VSA = 4;
++    int VBP = 12;
++    int VFP = 12;
++    int VOFF=1;
++    int HOFF=0;
++
++
++    VO_CHECK_POINTER(voCtl);
++    memset(voCtl,0,sizeof(voCtl));
++
++    //
++    VO_DISP_CTL_INFO_S *dispCtl= &voCtl->dispCtl;
++    dispCtl->Disp_en = TRUE;
++    dispCtl->SyncMode = VO_SYSTEM_MODE_1080x1920x30P;
++#if 0
++    dispCtl->total_size.Width = 960 ;//1060  ;//1061 ;//1340;  1125            1264
++    dispCtl->total_size.Height =1298 + 5 ;// 1319;//1958;//1938???  2200
++
++    dispCtl->disp_start.Width = (5+20+20+1);  // 46
++    dispCtl->disp_stop.Width = 800 +(5+20+20+1) ;
++
++    dispCtl->disp_start.Height = (5+8+1);   //14
++    dispCtl->disp_stop.Height = 1280 + (5+8+1);  // 1958 - 1920 - 14 = 24
++#else
++    dispCtl->total_size.Width = HACT+HSA+HBP+HFP;
++    dispCtl->total_size.Height = VACT+VSA+VBP+VFP;
++    dispCtl->disp_start.Width = HSA+HBP+HOFF;
++    dispCtl->disp_stop.Width = HACT+HSA+HBP+HOFF;
++    dispCtl->disp_start.Height = VSA+VBP+VOFF;
++    dispCtl->disp_stop.Height = VACT+VSA+VBP+VOFF;
++#endif
++#if 1
++    //LAYER0
++    VO_LAYER_CTL_INFO_S *layer0Ctl = &voCtl->layer0Ctl;
++    layer0Ctl->layer_en = FALSE;                                //TRUE  zhaoshuai  use picture true or  full red  FALSE
++    layer0Ctl->layer0_mfbd_en = FALSE;
++    layer0Ctl->endiany = VO_VIDEO_LAYER_Y_ENDIAN_MODE1;
++    layer0Ctl->endianuv = VO_VIDEO_LAYER_UV_ENDIAN_MODE2;       //VO_VIDEO_LAYER_UV_ENDIAN_MODE3
++    layer0Ctl->uvswap = FALSE;//;
++    layer0Ctl->ImgInDataMode = VO_VIDEO_LAYER_YUV_MODE_420;
++    layer0Ctl->active_size.Width = 1080;//1920;
++    layer0Ctl->active_size.Height = 1920;//1080;
++    layer0Ctl->out_size.Width = 1080; //1920
++    layer0Ctl->out_size.Height = 1920; //1080
++    layer0Ctl->ctl_offset.Width = 46;//198;
++    layer0Ctl->ctl_offset.Height = 14;//42;
++    layer0Ctl->size_offset.Width = 0x0;
++    layer0Ctl->size_offset.Height = 0x0;
++    
++    layer0Ctl->layerMix_glbalp = 0xff;
++
++    layer0Ctl->bufInfo.yAddr0= 0x01000000;
++    layer0Ctl->bufInfo.yAddr1= 0x01000000;
++    layer0Ctl->bufInfo.uvAddr0= 0x01000000 + 1920*1080;
++    layer0Ctl->bufInfo.uvAddr1= 0x01000000 + 1920*1080;
++
++    layer0Ctl->bufInfo.hsize_stride= 1080/8 -1;//VIDEO_LAYER2_RD_STRIDE;
++    layer0Ctl->bufInfo.vsize_stride= 1920;//0;
++    layer0Ctl->layerMix_en = TRUE;
++    layer0Ctl->layerMix_glbalp = 0xff;
++#else
++    VO_LAYER_CTL_INFO_S *layer0Ctl = &voCtl->layer0Ctl;
++    layer0Ctl->layer_en = TRUE;
++    layer0Ctl->layer0_mfbd_en = FALSE;
++    layer0Ctl->endiany = VO_VIDEO_LAYER_Y_ENDIAN_MODE1;
++    layer0Ctl->endianuv = VO_VIDEO_LAYER_UV_ENDIAN_MODE3;//VO_VIDEO_LAYER_UV_ENDIAN_MODE3
++    layer0Ctl->uvswap = FALSE;//;
++    layer0Ctl->ImgInDataMode = VO_VIDEO_LAYER_YUV_MODE_420;
++    layer0Ctl->active_size.Width =1080;//1920;
++    layer0Ctl->active_size.Height = 720;//1080;
++    layer0Ctl->out_size.Width = 1080;//1080; //1920
++    layer0Ctl->out_size.Height = 720;//1920; //1080
++    layer0Ctl->ctl_offset.Width = 46;//198;
++    layer0Ctl->ctl_offset.Height = 14;//42;
++    layer0Ctl->size_offset.Width = 0x0;
++    layer0Ctl->size_offset.Height = 0x0;
++    layer0Ctl->bufInfo.yAddr0= ISP_BUF_MAIN_Y;//0x01000000;
++    layer0Ctl->bufInfo.yAddr1= ISP_BUF_MAIN_Y;//0x01000000;
++    layer0Ctl->bufInfo.uvAddr0= ISP_BUF_MAIN_UV;//0x01000000 + 1920*1080;
++    layer0Ctl->bufInfo.uvAddr1= ISP_BUF_MAIN_UV;//0x01000000 + 1920*1080;
++    layer0Ctl->bufInfo.hsize_stride= ISP_BUF_MAIN_Y_STRIDE/8 -1;//1080/8 -1;//1080/8 -1;//VIDEO_LAYER2_RD_STRIDE;
++    layer0Ctl->bufInfo.vsize_stride= 1920;//0;
++    layer0Ctl->layerMix_en = TRUE;
++    layer0Ctl->layerMix_glbalp = 0xff;
++#endif
++/*
++    VO_LAYER_CTL_INFO_S *layer0Ctl = &voCtl->layer0Ctl;
++    layer0Ctl->layer_en = TRUE;
++    layer0Ctl->layer0_mfbd_en = FALSE;
++    layer0Ctl->endiany = VO_VIDEO_LAYER_Y_ENDIAN_MODE1;
++    layer0Ctl->endianuv = VO_VIDEO_LAYER_UV_ENDIAN_MODE3;//VO_VIDEO_LAYER_UV_ENDIAN_MODE3
++    layer0Ctl->uvswap = FALSE;//;
++    layer0Ctl->ImgInDataMode = VO_VIDEO_LAYER_YUV_MODE_420;
++    layer0Ctl->active_size.Width =1080;//1920;
++    layer0Ctl->active_size.Height = 720;//1080;
++    layer0Ctl->out_size.Width = 1080;//1080; //1920
++    layer0Ctl->out_size.Height = 720;//1920; //1080
++    layer0Ctl->ctl_offset.Width = 46;//198;
++    layer0Ctl->ctl_offset.Height = 14;//42;
++    layer0Ctl->size_offset.Width = 0x0;
++    layer0Ctl->size_offset.Height = 0x0;
++    layer0Ctl->bufInfo.yAddr0= 0x01000000;
++    layer0Ctl->bufInfo.yAddr1= 0x01000000;//0x01000000;
++    layer0Ctl->bufInfo.uvAddr0= ISP_BUF_MAIN_UV;//0x01000000 + 1920*1080;
++    layer0Ctl->bufInfo.uvAddr1= ISP_BUF_MAIN_UV;//0x01000000 + 1920*1080;
++    layer0Ctl->bufInfo.hsize_stride= 1080/8 -1;//1080/8 -1;//1080/8 -1;//VIDEO_LAYER2_RD_STRIDE;
++    layer0Ctl->bufInfo.vsize_stride= 1920;//0;
++    layer0Ctl->layerMix_en = TRUE;
++    layer0Ctl->layerMix_glbalp = 0xff;
++*/
++   
++
++    //LAYER1
++    VO_LAYER_CTL_INFO_S *layer1Ctl = &voCtl->layer1Ctl;
++    layer1Ctl->layer_en = FALSE;
++    layer1Ctl->layerMix_en = TRUE;
++    layer1Ctl->layerMix_glbalp = 0xff;
++    //LAYER2
++    VO_LAYER_CTL_INFO_S *layer2Ctl = &voCtl->layer2Ctl;
++    layer2Ctl->layer_en = FALSE;
++    layer2Ctl->layerMix_en = TRUE;
++    layer2Ctl->layerMix_glbalp = 0xff;
++    //LAYER3
++    VO_LAYER_CTL_INFO_S *layer3Ctl = &voCtl->layer3Ctl;
++    layer3Ctl->layer_en = FALSE;
++    layer3Ctl->layerMix_en = TRUE;
++    layer3Ctl->layerMix_glbalp = 0xff;
++    //
++    VO_LAYER_OSD_CTL_INFO_S   *layer4osd0Ctl = &voCtl->layer4osd0Ctl;
++    layer4osd0Ctl->layer_en = TRUE;
++    layer4osd0Ctl->osdrgb2yuvEn = TRUE;
++    layer4osd0Ctl->osdtype = OSD_RGB_32BIT;//OSD_MONOCHROME_8BIT;
++    layer4osd0Ctl->alphatpye = OSD_FIXED_VALUE;
++    layer4osd0Ctl->ImgInDataMode = VO_VIDEO_LAYER_YUV_MODE_420;
++    layer4osd0Ctl->active_size.Width = 640;
++    layer4osd0Ctl->active_size.Height = 480;
++    layer4osd0Ctl->ctl_offset.Width = dispCtl->disp_start.Width + 80;//80 + 46;
++    layer4osd0Ctl->ctl_offset.Height = 400;
++    layer4osd0Ctl->osdBufInfo.alp_addr0= 0x1fe00000;
++    layer4osd0Ctl->osdBufInfo.alp_addr1= 0x1fe00000;
++    layer4osd0Ctl->osdBufInfo.alpstride= 2560/8;
++    layer4osd0Ctl->osdBufInfo.vlu_addr0= 0x1fe00000;
++    layer4osd0Ctl->osdBufInfo.vlu_addr1= 0x1fe00000;
++    layer4osd0Ctl->osdBufInfo.osdstride= 2560/8;
++    layer4osd0Ctl->osdDmaInfo.dmarequestlen = 0xf;
++    layer4osd0Ctl->osdDmaInfo.dmamap = OSD_ORIGINAL_ORDER;
++    layer4osd0Ctl->osdDmaInfo.rgbrev = OSD_RGB_REV_R;
++    layer4osd0Ctl->layerMix_en = TRUE;
++    layer4osd0Ctl->layerMix_glbalp = 0xff;
++    //
++    VO_LAYER_OSD_CTL_INFO_S   *layer5osd1Ctl = &voCtl->layer5osd1Ctl;
++    layer5osd1Ctl->layer_en = FALSE;
++    layer5osd1Ctl->osdrgb2yuvEn = TRUE;
++    layer5osd1Ctl->osdtype = OSD_MONOCHROME_8BIT;
++    layer5osd1Ctl->alphatpye = OSD_FIXED_VALUE;
++    layer5osd1Ctl->ImgInDataMode = VO_VIDEO_LAYER_YUV_MODE_420;
++    layer5osd1Ctl->active_size.Width = 216;
++    layer5osd1Ctl->active_size.Height = 960;
++    layer5osd1Ctl->ctl_offset.Width = 800;
++    layer5osd1Ctl->ctl_offset.Height = 200;
++    layer5osd1Ctl->osdBufInfo.alp_addr0= 0x20200100;
++    layer5osd1Ctl->osdBufInfo.alp_addr1= 0x20200100;
++    layer5osd1Ctl->osdBufInfo.alpstride= 256/8;
++    layer5osd1Ctl->osdBufInfo.vlu_addr0= 0x20200100;
++    layer5osd1Ctl->osdBufInfo.vlu_addr1= 0x20200100;
++    layer5osd1Ctl->osdBufInfo.osdstride= 256/8;
++    layer5osd1Ctl->osdDmaInfo.dmarequestlen = 0xf;
++    layer5osd1Ctl->osdDmaInfo.dmamap = OSD_ORIGINAL_ORDER;
++    layer5osd1Ctl->osdDmaInfo.rgbrev = OSD_RGB_REV_R;
++    layer5osd1Ctl->layerMix_en = TRUE;
++    layer5osd1Ctl->layerMix_glbalp = 0xff;
++    //
++    VO_LAYER_OSD_CTL_INFO_S *layer6osd2Ctl = &voCtl->layer6osd2Ctl;
++    layer6osd2Ctl->layer_en = FALSE;
++    layer6osd2Ctl->osdrgb2yuvEn = TRUE;
++    layer6osd2Ctl->layerMix_en = TRUE;
++    layer6osd2Ctl->layerMix_glbalp = 0xff;
++    //
++    VO_DISP_BACK_GROUD_INFO_S *dispBackGroudInfo = &voCtl->dispBackGroudInfo;
++    dispBackGroudInfo->y = 0xff;
++    dispBackGroudInfo->u = 0x80;
++    dispBackGroudInfo->v = 0x80;
++    //
++    voCtl->yuv2rgb_ctl_en = TRUE;
++    voCtl->ditherctlen = TRUE;
++    voCtl->clutctlen = FALSE;
++}
++
+ /************************************************************************
+ *VO/DSI/DPHY Bringup*
+ *************************************************************************/
+@@ -2589,6 +2820,10 @@ static int VO_TEST_Core(VO_TEST_CASE_E voTestCase,VO_CORE_INFO_S *voCoreInfo)
+ 
+             VO_TEST_BRINGUP_DSI_GetCtl(&voCtl);
+             break;
++        case VO_DSI_MIPI_800x1280 :
++
++            VO_TEST_800x1280_GetCtl(&voCtl);
++            break;
+         case LAYER0_420_IRS238C:
+             VO_TEST_IRS238C_GetCtl(&voCtl);
+            // VO_TEST_IRS238C(&voCtl,voCoreInfo);
+@@ -2914,6 +3149,10 @@ static int dsi_init(VO_TEST_CASE_E voTestCase)
+ //            display_gpio_reset();
+             dsi_init_1080x1920();
+             break;
++        case VO_DSI_MIPI_800x1280:
++            dsi_init_800x1280();
++
++            break;
+ 
+         default:
+             break;
+@@ -2948,7 +3187,7 @@ int VO_TEST_VideoOut(VO_TEST_CASE_E voTestCase)
+         *(uint32_t *)0x92700118 = 0x80;
+         set_bootcmd("k510-hdmi.dtb");
+         display_switch_hdmi_gpio();
+-    } else if (lcd_id == 0x0C9983 || lcd_id == 0x1C9983) {
++    } else if (lcd_id == 0x0C9983 || lcd_id == 0x1C9983 || lcd_id == 0x46593) {
+         VO_TEST_Start();
+         set_bootcmd("k510.dtb");
+     } else {
+-- 
+2.17.1
+

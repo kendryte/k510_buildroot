@@ -69,9 +69,11 @@ typedef enum
 typedef enum
 {
     ASPECT_RATIO_AUTO, 
+    ASPECT_RATIO_1_1,
     ASPECT_RATIO_4_3, 
     ASPECT_RATIO_16_9, 
-    ASPECT_RATIO_NONE
+    ASPECT_RATIO_NONE,
+    ASPECT_RATIO_MAX,
 } AVC_AspectRatio;
 
 typedef struct
@@ -113,8 +115,8 @@ typedef struct
 
 typedef enum
 {
-    ENTROPY_MODE_CABAC = 0,
-    ENTROPY_MODE_CAVLC,
+    ENTROPY_MODE_CAVLC = 0,
+    ENTROPY_MODE_CABAC,
     ENTROPY_MODE_MAX,
 }EncEntropyMode;
 
