@@ -1,0 +1,604 @@
+From 2cb062b99182a7d0c3ead34ed7cb3d25294eecbc Mon Sep 17 00:00:00 2001
+From: longyiluo <longyiluo@canaan-creative.com>
+Date: Tue, 30 Aug 2022 10:16:15 +0800
+Subject: [PATCH] isp-y-uv-int
+
+---
+ .../platform/canaan-isp/isp_2k/isp_f2k.c      |  59 ++++----
+ .../platform/canaan-isp/isp_2k/isp_f2k.h      |   3 +-
+ .../platform/canaan-isp/isp_2k/isp_r2k.c      |  54 ++++---
+ .../platform/canaan-isp/isp_2k/isp_r2k.h      |   3 +-
+ drivers/media/platform/canaan-isp/k510_isp.c  | 135 +++++++++++++-----
+ .../media/platform/canaan-isp/k510isp_com.h   |   7 +-
+ 6 files changed, 178 insertions(+), 83 deletions(-)
+
+diff --git a/drivers/media/platform/canaan-isp/isp_2k/isp_f2k.c b/drivers/media/platform/canaan-isp/isp_2k/isp_f2k.c
+index 41be41e5..2c42fc64 100755
+--- a/drivers/media/platform/canaan-isp/isp_2k/isp_f2k.c
++++ b/drivers/media/platform/canaan-isp/isp_2k/isp_f2k.c
+@@ -2866,7 +2866,7 @@ static void video_buffer_next(struct isp_f2k_device *f2k, enum video_type dsNum)
+ 		{
+ 		  return;
+ 		}
+-		f2k->profile.no_buf_drop_cnt++;
++		f2k->profile[dsNum].no_buf_drop_cnt++;
+ 		return;
+ 	}
+ 
+@@ -2876,20 +2876,21 @@ static void video_buffer_next(struct isp_f2k_device *f2k, enum video_type dsNum)
+ 		{
+ 		  return;
+ 		}
+-		f2k->profile.no_buf_drop_cnt++;
++		f2k->profile[dsNum].no_buf_drop_cnt++;
+ 		return;
+ 	}
+ 
+ 	buf = list_first_entry(&video->dmaqueue, struct k510isp_buffer, irqlist);
+ 
+-	if(f2k->profile.drop_threshold > 0LL && f2k->profile.buf_set_time[dsNum] != 0)
++	if(f2k->profile[dsNum].drop_threshold > 0LL)
+ 	{
+-	  unsigned long long delta;
+-	  delta = get_usec() - f2k->profile.buf_set_time[dsNum];
+-	  if(delta > f2k->profile.drop_threshold)
++	  if(f2k->profile[dsNum].cur_int_interval > f2k->profile[dsNum].drop_threshold || 
++	      f2k->profile[dsNum].cur_int_interval < f2k->profile[dsNum].drop_threshold/2)
+ 	  {
+       drop = 1;
+-      f2k->profile.drop_cnt[dsNum]++;
++      f2k->profile[dsNum].drop_cnt++;
++      spin_unlock_irqrestore(&video->irqlock, flags);
++      return;
+ 	  }
+ 	}
+ 
+@@ -3003,7 +3004,6 @@ static void f2k_isr_main_buffer(struct isp_f2k_device *f2k)
+ 
+ 	video_buffer_next(f2k, MAIN_VIDEO);
+ 
+-	f2k->profile.buf_set_time[MAIN_VIDEO] = get_usec();
+ 	pipe->state |= ISP_PIPELINE_IDLE_OUTPUT;
+ 
+ 	return buffer != NULL;
+@@ -3028,7 +3028,6 @@ static void f2k_isr_out0_buffer(struct isp_f2k_device *f2k)
+ 
+ 	video_buffer_next(f2k, DS0_VIDEO);
+ 
+-	f2k->profile.buf_set_time[DS0_VIDEO] = get_usec();
+ 
+ 	pipe->state |= ISP_PIPELINE_IDLE_OUTPUT;
+ 
+@@ -3053,7 +3052,6 @@ static void f2k_isr_out1_buffer(struct isp_f2k_device *f2k)
+ 	}
+ 
+ 	video_buffer_next(f2k, DS1_VIDEO);
+-	f2k->profile.buf_set_time[DS1_VIDEO] = get_usec();
+ 
+ 	pipe->state |= ISP_PIPELINE_IDLE_OUTPUT;
+ 
+@@ -3367,12 +3365,13 @@ static int f2k_set_stream(struct v4l2_subdev *sd, int enable)
+ 	struct isp_f2k_device *f2k = v4l2_get_subdevdata(sd);
+ 	struct k510_isp_device *isp = to_isp_device(f2k);
+ 	struct device *dev = to_device(f2k);
++	struct isp_cfg_info *isp_cfg = &f2k->isp_cfg;
++	struct isp_irq_info irq_info; 
+ 	int ret;
+ 	int i;
++	int ds_en[VIDEO_NUM_MAX];
+ 	dev_dbg(f2k->isp->dev,"%s:enable(0x%d)\n",__func__,enable);
+ 
+-	struct isp_cfg_info *isp_cfg = &f2k->isp_cfg;
+-	struct isp_irq_info irq_info;
+ 
+ 	if (f2k->state == ISP_PIPELINE_STREAM_STOPPED) {
+ 		if (enable == ISP_PIPELINE_STREAM_STOPPED)
+@@ -3401,20 +3400,24 @@ static int f2k_set_stream(struct v4l2_subdev *sd, int enable)
+ 		irq_info.ds0_en = isp_cfg->isp_wrap_cfg.ds0Info.ds0_out_en;
+ 		irq_info.ds1_en = isp_cfg->isp_wrap_cfg.ds1Info.ds1_out_en;
+ 		irq_info.ds2_en = isp_cfg->isp_wrap_cfg.ds2Info.ds2_out_en;
+-
++#if 1
+ 		irq_info.ae_en = 1;
+ 		irq_info.awb_en = 1;
+ 		irq_info.af_en = 1;
+-
+-		memset(&f2k->profile,0,sizeof(struct k510_isp_profile));
++#endif
++		memset(&f2k->profile,0,sizeof(struct k510_isp_profile)*VIDEO_NUM_MAX);
++		for(i=0; i<VIDEO_NUM_MAX; i++)
++		{
+ 		if(isp_cfg->isp_ds_cfg.dsInSizeInfo.Width == 1920 &&
+ 		  isp_cfg->isp_ds_cfg.dsInSizeInfo.Height >= 1080)
+ 		{
+-		  f2k->profile.drop_threshold = 1000000LL/30 + DROP_THRESHOLD_GAP;
++    		  f2k->profile[i].drop_threshold = 1000000LL/30 + DROP_THRESHOLD_GAP;
++    		  f2k->profile[i].min_int_interval = 0xfffffLL;
+ 		}
+ 		else
+ 		{
+-		  f2k->profile.drop_threshold = 0LL;
++    		  f2k->profile[i].drop_threshold = 0LL;
++  		}
+ 		}
+ 		k510isp_f2k_irq_enable(isp,&irq_info);
+ 		unsigned int intmask0 = isp_reg_readl(isp,ISP_IOMEM_F2K_WRAP,ISP_WRAP_DMA_WR_INT_MASK0);
+@@ -3435,17 +3438,25 @@ static int f2k_set_stream(struct v4l2_subdev *sd, int enable)
+ 		k510isp_f2k_irq_enable(isp,&irq_info);
+ 		k510isp_f2k_reset(isp);
+ 		mutex_unlock(&f2k->ioctl_lock);
+-		if(f2k->profile.drop_threshold > 0)
+-		{
+-		  dev_info(f2k->isp->dev,"f2k interrupt: max duration %lld us, big_cnt %d\n", f2k->profile.max_int_duration, f2k->profile.big_dur_cnt);
+-		  dev_info(f2k->isp->dev,"f2k interrupt: max interval %lld us, big_cnt %d\n", f2k->profile.max_int_interval, f2k->profile.big_inter_cnt);
++
++		ds_en[0] = isp_cfg->isp_wrap_cfg.mainInfo.main_out_en;
++		ds_en[1] = isp_cfg->isp_wrap_cfg.ds0Info.ds0_out_en;
++		ds_en[2] = isp_cfg->isp_wrap_cfg.ds1Info.ds1_out_en;
++		ds_en[3] = isp_cfg->isp_wrap_cfg.ds2Info.ds2_out_en;
+ 		  for(i=0; i<VIDEO_NUM_MAX; i++)
++		{
++		  if(ds_en[i])
+ 		  {
+-		    if(f2k->profile.drop_cnt[i] > 0)
+-		      dev_info(f2k->isp->dev,"f2k ds%d jump drop_cnt %d\n", i, f2k->profile.drop_cnt[i]);
++		    dev_info(f2k->isp->dev,"f2k ds%d no_buf_drop_cnt %d, total %d\n", i, f2k->profile[i].no_buf_drop_cnt, f2k->profile[i].pic_cnt);
++		    if(f2k->profile[i].drop_threshold > 0)
++		    {
++    	    dev_info(f2k->isp->dev,"f2k ds%d jump drop_cnt %d\n", i, f2k->profile[i].drop_cnt);
++    	    dev_info(f2k->isp->dev,"f2k ds%d interrupt: max interval %lld us, big_cnt %d\n", i, f2k->profile[i].max_int_interval, f2k->profile[i].big_inter_cnt);
++    	    dev_info(f2k->isp->dev,"f2k ds%d interrupt: min interval %lld us, small_cnt %d\n", i, f2k->profile[i].min_int_interval, f2k->profile[i].small_inter_cnt);
++  		  }		
+ 		  }
+ 		}
+-		dev_info(f2k->isp->dev,"f2k dmaErrCnt %d, no_buf_drop_cnt %d, total %d\n", f2k->profile.dmaErrCnt, f2k->profile.no_buf_drop_cnt, f2k->profile.pic_cnt);
++    dev_info(f2k->isp->dev,"f2k dmaErrCnt %d\n", f2k->dmaErrCnt);
+ 		break;
+ 	}
+ 
+diff --git a/drivers/media/platform/canaan-isp/isp_2k/isp_f2k.h b/drivers/media/platform/canaan-isp/isp_2k/isp_f2k.h
+index ffff83fb..042dad52 100755
+--- a/drivers/media/platform/canaan-isp/isp_2k/isp_f2k.h
++++ b/drivers/media/platform/canaan-isp/isp_2k/isp_f2k.h
+@@ -105,7 +105,8 @@ struct isp_f2k_device{
+ 	//u8 regs1;	
+ 	struct isp_cfg_info isp_cfg; 
+ 	
+-	struct k510_isp_profile profile;
++	struct k510_isp_profile profile[VIDEO_NUM_MAX];
++  unsigned int dmaErrCnt;
+ };
+ /* Function declarations */
+ int k510isp_f2k_init(struct k510_isp_device *isp);
+diff --git a/drivers/media/platform/canaan-isp/isp_2k/isp_r2k.c b/drivers/media/platform/canaan-isp/isp_2k/isp_r2k.c
+index 54349efa..601d4577 100755
+--- a/drivers/media/platform/canaan-isp/isp_2k/isp_r2k.c
++++ b/drivers/media/platform/canaan-isp/isp_2k/isp_r2k.c
+@@ -2484,7 +2484,7 @@ static void video_buffer_next(struct isp_r2k_device *r2k, enum video_type dsNum)
+ 		{
+ 		  return;
+ 		}
+-		r2k->profile.no_buf_drop_cnt++;
++		r2k->profile[dsNum].no_buf_drop_cnt++;
+ 		return;
+ 	}
+ 
+@@ -2494,20 +2494,21 @@ static void video_buffer_next(struct isp_r2k_device *r2k, enum video_type dsNum)
+ 		{
+ 		  return;
+ 		}
+-		r2k->profile.no_buf_drop_cnt++;
++		r2k->profile[dsNum].no_buf_drop_cnt++;
+ 		return;
+ 	}
+ 
+ 	buf = list_first_entry(&video->dmaqueue, struct k510isp_buffer, irqlist);
+ 
+-	if(r2k->profile.drop_threshold > 0LL && r2k->profile.buf_set_time[dsNum] != 0)
++	if(r2k->profile[dsNum].drop_threshold > 0LL)
+ 	{
+-	  unsigned long long delta;
+-	  delta = get_usec() - r2k->profile.buf_set_time[dsNum];
+-	  if(delta > r2k->profile.drop_threshold)
++	  if(r2k->profile[dsNum].cur_int_interval > r2k->profile[dsNum].drop_threshold || 
++	      r2k->profile[dsNum].cur_int_interval < r2k->profile[dsNum].drop_threshold/2)
+ 	  {
+       drop = 1;
+-      r2k->profile.drop_cnt[dsNum]++;
++      r2k->profile[dsNum].drop_cnt++;
++      spin_unlock_irqrestore(&video->irqlock, flags);
++      return;
+ 	  }
+ 	}
+ 
+@@ -2617,7 +2618,6 @@ static void r2k_isr_main_buffer(struct isp_r2k_device *r2k)
+ 
+ 	video_buffer_next(r2k, MAIN_VIDEO);
+ 
+-	r2k->profile.buf_set_time[MAIN_VIDEO] = get_usec();
+ 	pipe->state |= ISP_PIPELINE_IDLE_OUTPUT;
+ 
+ 	return buffer != NULL;
+@@ -2639,7 +2639,6 @@ static void r2k_isr_out0_buffer(struct isp_r2k_device *r2k)
+ 
+ 	video_buffer_next(r2k, DS0_VIDEO);
+ 
+-	r2k->profile.buf_set_time[DS0_VIDEO] = get_usec();
+ 
+ 	pipe->state |= ISP_PIPELINE_IDLE_OUTPUT;
+ 
+@@ -2660,7 +2659,6 @@ static void r2k_isr_out1_buffer(struct isp_r2k_device *r2k)
+ 	}
+ 
+ 	video_buffer_next(r2k, DS1_VIDEO);
+-	r2k->profile.buf_set_time[DS1_VIDEO] = get_usec();
+ 
+ 	pipe->state |= ISP_PIPELINE_IDLE_OUTPUT;
+ 
+@@ -2966,12 +2964,13 @@ static int r2k_set_stream(struct v4l2_subdev *sd, int enable)
+ 	struct isp_r2k_device *r2k = v4l2_get_subdevdata(sd);
+ 	struct k510_isp_device *isp = to_isp_device(r2k);
+ 	struct device *dev = to_device(r2k);
++	struct isp_cfg_info *isp_cfg = &r2k->isp_cfg;
++	struct isp_irq_info irq_info;
+ 	int ret;
+ 	int i;
++	int ds_en[VIDEO_NUM_MAX];
+ 	dev_dbg(r2k->isp->dev,"%s:enable(0x%d)\n",__func__,enable);
+ 
+-	struct isp_cfg_info *isp_cfg = &r2k->isp_cfg;
+-	struct isp_irq_info irq_info;
+ 
+ 	if (r2k->state == ISP_PIPELINE_STREAM_STOPPED) {
+ 		if (enable == ISP_PIPELINE_STREAM_STOPPED)
+@@ -3007,15 +3006,19 @@ static int r2k_set_stream(struct v4l2_subdev *sd, int enable)
+ 		irq_info.af_en = 1;
+ #endif
+ 
+-		memset(&r2k->profile,0,sizeof(struct k510_isp_profile));
++		memset(&r2k->profile,0,sizeof(struct k510_isp_profile)*VIDEO_NUM_MAX);
++		for(i=0; i<VIDEO_NUM_MAX; i++)
++		{
+ 		if(isp_cfg->isp_ds_cfg.dsInSizeInfo.Width == 1920 &&
+ 		  isp_cfg->isp_ds_cfg.dsInSizeInfo.Height >= 1080)
+ 		{
+-		  r2k->profile.drop_threshold = 1000000LL/30 + DROP_THRESHOLD_GAP;
++    		  r2k->profile[i].drop_threshold = 1000000LL/30 + DROP_THRESHOLD_GAP;
++    		  r2k->profile[i].min_int_interval = 0xfffffLL;
+ 		}
+ 		else
+ 		{
+-		  r2k->profile.drop_threshold = 0LL;
++    		  r2k->profile[i].drop_threshold = 0LL;
++  		}
+ 		}
+ 		mutex_lock(&r2k->ioctl_lock);
+ 		k510isp_r2k_irq_enable(isp,&irq_info);
+@@ -3038,17 +3041,24 @@ static int r2k_set_stream(struct v4l2_subdev *sd, int enable)
+ 		k510isp_r2k_irq_enable(isp,&irq_info);
+ 		k510isp_r2k_reset(isp);
+ 		mutex_unlock(&r2k->ioctl_lock);
+-		if(r2k->profile.drop_threshold > 0)
++		ds_en[0] = isp_cfg->isp_wrap_cfg.mainInfo.main_out_en;
++		ds_en[1] = isp_cfg->isp_wrap_cfg.ds0Info.ds0_out_en;
++		ds_en[2] = isp_cfg->isp_wrap_cfg.ds1Info.ds1_out_en;
++		ds_en[3] = isp_cfg->isp_wrap_cfg.ds2Info.ds2_out_en;
++	  for(i=0; i<VIDEO_NUM_MAX; i++)
+ 		{
+-		  dev_info(r2k->isp->dev,"r2k interrupt: max duration %lld us, big_cnt %d\n", r2k->profile.max_int_duration, r2k->profile.big_dur_cnt);
+-		  dev_info(r2k->isp->dev,"r2k interrupt: max interval %lld us, big_cnt %d\n", r2k->profile.max_int_interval, r2k->profile.big_inter_cnt);
+-		  for(i=0; i<VIDEO_NUM_MAX; i++)
++		  if(ds_en[i])
+ 		  {
+-		    if(r2k->profile.drop_cnt[i] > 0)
+-		      dev_info(r2k->isp->dev,"r2k ds%d jump drop_cnt %d\n", i, r2k->profile.drop_cnt[i]);
++		    dev_info(r2k->isp->dev,"r2k ds%d no_buf_drop_cnt %d, total %d\n", i, r2k->profile[i].no_buf_drop_cnt, r2k->profile[i].pic_cnt);
++		    if(r2k->profile[i].drop_threshold > 0)
++		    {
++    	    dev_info(r2k->isp->dev,"r2k ds%d jump drop_cnt %d\n", i, r2k->profile[i].drop_cnt);
++    	    dev_info(r2k->isp->dev,"r2k ds%d interrupt: max interval %lld us, big_cnt %d\n", i, r2k->profile[i].max_int_interval, r2k->profile[i].big_inter_cnt);
++    	    dev_info(r2k->isp->dev,"r2k ds%d interrupt: min interval %lld us, small_cnt %d\n", i, r2k->profile[i].min_int_interval, r2k->profile[i].small_inter_cnt);
++  		  }		
+ 		  }
+ 		}
+-		dev_info(r2k->isp->dev,"r2k dmaErrCnt %d, no_buf_drop_cnt %d, total %d\n", r2k->profile.dmaErrCnt, r2k->profile.no_buf_drop_cnt, r2k->profile.pic_cnt);
++    dev_info(r2k->isp->dev,"r2k dmaErrCnt %d\n", r2k->dmaErrCnt);
+ 		break;
+ 	}
+ 
+diff --git a/drivers/media/platform/canaan-isp/isp_2k/isp_r2k.h b/drivers/media/platform/canaan-isp/isp_2k/isp_r2k.h
+index 78bdd132..22804858 100755
+--- a/drivers/media/platform/canaan-isp/isp_2k/isp_r2k.h
++++ b/drivers/media/platform/canaan-isp/isp_2k/isp_r2k.h
+@@ -71,7 +71,8 @@ struct isp_r2k_device{
+ 
+ 	struct isp_cfg_info isp_cfg;
+ 
+-	struct k510_isp_profile profile;
++	struct k510_isp_profile profile[VIDEO_NUM_MAX];
++	unsigned int dmaErrCnt;
+ };
+ 
+ 
+diff --git a/drivers/media/platform/canaan-isp/k510_isp.c b/drivers/media/platform/canaan-isp/k510_isp.c
+index b36a519f..a69270b1 100755
+--- a/drivers/media/platform/canaan-isp/k510_isp.c
++++ b/drivers/media/platform/canaan-isp/k510_isp.c
+@@ -44,8 +44,6 @@
+ 
+ #include <media/i2c/imx219.h>
+ 
+-#define INT_BIG_INTERVAL 33333LL
+-#define INT_BIG_DURATION 200LL
+ 
+ static int v4l2_init_flag = 0;
+ extern const struct dma_map_ops swiotlb_noncoh_dma_ops;
+@@ -695,10 +693,18 @@ static void profile_int_interval(struct k510_isp_profile *profile)
+     {
+       profile->max_int_interval = time;
+     }
++    if(time < profile->min_int_interval)
++    {
++      profile->min_int_interval = time;
++    }
+     if(time > INT_BIG_INTERVAL)
+     {
+       profile->big_inter_cnt++;
+     }
++    if(time < INT_BIG_INTERVAL/2)
++    {
++      profile->small_inter_cnt++;
++    }
+     profile->cur_int_interval = time;
+   }
+   profile->prev_int_time = profile->int_time;
+@@ -771,9 +777,9 @@ static irqreturn_t k510isp_f2k_isr(int irq, void *_isp)
+ 	dev_dbg(isp->dev,"%s:start\n",__func__);
+ 
+ 	
+-	static const u32 events  = IRQW0_STS_MAIN_Y_FRAME_IRQ|IRQW0_STS_MAIN_UV_FRAME_IRQ;
+-	static const u32 ds0_events  = (IRQW1_STS_OUT0_Y_FRAME_IRQ|IRQW1_STS_OUT0_UV_FRAME_IRQ);
+-	static const u32 ds1_events  = (IRQW1_STS_OUT1_Y_FRAME_IRQ|IRQW1_STS_OUT1_UV_FRAME_IRQ);
++	static u32 events  = IRQW0_STS_MAIN_Y_FRAME_IRQ|IRQW0_STS_MAIN_UV_FRAME_IRQ;
++	static u32 ds0_events  = 0;
++	static u32 ds1_events  = 0;
+ 	static const u32 ds2_events  = (IRQW1_STS_OUT2_R_FRAME_IRQ|IRQW1_STS_OUT2_G_FRAME_IRQ|IRQW1_STS_OUT2_B_FRAME_IRQ);
+ 
+ #if 0
+@@ -800,28 +806,56 @@ static irqreturn_t k510isp_f2k_isr(int irq, void *_isp)
+ 
+ 	if(f2k_irqstatus1 & IRQW1_STS_OUT0_Y_FRAME_ERR_IRQ)
+ 	{
+-	  isp->isp_f2k.profile.dmaErrCnt++;
++	  isp->isp_f2k.dmaErrCnt++;
+ 	  return IRQ_HANDLED;
+ 	}
+ 	else if(f2k_irqstatus1 & IRQW1_STS_OUT0_Y_IMM_ERR_IRQ)
+ 	{
+-	  isp->isp_f2k.profile.dmaErrCnt++;
++	  isp->isp_f2k.dmaErrCnt++;
+ 	  return IRQ_HANDLED;
+ 	}
+ 	else if(f2k_irqstatus1 & IRQW1_STS_OUT0_UV_FRAME_ERR_IRQ)
+ 	{
+-	  isp->isp_f2k.profile.dmaErrCnt++;
++	  isp->isp_f2k.dmaErrCnt++;
+ 	  return IRQ_HANDLED;
+ 	}
+ 	else if(f2k_irqstatus1 & IRQW1_STS_OUT0_UV_IMM_ERR_IRQ)
+ 	{
+-	  isp->isp_f2k.profile.dmaErrCnt++;
++	  isp->isp_f2k.dmaErrCnt++;
+ 	  return IRQ_HANDLED;
+ 	}
+ 
+-	if(f2k_irqstatus1 & ds0_events)
++	if(f2k_irqstatus0 & IRQW0_STS_MAIN_Y_FRAME_IRQ)
++	{
++	  events |= IRQW0_STS_MAIN_Y_FRAME_IRQ;
++	}
++	if(f2k_irqstatus0 & IRQW0_STS_MAIN_UV_FRAME_IRQ)
+ 	{
+-		profile_int_interval(&isp->isp_f2k.profile);
++	  events |= IRQW0_STS_MAIN_UV_FRAME_IRQ;
++	}
++	if(f2k_irqstatus1 & IRQW1_STS_OUT0_Y_FRAME_IRQ)
++	{
++	  ds0_events |= IRQW1_STS_OUT0_Y_FRAME_IRQ;
++	}
++	if(f2k_irqstatus1 & IRQW1_STS_OUT0_UV_FRAME_IRQ)
++	{
++	  ds0_events |= IRQW1_STS_OUT0_UV_FRAME_IRQ;
++	}
++	if(f2k_irqstatus1 & IRQW1_STS_OUT1_Y_FRAME_IRQ)
++	{
++	  ds1_events |= IRQW1_STS_OUT1_Y_FRAME_IRQ;
++	}
++	if(f2k_irqstatus1 & IRQW1_STS_OUT1_UV_FRAME_IRQ)
++	{
++	  ds1_events |= IRQW1_STS_OUT1_UV_FRAME_IRQ;
++	}
++	if(ds0_events == (IRQW1_STS_OUT0_Y_FRAME_IRQ|IRQW1_STS_OUT0_UV_FRAME_IRQ))
++	{
++		profile_int_interval(&isp->isp_f2k.profile[1]);
++	}
++	if(ds1_events == (IRQW1_STS_OUT1_Y_FRAME_IRQ|IRQW1_STS_OUT1_UV_FRAME_IRQ))
++	{
++		profile_int_interval(&isp->isp_f2k.profile[2]);
+ 	}
+ 
+ 	if(f2k_core_irqstatus & CORE_STS_3A_OUT_IRQ)
+@@ -837,22 +871,25 @@ static irqreturn_t k510isp_f2k_isr(int irq, void *_isp)
+ 	//	k510isp_stat_isr(&isp->isp_f2k_af);
+ 	}	
+ 	
+-	if(f2k_irqstatus0 & events)
++	if(events == (IRQW0_STS_MAIN_Y_FRAME_IRQ|IRQW0_STS_MAIN_UV_FRAME_IRQ))
+ 	{
+ 		k510isp_f2k_main_isr(&isp->isp_f2k, f2k_irqstatus0 & events);
++		events = 0;
+ 	}
+ 	
+-	if(f2k_irqstatus1 & ds0_events)
++	if(ds0_events == (IRQW1_STS_OUT0_Y_FRAME_IRQ|IRQW1_STS_OUT0_UV_FRAME_IRQ))
+ 	{
+-  		profile_int_framerate(&isp->isp_f2k.profile);
++  	profile_int_framerate(&isp->isp_f2k.profile[1]);
+ 
+ 		k510isp_f2k_ds0_isr(&isp->isp_f2k, ds0_events);
+-
+-    	profile_int_duration(&isp->isp_f2k.profile);		
++		ds0_events = 0;
+ 	}
+ 
+-	if(f2k_irqstatus1 & ds1_events)
++	if(ds1_events == (IRQW1_STS_OUT1_Y_FRAME_IRQ|IRQW1_STS_OUT1_UV_FRAME_IRQ))
++	{
+ 		k510isp_f2k_ds1_isr(&isp->isp_f2k, f2k_irqstatus1 & ds1_events);
++		ds1_events = 0;
++	}
+ 
+ 	if(f2k_irqstatus1 & ds2_events)
+ 		k510isp_f2k_ds2_isr(&isp->isp_f2k, f2k_irqstatus1 & ds2_events);
+@@ -874,9 +911,9 @@ static irqreturn_t k510isp_r2k_isr(int irq, void *_isp)
+ 	u32 r2k_irqstatus0;
+ 	u32 r2k_irqstatus1;
+ 	dev_dbg(isp->dev,"%s:start\n",__func__);
+-	static const u32 events  = IRQW0_STS_MAIN_Y_FRAME_IRQ|IRQW0_STS_MAIN_UV_FRAME_IRQ;
+-	static const u32 ds0_events  = (IRQW1_STS_OUT0_Y_FRAME_IRQ|IRQW1_STS_OUT0_UV_FRAME_IRQ);
+-	static const u32 ds1_events  = (IRQW1_STS_OUT1_Y_FRAME_IRQ|IRQW1_STS_OUT1_UV_FRAME_IRQ);
++	static u32 events  = 0;
++	static u32 ds0_events  = 0;
++	static u32 ds1_events  = 0;
+ 	static const u32 ds2_events  = (IRQW1_STS_OUT2_R_FRAME_IRQ|IRQW1_STS_OUT2_G_FRAME_IRQ|IRQW1_STS_OUT2_B_FRAME_IRQ);
+ 
+ 	r2k_core_irqstatus = isp_reg_readl(isp, ISP_IOMEM_R2K_WRAP, ISP_WRAP_CORE_INT_CTL);
+@@ -890,28 +927,56 @@ static irqreturn_t k510isp_r2k_isr(int irq, void *_isp)
+ 
+ 	if(r2k_irqstatus1 & IRQW1_STS_OUT0_Y_FRAME_ERR_IRQ)
+ 	{
+-	  isp->isp_r2k.profile.dmaErrCnt++;
++	  isp->isp_r2k.dmaErrCnt++;
+ 	  return IRQ_HANDLED;
+ 	}
+ 	else if(r2k_irqstatus1 & IRQW1_STS_OUT0_Y_IMM_ERR_IRQ)
+ 	{
+-	  isp->isp_r2k.profile.dmaErrCnt++;
++	  isp->isp_r2k.dmaErrCnt++;
+ 	  return IRQ_HANDLED;
+ 	}
+ 	else if(r2k_irqstatus1 & IRQW1_STS_OUT0_UV_FRAME_ERR_IRQ)
+ 	{
+-	  isp->isp_r2k.profile.dmaErrCnt++;
++	  isp->isp_r2k.dmaErrCnt++;
+ 	  return IRQ_HANDLED;
+ 	}
+ 	else if(r2k_irqstatus1 & IRQW1_STS_OUT0_UV_IMM_ERR_IRQ)
+ 	{
+-	  isp->isp_r2k.profile.dmaErrCnt++;
++	  isp->isp_r2k.dmaErrCnt++;
+ 	  return IRQ_HANDLED;
+ 	}
+ 
+-  if(r2k_irqstatus1 & ds0_events)
++  if(r2k_irqstatus0 & IRQW0_STS_MAIN_Y_FRAME_IRQ)
+   {
+-    profile_int_interval(&isp->isp_r2k.profile);
++	  events |= IRQW0_STS_MAIN_Y_FRAME_IRQ;
++	}
++	if(r2k_irqstatus0 & IRQW0_STS_MAIN_UV_FRAME_IRQ)
++	{
++	  events |= IRQW0_STS_MAIN_UV_FRAME_IRQ;
++	}
++	if(r2k_irqstatus1 & IRQW1_STS_OUT0_Y_FRAME_IRQ)
++	{
++	  ds0_events |= IRQW1_STS_OUT0_Y_FRAME_IRQ;
++	}
++	if(r2k_irqstatus1 & IRQW1_STS_OUT0_UV_FRAME_IRQ)
++	{
++	  ds0_events |= IRQW1_STS_OUT0_UV_FRAME_IRQ;
++	}
++	if(r2k_irqstatus1 & IRQW1_STS_OUT1_Y_FRAME_IRQ)
++	{
++	  ds1_events |= IRQW1_STS_OUT1_Y_FRAME_IRQ;
++	}
++	if(r2k_irqstatus1 & IRQW1_STS_OUT1_UV_FRAME_IRQ)
++	{
++	  ds1_events |= IRQW1_STS_OUT1_UV_FRAME_IRQ;
++	}
++	if(ds0_events == (IRQW1_STS_OUT0_Y_FRAME_IRQ|IRQW1_STS_OUT0_UV_FRAME_IRQ))
++	{
++		profile_int_interval(&isp->isp_r2k.profile[1]);
++	}
++	if(ds1_events == (IRQW1_STS_OUT1_Y_FRAME_IRQ|IRQW1_STS_OUT1_UV_FRAME_IRQ))
++	{
++		profile_int_interval(&isp->isp_r2k.profile[2]);
+   }
+ 
+     if(r2k_core_irqstatus & CORE_STS_3A_OUT_IRQ)
+@@ -927,21 +992,25 @@ static irqreturn_t k510isp_r2k_isr(int irq, void *_isp)
+ 		//	k510isp_stat_isr(&isp->isp_r2k_af);
+ 	}	
+ 
+-	if(r2k_irqstatus0 & events)
++	if(events == (IRQW0_STS_MAIN_Y_FRAME_IRQ|IRQW0_STS_MAIN_UV_FRAME_IRQ))
++	{
+ 		k510isp_r2k_main_isr(&isp->isp_r2k, r2k_irqstatus0 & events);
++		events = 0;
++  }
+ 	
+-
+-	if(r2k_irqstatus1 & ds0_events)
++	if(ds0_events == (IRQW1_STS_OUT0_Y_FRAME_IRQ|IRQW1_STS_OUT0_UV_FRAME_IRQ))
+ 	{
+-    profile_int_framerate(&isp->isp_r2k.profile);
++    profile_int_framerate(&isp->isp_r2k.profile[1]);
+ 
+ 		k510isp_r2k_ds0_isr(&isp->isp_r2k, ds0_events);
+-
+-    profile_int_duration(&isp->isp_r2k.profile);	
++	  ds0_events = 0;
+ 	}
+ 
+-	if(r2k_irqstatus1 & ds1_events)
++	if(ds1_events == (IRQW1_STS_OUT1_Y_FRAME_IRQ|IRQW1_STS_OUT1_UV_FRAME_IRQ))
++	{
+ 		k510isp_r2k_ds1_isr(&isp->isp_r2k, r2k_irqstatus1 & ds1_events);
++		ds1_events = 0;
++	}
+ 
+ 	if(r2k_irqstatus1 & ds2_events)
+ 		k510isp_r2k_ds2_isr(&isp->isp_r2k, r2k_irqstatus1 & ds2_events);
+diff --git a/drivers/media/platform/canaan-isp/k510isp_com.h b/drivers/media/platform/canaan-isp/k510isp_com.h
+index ec9648fa..732bc0c7 100755
+--- a/drivers/media/platform/canaan-isp/k510isp_com.h
++++ b/drivers/media/platform/canaan-isp/k510isp_com.h
+@@ -31,6 +31,8 @@
+ #define ENABLE      1
+ #endif
+ 
++#define INT_BIG_INTERVAL 33333LL
++#define INT_BIG_DURATION 200LL
+ #define DROP_THRESHOLD_GAP  2000LL
+ #define PROFILE_INTERRUPT	1
+ //#define PROFILE_FRAME_RATE  1
+@@ -475,13 +477,14 @@ struct k510_isp_profile {
+ 	unsigned long long prev_int_time;
+ 	unsigned long long max_int_duration;
+ 	unsigned long long max_int_interval;
++	unsigned long long min_int_interval;
+ 	unsigned long long cur_int_duration;
+ 	unsigned long long cur_int_interval;
+ 	int big_dur_cnt;
+ 	int big_inter_cnt;
+-	unsigned long long buf_set_time[4];
++	int small_inter_cnt;
+ 	unsigned long long drop_threshold;
+-	int drop_cnt[4];
++	int drop_cnt;
+ 	int no_buf_drop_cnt;
+ };
+ 
+-- 
+2.17.1
+
