@@ -6009,6 +6009,7 @@ void doit_isp(char *text,struct isp_cfg_info *isp_cfg)
          //ldc
          object=cJSON_GetArrayItem(arrayItem,14);
          parse_ldc(object,&isp_core_cfg->ldcInfo);
+         isp_wrap_cfg->ldcInfo.ldc_en = isp_core_cfg->ldcInfo.ldc_en;
          //af
          object=cJSON_GetArrayItem(arrayItem,15);
          parse_af(object,&isp_core_cfg->afInfo);
