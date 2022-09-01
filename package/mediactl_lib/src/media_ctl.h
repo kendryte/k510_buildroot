@@ -25,7 +25,7 @@
 #ifndef __MEDIACTL_H__
 #define __MEDIACTL_H__
 
-#ifdef __cplusplus  
+#ifdef __cplusplus
 extern "C"{
 #endif
 
@@ -78,6 +78,18 @@ struct video_info
 	unsigned int video_out_format[4];
 };
 
+enum ae_select_e
+{
+	AE_SELECT_SW_MODE,
+	AE_SELECT_HW_MODE,
+};
+
+enum adaptive_enable_select_e
+{
+	ADAPTIVE_SELECT_DISABLE,
+	ADAPTIVE_SELECT_ENABLE,
+};
+
 int mediactl_init(char *video_cfg_file,struct video_info *dev_info);
 void mediactl_exit(void);
 void mediactl_disable_ae(enum isp_pipeline_e pipeline);
@@ -85,9 +97,16 @@ int mediactl_set_ae(enum isp_pipeline_e pipeline);
 int mediactl_set_ae_single(enum isp_pipeline_e pipeline);
 int mediactl_set_ae_sync(enum isp_pipeline_e pipeline);
 int mediactl_set_awb_sync(enum isp_pipeline_e pipeline);
+int mediactl_sw_set_ae(enum isp_pipeline_e pipeline);
+int mediactl_hw_set_ae(enum isp_pipeline_e pipeline);
+
+int adaptive_enable(int scl);
+int ae_select_init(int scl);
+int anti_flicker_init(int scl);
+int ae_enable_set(enum isp_pipeline_e pipeline, struct media_entity * pipe);
 
 unsigned int mediactl_get_isp_modules(enum isp_pipeline_e pipeline,enum isp_modules module);
 #ifdef __cplusplus
-} 
+}
 #endif
 #endif /*__MEDIACTL_H__*/
