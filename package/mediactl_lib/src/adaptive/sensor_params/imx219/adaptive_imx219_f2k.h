@@ -899,7 +899,7 @@ static ADAPTIVE_ISP_PIPELINE_PARAM_T adap_imx219_f2k =
 
     // static ADAPTIVE_ISP_COLOR_GREY_SWI2CH_PARAM_T color_grey_switch_param = {
         /* nAutoSwitchEnable  */
-        1, // use csm mode
+        0, // use csm mode
         /* tColorGreySwitchParam */
         {
             /* Color2BW */
