@@ -25,7 +25,7 @@
 #ifndef __MEDIACTL_H__
 #define __MEDIACTL_H__
 
-#ifdef __cplusplus  
+#ifdef __cplusplus
 extern "C"{
 #endif
 
@@ -78,9 +78,11 @@ struct video_info
 
 int mediactl_init(char *video_cfg_file,struct video_info *dev_info);
 void mediactl_exit(void);
+int anti_flicker_init(int scl);
+int ae_select_init(int scl);
 int mediactl_set_ae(enum isp_pipeline_e pipeline);
 unsigned int mediactl_get_isp_modules(enum isp_pipeline_e pipeline,enum isp_modules module);
 #ifdef __cplusplus
-} 
+}
 #endif
 #endif /*__MEDIACTL_H__*/

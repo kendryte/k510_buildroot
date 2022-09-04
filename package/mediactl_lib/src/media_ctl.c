@@ -59,6 +59,11 @@
 #include "linux/k510isp.h"
 #include "isp/json_parse.h"
 
+#include "adaptive/adaptive_user_func.h"
+#include "adaptive/adaptive_params.h"
+#include "3a_ctl/ae_ctl.h"
+#include "3a_ctl/ae_cfg_param.h"
+
 #define MEDIA_DEVICE	"/dev/media0"
 #define ENTITY_DPHY		"K510 ISP DPHY"
 #define ENTITY_CSI2		"K510 ISP CSI2"
@@ -66,7 +71,7 @@
 #define ENTITY_F2K		"K510 ISP F2K"
 #define ENTITY_R2K		"K510 ISP R2K"
 
-// share memory 
+// share memory
 struct share_memory_alloc_align_args {
     uint32_t size;
     uint32_t alignment;
@@ -85,11 +90,24 @@ int fd_mem_map = -1;
 #define SHARE_MEMORY_DEV    "/dev/k510-share-memory"
 #define MAP_MEMORY_DEV      "/dev/mem"
 int *virtual_addr[MEMORY_TEST_BLOCK_NUM]= {0};
-bool DualCamera_Sync = TRUE;
-bool Sensor1_Sync = FALSE;
-bool Awb_Sync_Init = TRUE;
+// bool DualCamera_Sync = TRUE;
+// bool Sensor1_Sync = FALSE;
+// bool Awb_Sync_Init = TRUE;
 
+/* hw/sw ae scl */
+bool ae_hw_set_f2k = FALSE;
+bool ae_hw_set_r2k = FALSE;
+typedef int (* __mediactl_pfunc)(enum isp_pipeline_e);
+__mediactl_pfunc mediactl_all_set_ae =  mediactl_sw_set_ae;
 
+/* ae ctl */
+extern bool Sensor1_Sync;
+extern int AESmoothSteps;	//将AE收敛分为9步完成,可设置, >=7
+extern int ETDelayFrameNumber[2];		//Sensor ET设置生效所需帧数
+extern struct ISP_AE_Parameters AE_Para_Inf[2];
+
+/* adaptive */
+bool adaptive_enable_scl = TRUE;
 
 struct share_memory_alloc_align_args    allocAlignMem[MEMORY_TEST_BLOCK_NUM] = {0};
 //
@@ -104,8 +122,8 @@ enum isp_pipeline
 struct video_entity_info_s{
     unsigned int used;
     char video_entity_name[50];
-    struct image_size_s video_size; 
-	unsigned int video_out_format; 
+    struct image_size_s video_size;
+	unsigned int video_out_format;
 };
 
 struct isp_pipeline_s{
@@ -139,14 +157,14 @@ struct v4l_isp_device v4l_isp;
 *************************************************************************/
 /**
  * @brief Construct a new isp entity init object
- * 
- * @param isp 
+ *
+ * @param isp
  */
 static int isp_entity_init(struct v4l_isp_device *isp)
 {
-	struct media_entity *entity;	
+	struct media_entity *entity;
 	unsigned int i;
-	/* 
+	/*
 	 * Start by locating the three entities. The output video node is
 	 * located by looking for a devnode connected to the VI.
 	 */
@@ -200,10 +218,10 @@ static int isp_entity_init(struct v4l_isp_device *isp)
 	return 0;
 }
 /**
- * @brief 
- * 
- * @param isp 
- * @return int 
+ * @brief
+ *
+ * @param isp
+ * @return int
  */
 static int isp_f2k_video_init(struct v4l_isp_device *isp)
 {
@@ -211,7 +229,7 @@ static int isp_f2k_video_init(struct v4l_isp_device *isp)
 	unsigned int i;
 	unsigned int j;
 
-	struct isp_pipeline_s  *isp_pipeline = &isp->isp_pipeline[ISP_F2K]; 
+	struct isp_pipeline_s  *isp_pipeline = &isp->isp_pipeline[ISP_F2K];
 	for(j = 0;j<4;j++)
 	{
 		//printf("%s:%d,%s\n",__func__,isp_pipeline->video_entity_info[j].used,isp_pipeline->video_entity_info[j].video_entity_name);
@@ -226,7 +244,7 @@ static int isp_f2k_video_init(struct v4l_isp_device *isp)
 			//printf("%s:video entity (0x%x):locate entities OK!\n",__func__,isp->video[j+2]);
 
 			//F2K
-			for (i = 0; i < isp->f2k->info.links+1; ++i) { 
+			for (i = 0; i < isp->f2k->info.links+1; ++i) {
 				//printf("links[%d]:0x%x,sink:0x%x,source:0x%x\n",i,isp->f2k->links[i],isp->f2k->links[i].sink,isp->f2k->links[i].source);
 				entity = isp->f2k->links[i].sink->entity;
 				//printf("%s:%d,media_entity_type:0x%x,0x%x\n",__func__,i,media_entity_type(entity),entity);
@@ -237,8 +255,8 @@ static int isp_f2k_video_init(struct v4l_isp_device *isp)
 					{
 						printf("%s:entity(0x%x)isp->video(0x%x)\n",__func__,entity,isp->video[j+2]);
 						break;
-					}	
-				}	
+					}
+				}
 			}
 
 			if (i == isp->f2k->info.links+1) { //2
@@ -252,10 +270,10 @@ static int isp_f2k_video_init(struct v4l_isp_device *isp)
 	return 0;
 }
 /**
- * @brief 
- * 
- * @param isp 
- * @return int 
+ * @brief
+ *
+ * @param isp
+ * @return int
  */
 static int isp_r2k_video_init(struct v4l_isp_device *isp)
 {
@@ -263,7 +281,7 @@ static int isp_r2k_video_init(struct v4l_isp_device *isp)
 	unsigned int i;
 	unsigned int j;
 
-	struct isp_pipeline_s  *isp_pipeline = &isp->isp_pipeline[ISP_R2K]; 
+	struct isp_pipeline_s  *isp_pipeline = &isp->isp_pipeline[ISP_R2K];
 	for(j = 0;j<4;j++)
 	{
 		if(isp_pipeline->video_entity_info[j].used == 1)
@@ -277,7 +295,7 @@ static int isp_r2k_video_init(struct v4l_isp_device *isp)
 			//printf("%s:video entity (0x%x):locate entities OK!\n",__func__,isp->video[j+6]);
 
 			//R2K
-			for (i = 0; i < isp->r2k->info.links+1; ++i) { 
+			for (i = 0; i < isp->r2k->info.links+1; ++i) {
 				//printf("links[%d]:0x%x,sink:0x%x,source:0x%x\n",i,isp->r2k->links[i],isp->r2k->links[i].sink,isp->r2k->links[i].source);
 				entity = isp->r2k->links[i].sink->entity;
 				//printf("%s:%d,media_entity_type:0x%x,0x%x\n",__func__,i,media_entity_type(entity),entity);
@@ -288,8 +306,8 @@ static int isp_r2k_video_init(struct v4l_isp_device *isp)
 					{
 						printf("%s:entity(0x%x)isp->video(0x%x)\n",__func__,entity,isp->video[j+6]);
 						break;
-					}	
-				}	
+					}
+				}
 			}
 
 			if (i == isp->r2k->info.links+1) { //2
@@ -304,10 +322,10 @@ static int isp_r2k_video_init(struct v4l_isp_device *isp)
 	return 0;
 }
 /**
- * @brief 
- * 
- * @param isp 
- * @return int 
+ * @brief
+ *
+ * @param isp
+ * @return int
  */
 static int isp_setup_link(struct v4l_isp_device *isp)
 {
@@ -319,7 +337,7 @@ static int isp_setup_link(struct v4l_isp_device *isp)
 			       &isp->vi->pads[VI_PAD_SINK_CSI0], MEDIA_LNK_FL_ENABLED);
 	if (ret < 0) {
 		printf("%s error: unable to setup csi2 -> vi link.\n",__func__);
-		return ret; 
+		return ret;
 	}
 
 	//printf("isp->csi2->pads[CSI2_PAD_SOURCE1] =0x%x,&isp->vi->pads[VI_PAD_SINK_CSI1] =0x%x\n\n",&isp->csi2->pads[CSI2_PAD_SOURCE0],&isp->vi->pads[VI_PAD_SINK_CSI0]);
@@ -327,7 +345,7 @@ static int isp_setup_link(struct v4l_isp_device *isp)
 			       &isp->vi->pads[VI_PAD_SINK_CSI1], MEDIA_LNK_FL_ENABLED);
 	if (ret < 0) {
 		printf("%s error: unable to setup csi2 -> vi link.\n",__func__);
-		return ret; 
+		return ret;
 	}
 
 	//printf("%s:isp->sensor0->pads[0] =0x%x,&isp->csi2->pads[CSI2_PAD_SINK0] =0x%x\n",__func__,&isp->sensor0->pads[0],&isp->csi2->pads[CSI2_PAD_SINK0]);
@@ -337,7 +355,7 @@ static int isp_setup_link(struct v4l_isp_device *isp)
 				       &isp->csi2->pads[CSI2_PAD_SINK0], MEDIA_LNK_FL_ENABLED);
 		if (ret < 0) {
 			printf("%s error: unable to setup sensor0 -> csi2 link.\n",__func__);
-			return ret; 
+			return ret;
 		}
 
 		//printf("isp->vi->pads[VI_PAD_SOURCE_F2K] =0x%x,&isp->f2k->pads[ISP_F2K_PAD_SINK] =0x%x\n\n",&isp->vi->pads[VI_PAD_SOURCE_F2K],&isp->f2k->pads[ISP_F2K_PAD_SINK]);
@@ -345,7 +363,7 @@ static int isp_setup_link(struct v4l_isp_device *isp)
 				       &isp->f2k->pads[ISP_F2K_PAD_SINK], MEDIA_LNK_FL_ENABLED);
 		if (ret < 0) {
 			printf("%s error: unable to setup vi -> f2k link.\n",__func__);
-			return ret; 
+			return ret;
 		}
 	}
 
@@ -356,7 +374,7 @@ static int isp_setup_link(struct v4l_isp_device *isp)
 				       &isp->csi2->pads[CSI2_PAD_SINK1], MEDIA_LNK_FL_ENABLED);
 		if (ret < 0) {
 			printf("%s error: unable to setup sensor1 -> csi2 link.\n",__func__);
-			return ret; 
+			return ret;
 		}
 
 		//printf("isp->vi->pads[VI_PAD_SOURCE_R2K] =0x%x,&isp->r2k->pads[ISP_R2K_PAD_SINK] =0x%x\n\n",&isp->vi->pads[VI_PAD_SOURCE_R2K],&isp->r2k->pads[ISP_R2K_PAD_SINK]);
@@ -364,17 +382,17 @@ static int isp_setup_link(struct v4l_isp_device *isp)
 				       &isp->r2k->pads[ISP_R2K_PAD_SINK], MEDIA_LNK_FL_ENABLED);
 		if (ret < 0) {
 			printf("%s error: unable to setup vi -> r2k link.\n",__func__);
-			return ret; 
+			return ret;
 		}
 	}
 	return 0;
 }
 /**
- * @brief 
- * 
- * @param isp 
- * @param source_pad 
- * @return int 
+ * @brief
+ *
+ * @param isp
+ * @param source_pad
+ * @return int
  */
 static int isp_f2k_video_link(struct v4l_isp_device *isp)
 {
@@ -385,7 +403,7 @@ static int isp_f2k_video_link(struct v4l_isp_device *isp)
 	for(i = 0; i< 4; i++)
 	{
 		if(isp_pipeline->video_entity_info[i].used == 1)
-		{			
+		{
 			ret = media_setup_link(isp->mdev, &isp->f2k->pads[ISP_F2K_PAD_MAIN_SOURCE + i],
 					       &isp->video[i+2]->pads[0], MEDIA_LNK_FL_ENABLED);
 			if (ret < 0) {
@@ -398,11 +416,11 @@ static int isp_f2k_video_link(struct v4l_isp_device *isp)
 	return 0;
 }
 /**
- * @brief 
- * 
- * @param isp 
- * @param source_pad 
- * @return int 
+ * @brief
+ *
+ * @param isp
+ * @param source_pad
+ * @return int
  */
 static int isp_r2k_video_link(struct v4l_isp_device *isp)
 {
@@ -413,7 +431,7 @@ static int isp_r2k_video_link(struct v4l_isp_device *isp)
 	for(i = 0; i< 4; i++)
 	{
 		if(isp_pipeline->video_entity_info[i].used == 1)
-		{			
+		{
 			ret = media_setup_link(isp->mdev, &isp->r2k->pads[ISP_R2K_PAD_MAIN_SOURCE + i],
 					       &isp->video[i+6]->pads[0], MEDIA_LNK_FL_ENABLED);
 			if (ret < 0) {
@@ -426,10 +444,10 @@ static int isp_r2k_video_link(struct v4l_isp_device *isp)
 	return 0;
 }
 /**
- * @brief 
- * 
- * @param isp 
- * @return int 
+ * @brief
+ *
+ * @param isp
+ * @return int
  * Configure formats. Retrieve the default format at the sensor output
  * and propagate it through the pipeline. As the VI will not perform
  * any cropping we can just apply the same format on all pads.
@@ -501,7 +519,7 @@ static int isp_f2k_set_format(struct v4l_isp_device *isp)
 		return ret;
 	}
 	//printf("%s:v4l2_subdev_set_format vi(s) width:(%d),height:(%d)\n",__func__,isp_pipeline->format_in.width,isp_pipeline->format_in.height);
-	
+
 
 	ret = v4l2_subdev_set_format(isp->vi, &isp_pipeline->format_in, VI_PAD_SOURCE_F2K,
 				     V4L2_SUBDEV_FORMAT_ACTIVE);
@@ -510,7 +528,7 @@ static int isp_f2k_set_format(struct v4l_isp_device *isp)
 			isp->vi->info.name, 1);
 		return ret;
 	}
-	//printf("%s:v4l2_subdev_set_format vi(s1) width:(%d),height:(%d)\n",__func__,isp_pipeline->format_in.width,isp_pipeline->format_in.height);	
+	//printf("%s:v4l2_subdev_set_format vi(s1) width:(%d),height:(%d)\n",__func__,isp_pipeline->format_in.width,isp_pipeline->format_in.height);
 
 
 	//isp_pipeline->format_in.code =MEDIA_BUS_FMT_SRGGB12_1X12;//MEDIA_BUS_FMT_SRGGB10_1X10;
@@ -558,14 +576,14 @@ static int isp_f2k_set_format(struct v4l_isp_device *isp)
 			}
 		}
 	}
-	
+
 	return 0;
 }
 /**
- * @brief 
- * 
- * @param isp 
- * @return int 
+ * @brief
+ *
+ * @param isp
+ * @return int
  */
 static int isp_r2k_set_format(struct v4l_isp_device *isp)
 {
@@ -585,7 +603,7 @@ static int isp_r2k_set_format(struct v4l_isp_device *isp)
 
 	memcpy(&isp_pipeline->format_in,&format,sizeof(struct v4l2_mbus_framefmt));
 	isp_pipeline->format_in.width = isp_pipeline->sensor_size.width;//ACTIVE_WIDTH;//1080;
-	isp_pipeline->format_in.height = isp_pipeline->sensor_size.height;//ACTIVE_HEIGHT;//1920	
+	isp_pipeline->format_in.height = isp_pipeline->sensor_size.height;//ACTIVE_HEIGHT;//1920
 	ret = v4l2_subdev_set_format(isp->sensor1, &isp_pipeline->format_in, 0,
 				     V4L2_SUBDEV_FORMAT_ACTIVE);
 	if (ret < 0) {
@@ -649,7 +667,7 @@ static int isp_r2k_set_format(struct v4l_isp_device *isp)
 		{
 			isp_pipeline->format_out.width = isp_pipeline->video_entity_info[i].video_size.width;//VIDEO_WIDTH;//1080;
 			isp_pipeline->format_out.height = isp_pipeline->video_entity_info[i].video_size.height;//VIDEO_HEIGHT;//720;
-			
+
 			if( isp_pipeline->video_entity_info[i].video_out_format == 1)
 			{
 				isp_pipeline->format_out.code = MEDIA_BUS_FMT_Y12_1X12; //MEDIA_BUS_FMT_UYVY8_1_5X8,MEDIA_BUS_FMT_VYUY8_1_5X8,MEDIA_BUS_FMT_YUYV8_1_5X8,MEDIA_BUS_FMT_YVYU8_1_5X8
@@ -673,62 +691,15 @@ static int isp_r2k_set_format(struct v4l_isp_device *isp)
 			}
 		}
 	}
-	
+
 	return 0;
 }
-
-#define ISP_CORE_AWB_CTL (0x0104)
-#define ISP_CORE_AWB_HANDLE_MODE (0x03f7)
-#define ISP_CORE_AWB_HANDLE_MODE_CHECK (0x0008)
 
 /**
  * @brief
  *
- */
-static int isp_awb_sync_init()
-{
-	int ret;
-	struct k510isp_reg_val r2k_awb_reg_val,r2k_awb_reg_val_write;
-	struct media_entity *pipe_f2k,*pipe_r2k;
-	pipe_r2k = v4l_isp.r2k;
-
-	r2k_awb_reg_val.reg_addr = ISP_CORE_AWB_CTL;
-	r2k_awb_reg_val.reg_value = 0x0000;
-
-	ret = v4l2_subdev_open(pipe_r2k);
-	if (ret < 0)
-		return ret;
-	// get r2k awb ctl value
-	ret = ioctl(pipe_r2k->fd,VIDIOC_K510ISP_R2K_CORE_REG_GET,&r2k_awb_reg_val);
-	if (ret < 0)
-	{
-		printf("%s: ioctl(VIDIOC_K510ISP_R2K_CORE_REG_GET) failed ret(%d)\n", __func__,ret);
-		v4l2_subdev_close(pipe_r2k);
-		return ret;
-	}
-	// check r2k is handle mode or not, if auto mode then set to handle mode
-	if ((r2k_awb_reg_val.reg_value & ISP_CORE_AWB_HANDLE_MODE_CHECK) == ISP_CORE_AWB_HANDLE_MODE_CHECK)
-	{
-		r2k_awb_reg_val_write.reg_addr = ISP_CORE_AWB_CTL;
-		r2k_awb_reg_val_write.reg_value = r2k_awb_reg_val.reg_value & ISP_CORE_AWB_HANDLE_MODE;
-		ret = ioctl(pipe_r2k->fd,VIDIOC_K510ISP_R2K_CORE_REG_SET,&r2k_awb_reg_val_write);
-		if (ret < 0)
-		{
-			printf("%s: ioctl(VIDIOC_K510ISP_R2K_CORE_REG_SET) failed ret(%d)\n", __func__,
-				ret);
-			v4l2_subdev_close(pipe_r2k);
-			return ret;
-		}
-	}
-	v4l2_subdev_close(pipe_r2k);
-	return 0;
-}
-
-/**
- * @brief 
- * 
- * @param isp 
- * @return int 
+ * @param isp
+ * @return int
  */
 static int isp_pipeline_setup(struct v4l_isp_device *isp)
 {
@@ -766,19 +737,13 @@ static int isp_pipeline_setup(struct v4l_isp_device *isp)
 		isp_r2k_set_format(isp);
 	}
 
-	
-	if((isp->isp_pipeline[ISP_F2K].pipeline_en == 1)&&(isp->isp_pipeline[ISP_R2K].pipeline_en == 1)&&(DualCamera_Sync == TRUE))
-	{
-		Sensor1_Sync = TRUE;
-	}
-
 	return 0;
 }
 /**
- * @brief 
- * 
- * @param isp_pipeline 
- * @param isp_cfg 
+ * @brief
+ *
+ * @param isp_pipeline
+ * @param isp_cfg
  */
 void pipline_cfg(struct isp_pipeline_s *isp_pipeline,struct sensor_info *sensor)
 {
@@ -788,7 +753,7 @@ void pipline_cfg(struct isp_pipeline_s *isp_pipeline,struct sensor_info *sensor)
 	isp_pipeline->sensor_size.width = isp_core_cfg->itcInfo.itc_size.width;
 	isp_pipeline->sensor_size.height = isp_core_cfg->itcInfo.itc_size.height;
 	//
-    isp_pipeline->format_in.width = isp_pipeline->sensor_size.width;		   
+    isp_pipeline->format_in.width = isp_pipeline->sensor_size.width;
 	isp_pipeline->format_in.height = isp_pipeline->sensor_size.height;
 	//
 	isp_pipeline->video_entity_info[0].used = isp_wrap_cfg->mainInfo.main_out_en;
@@ -825,8 +790,8 @@ void pipline_cfg(struct isp_pipeline_s *isp_pipeline,struct sensor_info *sensor)
 	}
 }
 /**
- * @brief 
- * 
+ * @brief
+ *
  */
 static int  isp_share_memory_alloc(void)
 {
@@ -836,7 +801,7 @@ static int  isp_share_memory_alloc(void)
         return 1 ;
     }
 
-    allocAlignMem[0].size      = MEMORY_TEST_BLOCK_SIZE * 1024 * 3;//MEMORY_TEST_BLOCK_SIZE; 1920x1080*3/2+1920*1080
+    allocAlignMem[0].size      = MEMORY_TEST_BLOCK_SIZE * 1024 * 8;//MEMORY_TEST_BLOCK_SIZE; 1920x1080*3/2+1920*1080
     allocAlignMem[0].alignment = MEMORY_TEST_BLOCK_ALIGN;
     allocAlignMem[0].phyAddr   = 0;
 
@@ -863,8 +828,8 @@ static int  isp_share_memory_alloc(void)
     return 0;
 }
 /**
- * @brief 
- * 
+ * @brief
+ *
  */
 static void isp_share_memory_free(void)
 {
@@ -882,13 +847,13 @@ static void isp_share_memory_free(void)
 	close(fd_share_memory);
 }
 
-#if 0 
+#if 0
 int mediactl_all_set_ae(enum isp_pipeline_e pipeline)
 {
 	int ret;
 	struct k510isp_ae_stats ae_stats;
 	struct media_entity *pipe;
-	 
+
 	if(ISP_F2K_PIPELINE == pipeline)
 	{
 		pipe = v4l_isp.f2k;
@@ -923,9 +888,9 @@ int mediactl_all_set_ae(enum isp_pipeline_e pipeline)
 			{
 				printf("%s: ioctl(VIDIOC_S_CTRL-V4L2_CID_GAIN)failed ret(%d)\n", __func__,
 					  ret);
-				v4l2_subdev_close(sensor0);	  
+				v4l2_subdev_close(sensor0);
 				return ret;
-			} 
+			}
 
 			control_s.id = V4L2_CID_GAIN;
 			control_s.value = ae_stats.ae_agco;
@@ -936,7 +901,7 @@ int mediactl_all_set_ae(enum isp_pipeline_e pipeline)
 					  ret);
 				v4l2_subdev_close(sensor0);
 				return ret;
-			} 		
+			}
 			v4l2_subdev_close(sensor0);
 		}
 	}
@@ -977,7 +942,7 @@ int mediactl_all_set_ae(enum isp_pipeline_e pipeline)
 					  ret);
 				v4l2_subdev_close(sensor1);
 				return ret;
-			} 
+			}
 
 			control_s.id = V4L2_CID_GAIN;
 			control_s.value = ae_stats.ae_agco;
@@ -988,23 +953,28 @@ int mediactl_all_set_ae(enum isp_pipeline_e pipeline)
 					  ret);
 				v4l2_subdev_close(sensor1);
 				return ret;
-			} 		
+			}
 			v4l2_subdev_close(sensor1);
 		}
 	}
-	
+
 	return 0;
 }
 #else
-int mediactl_all_set_ae(enum isp_pipeline_e pipeline)
+// original func: mediactl_all_set_ae(enum isp_pipeline_e pipeline)
+int mediactl_hw_set_ae(enum isp_pipeline_e pipeline)
 {
 	int ret;
 	struct k510isp_ae_stats ae_stats;
 	struct media_entity *pipe;
-	 
+
 	if(ISP_F2K_PIPELINE == pipeline)
 	{
 		pipe = v4l_isp.f2k;
+		if(ae_hw_set_f2k)
+		{
+			ae_enable_set(pipeline, pipe);
+		}
 		ret = v4l2_subdev_open(pipe);
 		if (ret < 0)
 			return ret;
@@ -1021,9 +991,17 @@ int mediactl_all_set_ae(enum isp_pipeline_e pipeline)
 		//printf("%s:ae_wren(%d),ae_expl(%d),ae_agco(%d)\n",__func__,ae_stats.ae_wren,ae_stats.ae_expl,ae_stats.ae_agco);
 		v4l2_subdev_close(pipe);
 
+		adaptive_get_3a_stat(pipeline, pipe);
 		// no change
 		static int expl = 0, agco = 0;
 		if (expl == ae_stats.ae_expl && agco == ae_stats.ae_agco) {
+			if(adaptive_ex_gt_update_flag(pipeline) == 1)
+			{
+        		adaptive_ex_st_ae_apply(pipeline, ae_stats.y_av, expl, agco);
+				adaptive_param_flag_init(pipeline);
+				adaptive_setting_ctl(pipeline);
+				adaptive_param_apply(pipeline, pipe);
+			}
 			return ret;
 		} else {
 			expl = ae_stats.ae_expl;
@@ -1058,11 +1036,21 @@ int mediactl_all_set_ae(enum isp_pipeline_e pipeline)
 			return ret;
 		}
 		v4l2_subdev_close(sensor0);
+		if(adaptive_enable_scl)
+		{
+			adaptive_ex_st_ae_apply(pipeline, ae_stats.y_av, expl, agco);
+			adaptive_setting_ctl(pipeline);
+			adaptive_param_apply(pipeline, pipe);
+		}
 	}
 
 	if(ISP_R2K_PIPELINE == pipeline)
 	{
 		pipe = v4l_isp.r2k;
+		if(ae_hw_set_r2k)
+		{
+			ae_enable_set(pipeline, pipe);
+		}
 		ret = v4l2_subdev_open(pipe);
 		if (ret < 0)
 			return ret;
@@ -1079,12 +1067,12 @@ int mediactl_all_set_ae(enum isp_pipeline_e pipeline)
 		//printf("%s:ae_wren(%d),ae_expl(%d),ae_agco(%d)\n",__func__,ae_stats.ae_wren,ae_stats.ae_expl,ae_stats.ae_agco);
 		v4l2_subdev_close(pipe);
 
-		static int expl = 0, agco = 0;
-		if (expl == ae_stats.ae_expl && agco == ae_stats.ae_agco) {
+		static int expl_1 = 0, agco_1 = 0;
+		if (expl_1 == ae_stats.ae_expl && agco_1 == ae_stats.ae_agco) {
 			return ret;
 		} else {
-			expl = ae_stats.ae_expl;
-			agco = ae_stats.ae_agco;
+			expl_1 = ae_stats.ae_expl;
+			agco_1 = ae_stats.ae_agco;
 		}
 
 		struct media_entity *sensor1 = v4l_isp.sensor1;
@@ -1115,8 +1103,101 @@ int mediactl_all_set_ae(enum isp_pipeline_e pipeline)
 			return ret;
 		}
 		v4l2_subdev_close(sensor1);
+		if(adaptive_enable_scl)
+		{
+			adaptive_ex_st_ae_apply(pipeline, ae_stats.y_av, expl_1, agco_1);
+			adaptive_setting_ctl(pipeline);
+			adaptive_param_apply(pipeline, pipe);
+		}
 	}
-	
+	return 0;
+}
+
+/**
+ * @brief
+ *
+ */
+int mediactl_sw_set_ae(enum isp_pipeline_e pipeline)
+{
+	int ret;
+	struct media_entity *pipe;
+	if(pipeline == ISP_F2K_PIPELINE)
+	{
+		pipe = v4l_isp.f2k;
+	}
+	else if(pipeline == ISP_R2K_PIPELINE)
+	{
+		pipe = v4l_isp.r2k;
+	}
+	ret = sw_ae_value_set(pipeline, pipe);
+	if(!adaptive_enable_scl)
+	{
+		// adaptive will not apply
+		return 0;
+	}
+
+	int total_frame_num = AESmoothSteps + ETDelayFrameNumber[pipeline];
+	adaptive_get_3a_stat(pipeline, pipe);
+	if(AE_Para_Inf[pipeline].Process == total_frame_num && pipeline == ISP_F2K_PIPELINE)
+	{
+		adaptive_setting_ctl(pipeline);
+		adaptive_param_apply(pipeline, pipe);
+	}
+	else if((AE_Para_Inf[ISP_R2K_PIPELINE].Process == total_frame_num) && \
+	((Sensor1_Sync == FALSE) || ((Sensor1_Sync == TRUE) && \
+	(AE_Para_Inf[ISP_F2K_PIPELINE].Process == total_frame_num))))
+	{
+		adaptive_setting_ctl(pipeline);
+		adaptive_param_apply(pipeline, pipe);
+	}
+	else if(adaptive_ex_gt_update_flag(pipeline) == 1)
+	{
+        adaptive_param_flag_init(pipeline);
+		adaptive_setting_ctl(pipeline);
+		adaptive_param_apply(pipeline, pipe);
+	}
+	else
+	{
+		adaptive_ex_st_ev_apply_flag(pipeline, 0);
+		if(adaptive_ex_gt_awb_apply_flag(pipeline) == 1)
+		{
+			adaptive_setting_ctl(pipeline);
+			adaptive_param_apply(pipeline, pipe);
+		}
+		adaptive_ex_st_ev_apply_flag(pipeline, 1);
+	}
+	return ret;
+}
+
+/* sw ae */
+int sw_ae_value_set(enum isp_pipeline_e pipeline, struct media_entity *pipe)
+{
+	int ret,i,j;
+	struct k510isp_ae_stats ae_stats;
+	AE_CTL_AE_STAT_T ae_ctl_callback;
+	struct media_entity *sensor_n;
+	ret = v4l2_subdev_open(pipe);
+	if (ret < 0)
+		return ret;
+	if(ISP_F2K_PIPELINE == pipeline)
+	{
+		ioctl(pipe->fd,VIDIOC_K510ISP_F2K_AE_STAT_REQ, &ae_stats);
+		v4l2_subdev_close(pipe);
+		sensor_n = v4l_isp.sensor0;
+	}
+	else if(ISP_R2K_PIPELINE == pipeline)
+	{
+		if(Sensor1_Sync == FALSE)
+		{
+			ioctl(pipe->fd,VIDIOC_K510ISP_R2K_AE_STAT_REQ, &ae_stats);
+			v4l2_subdev_close(pipe);
+		}
+		sensor_n = v4l_isp.sensor1;
+	}
+	// sw ae apply
+	ae_ctl_calc(pipeline, ae_stats, sensor_n, &ae_ctl_callback);
+	// send ae param to adaptive func
+	adaptive_ex_st_ae_apply(pipeline, ae_stats.y_av, ae_ctl_callback.nExpTimeLines, ae_ctl_callback.nGain);
 	return 0;
 }
 
@@ -1134,8 +1215,8 @@ void mediactl_disable_ae(enum isp_pipeline_e pipeline) {
 
 
 /**
- * @brief 
- * 
+ * @brief
+ *
  */
 
 #define F2K_AE_DEVICE           "/dev/f2k-ae"
@@ -1232,7 +1313,7 @@ void run_all_ae_video(void *info)
 		else
 		{
 			ret = mediactl_set_ae_sync(ISP_F2K_PIPELINE);
-			ret = mediactl_set_awb_sync(ISP_F2K_PIPELINE);	
+			ret = mediactl_set_awb_sync(ISP_F2K_PIPELINE);
 		}
 #else
 
@@ -1243,7 +1324,7 @@ void run_all_ae_video(void *info)
 			mediactl_all_set_ae(ISP_F2K_PIPELINE);
 			mediactl_all_set_ae(ISP_R2K_PIPELINE);
 		}
-			
+
 		i ++;
 		if(i == 4)
 		{
@@ -1253,15 +1334,94 @@ void run_all_ae_video(void *info)
 		//usleep(3950);
 		// mediactl_all_set_ae(ISP_R2K_PIPELINE);
 		// mediactl_all_set_ae(ISP_F2K_PIPELINE);
-	
+
 #endif
 
 #endif
-		
+
         /* EAGAIN - continue select loop. */
     }
 
     //printf("%s: camera %d fd(%d) mainloop end ret(%d)!\n", __func__,camera_seq,fd,ret);
+}
+
+int anti_flicker_init(int scl)
+{
+	anti_flicker_scl(scl);
+	return 0;
+}
+
+int ae_select_init(int scl)
+{
+	switch (scl)
+	{
+	case AE_SELECT_SW_MODE:
+		mediactl_all_set_ae = mediactl_sw_set_ae;
+		break;
+	case AE_SELECT_HW_MODE:
+		mediactl_all_set_ae = mediactl_hw_set_ae;
+		ae_hw_set_f2k = TRUE;
+		ae_hw_set_r2k = TRUE;
+		break;
+	default:
+		mediactl_all_set_ae = mediactl_sw_set_ae;
+		break;
+	}
+}
+
+int adaptive_enable(int scl)
+{
+	switch (scl)
+	{
+	case ADAPTIVE_SELECT_DISABLE:
+		adaptive_enable_scl = FALSE;
+		break;
+	case ADAPTIVE_SELECT_ENABLE:
+		adaptive_enable_scl = TRUE;
+	default:
+		adaptive_enable_scl = TRUE;
+		break;
+	}
+}
+
+int ae_enable_set(enum isp_pipeline_e pipeline, struct media_entity * pipe)
+{
+	// enable normal ae will use
+	int ret;
+	static struct k510isp_reg_val ae_set_reg[] = {
+		{0x0050, 3}, // ae enable
+		{0x007c, 1}, // ae adjust
+		{0x0258, 1023}, // 2dnr adp enable
+		{0x02bc, 19}, // sharpness adp enable
+	};
+	int reg_val_size = sizeof(struct k510isp_reg_val);
+	int size = sizeof(ae_set_reg) / reg_val_size;
+	/* f2k */
+	ret = v4l2_subdev_open(pipe);
+	if (ret < 0)
+	{
+		return ret;
+	}
+	for(int i = 0; i < size; i++)
+	{
+		if(pipeline == ADAP_ISP_F2K_PIPELINE)
+		{
+			ret = ioctl(pipe->fd,VIDIOC_K510ISP_F2K_CORE_REG_SET, &ae_set_reg[i]);
+			ae_hw_set_f2k = FALSE;
+		}
+		else if(pipeline = ADAP_ISP_R2K_PIPELINE)
+		{
+			ret = ioctl(pipe->fd,VIDIOC_K510ISP_R2K_CORE_REG_SET, &ae_set_reg[i]);
+			ae_hw_set_r2k = FALSE;
+		}
+		if (ret < 0)
+		{
+			printf("%s: ioctl(VIDIOC_K510ISP_[F2K or R2K]_CORE_REG_SET) failed ret(%d) with %d\n", __func__,ret, i);
+			v4l2_subdev_close(pipe);
+			return ret;
+		}
+	}
+	v4l2_subdev_close(pipe);
 }
 
 pthread_t isp_f2k_ae, isp_r2k_ae, isp_all_ae;
@@ -1270,7 +1430,7 @@ int mediactl_init(char *video_cfg_file,struct video_info *dev_info)
 {
 	int ret;
 	struct isp_csi2_info mipi_csi2;
-	struct vi_cfg_info vi_cfg;	
+	struct vi_cfg_info vi_cfg;
 	memset(&v4l_isp, 0, sizeof v4l_isp);
 	struct isp_pipeline_s *isp_pipeline = NULL;
 	struct sensor_info sensor0;
@@ -1303,7 +1463,7 @@ int mediactl_init(char *video_cfg_file,struct video_info *dev_info)
 
 			dofile_isp(f2k_cfg_file,&sensor0);
 			isp_pipeline = &v4l_isp.isp_pipeline[ISP_F2K];
-			
+
 			//
 			sprintf(&isp_pipeline->sensor_name[0],"%s",&sensor0.sensor_name[0]);
 			pipline_cfg(isp_pipeline,&sensor0);
@@ -1330,6 +1490,17 @@ int mediactl_init(char *video_cfg_file,struct video_info *dev_info)
 			//print_csi2_info(&mipi_csi2);
 			//print_vi_info(&vi_cfg);
 			//print_isp_info(&f2k_isp_cfg);
+			/* ae ctl */
+			ae_ctl_init(ISP_F2K_PIPELINE, sensor0.isp_cfg.isp_core_cfg);
+			// adap img timing init
+			ADAPTIVE_IMG_TIMING_CFG_T adaptive_img_timing;
+			adaptive_img_timing.nItcTtlV = AE_Para_Inf[ISP_F2K].FrameLines;
+			adaptive_img_timing.nMaxExpLine = AE_Para_Inf[ISP_F2K].maxET;
+			adaptive_img_timing.nMinExpLine = AE_Para_Inf[ISP_F2K].minET;
+			adaptive_img_timing.nMaxGain = AE_Para_Inf[ISP_F2K].maxGain;
+			adaptive_img_timing.nMinGain = AE_Para_Inf[ISP_F2K].minGain;
+			adaptive_img_timing.nDefaultSaturation = sensor0.isp_cfg.isp_core_cfg.postInfo.satu_ad_intensity;
+			adaptive_calc_feture_init(ISP_F2K, adaptive_img_timing);
 		}
 
 		if(r2k_cfg_file != NULL)
@@ -1352,6 +1523,17 @@ int mediactl_init(char *video_cfg_file,struct video_info *dev_info)
 			sprintf(&isp_pipeline->video_entity_info[1].video_entity_name[0],"%s","CANAAN K510 ISP R2K_DS0 output");
 			sprintf(&isp_pipeline->video_entity_info[2].video_entity_name[0],"%s","CANAAN K510 ISP R2K_DS1 output");
 			sprintf(&isp_pipeline->video_entity_info[3].video_entity_name[0],"%s","CANAAN K510 ISP R2K_DS2 output");
+			/* ae ctl */
+			ae_ctl_init(ISP_R2K, sensor1.isp_cfg.isp_core_cfg);
+			// adap img timing init
+			ADAPTIVE_IMG_TIMING_CFG_T adaptive_img_timing;
+			adaptive_img_timing.nItcTtlV = AE_Para_Inf[ISP_R2K].FrameLines;
+			adaptive_img_timing.nMaxExpLine = AE_Para_Inf[ISP_R2K].maxET;
+			adaptive_img_timing.nMinExpLine = AE_Para_Inf[ISP_R2K].minET;
+			adaptive_img_timing.nMaxGain = AE_Para_Inf[ISP_R2K].maxGain;
+			adaptive_img_timing.nMinGain = AE_Para_Inf[ISP_R2K].minGain;
+			adaptive_img_timing.nDefaultSaturation = sensor1.isp_cfg.isp_core_cfg.postInfo.satu_ad_intensity;
+			adaptive_calc_feture_init(ISP_R2K, adaptive_img_timing);
 		}
 	}
 	else
@@ -1368,7 +1550,7 @@ int mediactl_init(char *video_cfg_file,struct video_info *dev_info)
 	if (v4l_isp.mdev == NULL) {
 		printf("%s error: unable to open media device %s\n", __func__,MEDIA_DEVICE);
 		return -1;
-	}  
+	}
     //
 	ret = isp_pipeline_setup(&v4l_isp);
 	if (ret < 0) {
@@ -1395,7 +1577,7 @@ int mediactl_init(char *video_cfg_file,struct video_info *dev_info)
 		return -1;
 	}
 
-	ret = sysctl_rst_r2k(v4l_isp.r2k);	
+	ret = sysctl_rst_r2k(v4l_isp.r2k);
 	if (ret < 0) {
 		printf("%s:error: unable to sysctl_rst_r2k %d\n",__func__,ret);
 		return -1;
@@ -1412,6 +1594,13 @@ int mediactl_init(char *video_cfg_file,struct video_info *dev_info)
 			printf("%s:error: unable to f2k cfg video %d\n",__func__,ret);
 			return -1;
 		}
+
+		adaptive_param_init(ISP_F2K_PIPELINE, adaptive_sensor_name_s, sensor0.sensor_name);
+
+		if (ret < 0) {
+			printf("%s:error: unable to init f2k adaptive %d\n",__func__,ret);
+			return -1;
+		}
 	}
 
 	if( v4l_isp.isp_pipeline[ISP_R2K].pipeline_en == 1 )
@@ -1420,8 +1609,17 @@ int mediactl_init(char *video_cfg_file,struct video_info *dev_info)
 		if (ret < 0) {
 			printf("%s:error: unable to r2k cfg video %d\n",__func__,ret);
 			return -1;
-		}		
+		}
+
+		adaptive_param_init(ISP_R2K_PIPELINE, adaptive_sensor_name_s, sensor1.sensor_name);
+
+		if (ret < 0) {
+			printf("%s:error: unable to init r2k adaptive %d\n",__func__,ret);
+			return -1;
+		}
 	}
+	// ae ctl
+	ae_ctl_cfg_init(v4l_isp.isp_pipeline[ISP_F2K].pipeline_en, v4l_isp.isp_pipeline[ISP_R2K].pipeline_en, ae_ctl_sensor_name_s,sensor0.sensor_name, sensor1.sensor_name);
 	//
 	printf("%s:total_size.width(0x%x),total_size.height(0x%x)\n",__func__,vi_cfg.vi_pipe_cfg[0].total_size.width,vi_cfg.vi_pipe_cfg[0].total_size.height);
 	//
@@ -1457,8 +1655,8 @@ int mediactl_init(char *video_cfg_file,struct video_info *dev_info)
 	return 0;
 }
 /**
- * @brief 
- * 
+ * @brief
+ *
  */
  int mediactl_set_ae(enum isp_pipeline_e pipeline)
 {
@@ -1490,10 +1688,10 @@ int mediactl_set_ae_single(enum isp_pipeline_e pipeline)
 	static unsigned int ET_sensor1 = 0;
 	static unsigned int Gain_sensor0 = 0;
 	static unsigned int Gain_sensor1 = 0;
-	
+
 	if(ISP_F2K_PIPELINE == pipeline)
 	{
-	
+
 		pipe = v4l_isp.f2k;
 		ret = v4l2_subdev_open(pipe);
 		if (ret < 0)
@@ -1507,7 +1705,7 @@ int mediactl_set_ae_single(enum isp_pipeline_e pipeline)
 			v4l2_subdev_close(pipe);
 			return ret;
 		}
-		
+
 		//printf("%s:ae_wren(%d),ae_expl(%d),ae_agco(%d)\n",__func__,ae_stats.ae_wren,ae_stats.ae_expl,ae_stats.ae_agco);
 		v4l2_subdev_close(pipe);
 		//
@@ -1519,7 +1717,7 @@ int mediactl_set_ae_single(enum isp_pipeline_e pipeline)
 				return ret;
 
 			struct v4l2_control  control_s;
-			
+
 			if (ae_stats.ae_expl != ET_sensor0)
 			{
 				control_s.id = V4L2_CID_EXPOSURE;
@@ -1583,7 +1781,7 @@ int mediactl_set_ae_single(enum isp_pipeline_e pipeline)
 
 			if (ae_stats.ae_expl != ET_sensor1)
 			{
-			
+
 				control_s.id = V4L2_CID_EXPOSURE;
 				control_s.value = ae_stats.ae_expl;
 				ret = ioctl(sensor1->fd,VIDIOC_S_CTRL,&control_s);
@@ -1596,7 +1794,7 @@ int mediactl_set_ae_single(enum isp_pipeline_e pipeline)
 				}
 				ET_sensor1 = control_s.value;
 			}
-			
+
 			if(ae_stats.ae_agco != Gain_sensor1)
 			{
 				control_s.id = V4L2_CID_GAIN;
@@ -1608,13 +1806,13 @@ int mediactl_set_ae_single(enum isp_pipeline_e pipeline)
 						  ret);
 					v4l2_subdev_close(sensor1);
 					return ret;
-				} 		
+				}
 				Gain_sensor1 = control_s.value;
 			}
 			v4l2_subdev_close(sensor1);
 		}
 	}
-	
+
 	return 0;
 }
 
@@ -1651,7 +1849,7 @@ int mediactl_set_ae_sync(enum isp_pipeline_e pipeline)
 			ret = v4l2_subdev_open(sensor0);
 			if (ret < 0)
 				return ret;
-			
+
 			//sensor1
 			struct media_entity *sensor1 = v4l_isp.sensor1;
 			ret = v4l2_subdev_open(sensor1);
@@ -1659,8 +1857,8 @@ int mediactl_set_ae_sync(enum isp_pipeline_e pipeline)
 				return ret;
 
 			struct v4l2_control  control_s;
-			
-			//Set ET		
+
+			//Set ET
 			if(ae_stats.ae_expl != ET_current)
 			{
 				control_s.id = V4L2_CID_EXPOSURE;
@@ -1672,8 +1870,8 @@ int mediactl_set_ae_sync(enum isp_pipeline_e pipeline)
 						  ret);
 					v4l2_subdev_close(sensor1);
 					return ret;
-				} 
-				
+				}
+
 				ret = ioctl(sensor0->fd,VIDIOC_S_CTRL,&control_s);
 				if (ret < 0)
 				{
@@ -1704,76 +1902,21 @@ int mediactl_set_ae_sync(enum isp_pipeline_e pipeline)
 						  ret);
 					v4l2_subdev_close(sensor0);
 					return ret;
-				} 
+				}
 				Gain_current = control_s.value;
 			}
 			v4l2_subdev_close(sensor1);
-			v4l2_subdev_close(sensor0);	
+			v4l2_subdev_close(sensor0);
 		}
 	}
-	
+
 	return 0;
 }
 
-int mediactl_set_awb_sync(enum isp_pipeline_e pipeline)
-{
-	int ret;
-	struct k510isp_awb_sync_info awb_sync_info;
-	static unsigned int awb_prev_frame_rgain = 0,awb_prev_frame_bgain = 0;
-	struct media_entity *pipe_f2k,*pipe_r2k;
-	pipe_f2k = v4l_isp.f2k;
-	pipe_r2k = v4l_isp.r2k;
-
-	if(Awb_Sync_Init)
-	{
-		isp_awb_sync_init();
-		Awb_Sync_Init = FALSE;
-	}
-
-	if(ISP_F2K_PIPELINE == pipeline)
-	{
-		// get f2k awb ctl mode auto or handle
-		ret = v4l2_subdev_open(pipe_f2k);
-		if (ret < 0)
-			return ret;
-
-		ret = v4l2_subdev_open(pipe_r2k);
-		if (ret < 0)
-			return ret;
-
-		// get f2k AWB GAIN VALUE
-		ret = ioctl(pipe_f2k->fd,VIDIOC_K510ISP_F2K_AWB_VAL_GET,&awb_sync_info);
-		if (ret < 0)
-		{
-			printf("%s: ioctl(VIDIOC_K510ISP_F2K_AWB_VAL_GET) failed ret(%d)\n", __func__,ret);
-			v4l2_subdev_close(pipe_f2k);
-			return ret;
-		}
-
-		// if value change set f2k AWB GAIN VALUE to r2k
-		if ((awb_sync_info.awb_ar != awb_prev_frame_rgain) || (awb_sync_info.awb_ab != awb_prev_frame_bgain))
-		{
-			if (ret < 0)
-				return ret;
-			ret = ioctl(pipe_r2k->fd,VIDIOC_K510ISP_R2K_AWB_VAL_SET,&awb_sync_info);
-			if (ret < 0)
-			{
-				printf("%s: ioctl(VIDIOC_K510ISP_R2K_AWB_VAL_SET) failed ret(%d)\n", __func__,ret);
-				v4l2_subdev_close(pipe_r2k);
-				return ret;
-			}
-		}
-		awb_prev_frame_rgain = awb_sync_info.awb_ar;
-		awb_prev_frame_bgain = awb_sync_info.awb_ab;
-		v4l2_subdev_close(pipe_f2k);
-		v4l2_subdev_close(pipe_r2k);
-	}
-	return 0;
-}
 
 /**
- * @brief 
- * 
+ * @brief
+ *
  */
 void mediactl_exit(void)
 {
@@ -1785,10 +1928,10 @@ void mediactl_exit(void)
 		media_close(v4l_isp.mdev);
 	}
 /*
-	pthread_kill(isp_f2k_ae, SIGALRM); 
+	pthread_kill(isp_f2k_ae, SIGALRM);
 	pthread_join(isp_f2k_ae, NULL);
 
-	pthread_kill(isp_r2k_ae, SIGALRM); 
+	pthread_kill(isp_r2k_ae, SIGALRM);
 	pthread_join(isp_r2k_ae, NULL);
 */
 	//
@@ -1798,10 +1941,10 @@ void mediactl_exit(void)
     system("echo 3 > /proc/sys/vm/drop_caches");
 }
 /**
- * @brief 
- * 
- * @param addr 
- * @return unsigned int 
+ * @brief
+ *
+ * @param addr
+ * @return unsigned int
  */
 
 unsigned int ISPRegRead(unsigned int addr)
@@ -1845,6 +1988,3 @@ unsigned int ISPRegWrite(unsigned int addr, unsigned int value)
     pclose(fp);
     return 1;
 }
-
-
-
