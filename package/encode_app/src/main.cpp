@@ -1602,8 +1602,8 @@ read_pcm:
     nG711Len = encode(pCtx->audio_buffer,(char*)sEncAudioBuf,pCtx->audio_size,G711_A_LAW);
     if(nG711Len > 0)
     {
-      //printf("=========audio g711 size:%d\n",nG711Len);
-      pCtx->pRtspServer[0]->PushAudioData(sEncAudioBuf, nG711Len, 0);
+      for(int i =0;i <pCtx->ch_cnt; i++)
+          pCtx->pRtspServer[i]->PushAudioData(sEncAudioBuf, nG711Len, 0);
     }
 
     if(received_sigterm == 1)
