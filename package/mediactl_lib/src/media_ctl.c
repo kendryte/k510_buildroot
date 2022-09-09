@@ -801,7 +801,7 @@ static int  isp_share_memory_alloc(void)
         return 1 ;
     }
 
-    allocAlignMem[0].size      = MEMORY_TEST_BLOCK_SIZE * 1024 * 3;//MEMORY_TEST_BLOCK_SIZE; 1920x1080*3/2+1920*1080
+    allocAlignMem[0].size      = MEMORY_TEST_BLOCK_SIZE * 1024 * 8;//MEMORY_TEST_BLOCK_SIZE; 1920x1080*3/2+1920*1080
     allocAlignMem[0].alignment = MEMORY_TEST_BLOCK_ALIGN;
     allocAlignMem[0].phyAddr   = 0;
 

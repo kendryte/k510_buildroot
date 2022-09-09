@@ -1602,8 +1602,8 @@ read_pcm:
     nG711Len = encode(pCtx->audio_buffer,(char*)sEncAudioBuf,pCtx->audio_size,G711_A_LAW);
     if(nG711Len > 0)
     {
-      //printf("=========audio g711 size:%d\n",nG711Len);
-      pCtx->pRtspServer[0]->PushAudioData(sEncAudioBuf, nG711Len, 0);
+      for(int i =0;i <pCtx->ch_cnt; i++)
+          pCtx->pRtspServer[i]->PushAudioData(sEncAudioBuf, nG711Len, 0);
     }
 
     if(received_sigterm == 1)
@@ -2287,12 +2287,12 @@ int main(int argc, char *argv[])
       if(!pCtx->Cfg[i].BitRate)             pCtx->Cfg[i].BitRate     = 4000000;
       if(!pCtx->Cfg[i].MaxBitRate)          pCtx->Cfg[i].MaxBitRate  = 4000000;
       if(!pCtx->Cfg[i].level)               pCtx->Cfg[i].level       = 42;
-      if(pCtx->Cfg[i].profile != 0xff)      pCtx->Cfg[i].profile     = AVC_HIGH;
-      if(pCtx->Cfg[i].rcMode != 0xff)       pCtx->Cfg[i].rcMode      = CBR; 
+      if(pCtx->Cfg[i].profile == 0xff)      pCtx->Cfg[i].profile     = AVC_HIGH;
+      if(pCtx->Cfg[i].rcMode == 0xff)       pCtx->Cfg[i].rcMode      = CBR; 
       if(!pCtx->Cfg[i].SliceQP)             pCtx->Cfg[i].SliceQP     = 25;
       if(!pCtx->Cfg[i].FreqIDR)             pCtx->Cfg[i].FreqIDR     = 25;
       if(!pCtx->Cfg[i].gopLen)              pCtx->Cfg[i].gopLen      = 25;
-      if(pCtx->Cfg[i].AspectRatio != 0xff)  pCtx->Cfg[i].AspectRatio = ASPECT_RATIO_AUTO;
+      if(pCtx->Cfg[i].AspectRatio == 0xff)  pCtx->Cfg[i].AspectRatio = ASPECT_RATIO_AUTO;
       if(!pCtx->Cfg[i].MinQP)               pCtx->Cfg[i].MinQP       = 0;//from 0 to SliceQP
       if(!pCtx->Cfg[i].MaxQP)               pCtx->Cfg[i].MaxQP       = 51;//from SliceQP to 51
       if(!pCtx->Cfg[i].roiCtrlMode)         pCtx->Cfg[i].roiCtrlMode = ROI_QP_TABLE_NONE;
