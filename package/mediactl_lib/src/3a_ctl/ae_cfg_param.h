@@ -53,6 +53,20 @@ static AE_CTL_INIT_CFG_T ae_ctl_init_cfg_param_dual_imx385 =
 	.nAeSmoothSteps = 9,
 };
 
+static AE_CTL_INIT_CFG_T ae_ctl_init_cfg_param_gc2093_gc2053 =
+{
+	/* can modify */
+	.bDualCameraSync           = 0,
+	.nSingleSensorETDelayFrame = {0, 0}, // [0]: f2k, [1]: r2k
+	.nSingleSensorSetMode      = {0, 0}, // [0]: f2k, [1]: r2k
+	.nDualSensorETDelayFrame   = {0, 0}, // [0]: f2k, [1]: r2k
+	.nDualSensorSetMode        = {0, 0}, // [0]: f2k, [1]: r2k
+	.nFrameRate                = {30, 30}, // [0]: sensor0, [1]: sensor1
+
+	/* do not change */
+	.nAeSmoothSteps = 9,
+};
+
 /* different sensor type between sensor0 and sensor1 */
 // static AE_CTL_INIT_CFG_T ae_ctl_init_cfg_param_imx385_imx219 =
 // {
@@ -83,6 +97,14 @@ AE_CTL_SENSOR_NAME_T ae_ctl_sensor_name[] =
         .cSensor1Name = "m00_f_imx385_0 3-0010",
         .tAeCtlInitCfg = &ae_ctl_init_cfg_param_dual_imx385,
     },
+
+    // sensor0: gc2093, sensor1: gc2053
+    {
+        .cSensor0Name = "m00_f_gc2093 0-007e",
+        .cSensor1Name = "m01_f_gc2053 0-0037",
+        .tAeCtlInitCfg = &ae_ctl_init_cfg_param_gc2093_gc2053,
+    },
+
 
 	// // sensor0: imx385, sensor1: imx219
     // {
