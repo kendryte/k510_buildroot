@@ -1,0 +1,32 @@
+From 6e42bfd8e7cd3f0a97d2c8c0ff4d1f9e5a324105 Mon Sep 17 00:00:00 2001
+From: gh-sxp <sunxiaopeng@canaan-creative.com>
+Date: Sun, 18 Sep 2022 17:06:59 +0800
+Subject: [PATCH] 16k_play_noise
+
+---
+ sound/soc/codecs/nau8822.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/sound/soc/codecs/nau8822.c b/sound/soc/codecs/nau8822.c
+index 0086a471..91c03f95 100644
+--- a/sound/soc/codecs/nau8822.c
++++ b/sound/soc/codecs/nau8822.c
+@@ -677,6 +677,7 @@ static int nau8822_config_clkdiv(struct snd_soc_dai *dai, int div, int rate)
+ 		 * and large or equal to IMCLK.
+ 		 */
+ 		div = 0;
++#if 0  //Scaling of master clock source for internal 256fs rate: error
+ 		imclk = rate * 256;
+ 		for (i = 1; i < ARRAY_SIZE(nau8822_mclk_scaler); i++) {
+ 			sclk = (nau8822->sysclk * 10) /	nau8822_mclk_scaler[i];
+@@ -686,6 +687,7 @@ static int nau8822_config_clkdiv(struct snd_soc_dai *dai, int div, int rate)
+ 		}
+ 		dev_dbg(component->dev, "master clock prescaler %x for fs %d\n",
+ 			div, rate);
++#endif 
+ 
+ 		/* master clock from MCLK and disable PLL */
+ 		snd_soc_component_update_bits(component,
+-- 
+2.36.1
+
