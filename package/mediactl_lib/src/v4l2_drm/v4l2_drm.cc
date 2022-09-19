@@ -24,6 +24,7 @@
  */
 
 /* v4l2_test */
+#include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -70,6 +71,7 @@ static int verbose = 0;
 
 static int isp_ae_status = 0;
 //static int r_2k_status = 0;
+
 static uint32_t screen_width, screen_height;
 #define VIDEO_INPUT_0_ENABLE 1
 #define VIDEO_INPUT_1_ENABLE 2
@@ -210,7 +212,7 @@ static int start_capturing(struct camera_info *camera)
         buf.m.fd = buffers[i].dbuf_fd; //drm
         buf.length = buffers[i].length;
 
-        pr_debug("\tbuf.index: %d\n", buf.index);
+        pr_debug("\tbuf.index: %d, length: %u\n", buf.index, buf.length);
         //printf("\tbuf.index: %d,buf.m.fd %d,buf.length %d\n",buf.index,buf.m.fd,buf.length);
         // err == xioctl(fd, VIDIOC_QBUF, &buf);
         err = ioctl(fd, VIDIOC_QBUF, &buf);
@@ -483,6 +485,8 @@ static void usage(FILE *fp, int argc, char **argv)
          "Version 1.3\n"
          "Options:\n"
          "-f | --device cfg name   Video device cfg name [%s]\n"
+         "-e | --ae value          AE enable\n"
+         "-t | --tuning value      isp tuningd enable\n"
          "-h | --help          Print this message\n"
          "-v | --verbose       Verbose output\n"
          "-s | --single[(0|1),[,width*height[,x*y]]] display sensor (0|1)\n"
@@ -494,12 +498,13 @@ static void usage(FILE *fp, int argc, char **argv)
          argv[0], video_cfg_file);
 }
 
-static const char short_options[] = "f:e:hvs::d::s:a:x:l:";// 短选项 ：表示带参数
+static const char short_options[] = "f:e:hvs::d::s:a:x:l:t:";// 短选项 ：表示带参数
 
 static const struct option //长选项
 long_options[] = {
     { "device_cfg name", required_argument, NULL, 'f' },
     { "ae config", required_argument, NULL, 'e' },
+    { "tuning isp", required_argument, NULL, 't' },
     { "help",   no_argument,       NULL, 'h' },
     { "verbose", no_argument,      NULL, 'v' },
     { "single", optional_argument,      NULL, 's' },
@@ -510,12 +515,16 @@ long_options[] = {
     { 0, 0, 0, 0 }
 };
 
+pid_t isp_tuningd_pid = -1;
 /* end */
 static void sigint_handler(int signal __attribute__((__unused__)))
 {
 	/* Set the done flag to true when the user presses CTRL-C to interrupt
 	 * the main loop.
 	 */
+    if (isp_tuningd_pid >= 0) {
+        kill(isp_tuningd_pid, SIGINT);
+    }
 	done = true;
 }
 
@@ -790,11 +799,45 @@ int video_resolution_adaptation(void)
 }
 
 /**
- * @brief
- *
- * @param __attribute__
- * @param __attribute__
- * @return int
+ * @brief Spawn isp-tuningd
+ * 
+ * @return int pid of child process
+ */
+static pid_t spawn_isp_tuningd (unsigned width, unsigned height, int* pipe_fd_ptr) {
+    // create pipe
+    int pipe_fd[2];
+    assert(pipe(pipe_fd) == 0);
+    pid_t pid = fork();
+    char width_str[20], height_str[20];
+    sprintf(width_str, "%u", width);
+    sprintf(height_str, "%u", height);
+    if (pid == 0) {
+        // child process
+        // close write pipe
+        close(pipe_fd[1]);
+        // dup to stdin
+        dup2(pipe_fd[0], 0);
+        // exec isp-tuningd
+        if(execl("/app/mediactl_lib/isp-tuningd", "/app/mediactl_lib/isp-tuningd", "-j", "-w", width_str, "-h", height_str, NULL) < 0) {
+            exit(-1);
+        }
+        return 0;
+    } else {
+        // master process
+        // close read pipe
+        close(pipe_fd[0]);
+        // assert(setnonblock(pipe_fd[1]) == 0);
+        *pipe_fd_ptr = pipe_fd[1];
+        return pid;
+    }
+}
+
+/**
+ * @brief 
+ * 
+ * @param __attribute__ 
+ * @param __attribute__ 
+ * @return int 
  */
 int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unused__)))
 {
@@ -806,6 +849,7 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
 	pthread_t f2k_pid,r2k_pid,drm_pid;
     uint32_t sensor_index = 0;
     int parse_count;
+    unsigned tuning_isp = 0;
 
     for (;;) {
         int idx;
@@ -822,6 +866,14 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
             break;
         case 'e':
             isp_ae_status = atol(optarg);//dev_name = ;
+            break;
+
+        case 't':
+            tuning_isp = atoi(optarg);
+            if (!(tuning_isp >= 0 && tuning_isp <= 2)) {
+                fprintf(stderr, "tuning argument must be 0 or 1 or 2\n");
+                exit(EXIT_FAILURE);
+            }
             break;
 
         case 'f':
@@ -899,6 +951,7 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
 	 */
 	signal(SIGINT, sigint_handler);
     signal(SIGTERM, sigint_handler);
+    signal(SIGPIPE, SIG_IGN);
     //
     memset(&actions, 0, sizeof(actions));
     sigemptyset(&actions.sa_mask); /* 将参数set信号集初始化并清空 */
@@ -1012,19 +1065,23 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
     }
 
     drm_dev.camera_num = camera_num;
-    struct camera_info* used_cam;
 
+    int isp_tuningd_pipe_fd = -1;
 	if(dev_info[0].video_used) {
 		if (init_isp(&camera[0]) < 0) {
 			goto cleanup;
 		}
-        used_cam = &camera[0];
+        if (tuning_isp == 1) {
+            isp_tuningd_pid = spawn_isp_tuningd(camera[0].size.width, camera[0].size.height, &isp_tuningd_pipe_fd);
+        }
 	}
 	if(dev_info[1].video_used) {
 		if (init_isp(&camera[1]) < 0) {
             goto cleanup;
 		}
-        used_cam = &camera[1];
+        if (tuning_isp == 2) {
+            isp_tuningd_pid = spawn_isp_tuningd(camera[1].size.width, camera[1].size.height, &isp_tuningd_pipe_fd);
+        }
 	}
 
     struct drm_buffer *fbuf1 = &drm_dev.drm_bufs[0];
@@ -1293,6 +1350,17 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
             if (drm_dmabuf_set_plane(&drm_dev.drm_bufs[vbuf[vbuf_ptr[1]][1].index + BUFFERS_COUNT])) {
                 printf("Flush fail\n");
                 break;
+            }
+        }
+
+        // isp-tuningd
+        static unsigned frame_counter_for_isp_tuningd = frame_counter;
+        if (frame_counter - frame_counter_for_isp_tuningd >= 30) {
+            frame_counter_for_isp_tuningd = frame_counter;
+            if(dev_info[0].video_used && tuning_isp == 1) {
+                write(isp_tuningd_pipe_fd, drm_dev.drm_bufs[vbuf[vbuf_ptr[0]][0].index].map, drm_dev.drm_bufs[vbuf[vbuf_ptr[0]][0].index].size);
+            } else if (dev_info[1].video_used && tuning_isp == 2) {
+                write(isp_tuningd_pipe_fd, drm_dev.drm_bufs[vbuf[vbuf_ptr[1]][1].index + BUFFERS_COUNT].map, drm_dev.drm_bufs[vbuf[vbuf_ptr[1]][1].index + BUFFERS_COUNT].size);
             }
         }
 
