@@ -479,8 +479,15 @@ static void *v4l2_output(void *arg)
   	iRet = poll(tFds, 1, /*-1*/3000);//3000ms
   	if (iRet <= 0)
     {
-      printf("poll error!\n");
-      continue;
+      printf("ch %d: poll error!\n", channel);
+
+      if(received_sigterm == 1)
+      {
+        sem_post(&pCtx->pSemGetData[channel]);
+        break;
+      }
+      else
+        continue;
     }
   
     struct v4l2_buffer buf;
@@ -511,7 +518,7 @@ static void *v4l2_output(void *arg)
       
       if(pCtx->v4l2_rev[channel][pCtx->v4l2_wp[channel]].addr != V4L2_INVALID_INDEX)
       {
-          printf("v4l2 buffer overflow\n");
+          printf("ch %d: v4l2 buffer overflow\n", channel);
           enqueue_buf(buf.index, channel);
       }
       else if(time - start_time < 1000000000)
