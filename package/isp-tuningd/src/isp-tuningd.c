@@ -67,7 +67,7 @@
 #define REGISTER_END_ADDR (0x0324 + 0x0400 + 0x92670000)
 #define DEFAULT_PORT 9982
 
-unsigned pic_yuv_width = 0, pic_yuv_height = 0;
+unsigned pic_yuv_width = 0, pic_yuv_height = 0, active_yuv_width = 0;
 unsigned pic_yuv_size = 0;
 
 int page_size = 4096;
@@ -575,7 +575,7 @@ void on_new_connection(uv_stream_t *server, int status) {
         .command = 0x91,
         .size = 4
       };
-      uint16_t report_data[2] = {pic_yuv_width, pic_yuv_height};
+      uint16_t report_data[2] = {active_yuv_width, pic_yuv_height};
       uv_buf_t buf[2] = {
         uv_buf_init((char*)&report_command, sizeof(struct command_buffer)),
         uv_buf_init((char*)report_data, 4)
@@ -675,7 +675,7 @@ int main(int argc, char *argv[]) {
         break;
       }
       case 'w': {
-        pic_yuv_width = atol(optarg);
+        active_yuv_width = atol(optarg);
         break;
       }
       case 'h': {
@@ -694,7 +694,7 @@ int main(int argc, char *argv[]) {
       }
     }
   }
-  // FIXME: alignment
+  pic_yuv_width = (active_yuv_width + 15) / 16 * 16;
   pic_yuv_size = pic_yuv_width * pic_yuv_height * 3 / 2;
   if (pic_yuv_size > 0) {
     pic_write_buffer[0] = malloc(sizeof(struct command_buffer) + pic_yuv_size);
@@ -707,7 +707,11 @@ int main(int argc, char *argv[]) {
     pic_write_buffer[1]->size = pic_yuv_size;
   }
 
-  fprintf(stderr, "width: %u, height: %u, frame size: %u\n", pic_yuv_width, pic_yuv_height, pic_yuv_size);
+  fprintf(
+    stderr,
+    "active_width: %u, width: %u, height: %u, frame size: %u\n",
+    active_yuv_width, pic_yuv_width, pic_yuv_height, pic_yuv_size
+  );
   // uv
   loop = uv_default_loop();
   signal(SIGINT, before_exit);
