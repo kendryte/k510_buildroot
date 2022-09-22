@@ -122,6 +122,7 @@ int ae_ctl_init(enum ae_ctl_isp_pipeline_e pipeline, struct isp_core_cfg_info is
 
 /* user functions */
 int ae_ctl_calc(enum ae_ctl_isp_pipeline_e pipeline, struct k510isp_ae_stats ae_stats, struct media_entity * pipe, AE_CTL_AE_STAT_T * ae_stat_callback);
+int ae_ctl_get_max_et(enum ae_ctl_isp_pipeline_e pipeline);
 
 /* user get version */
 char * ae_ctl_get_version();

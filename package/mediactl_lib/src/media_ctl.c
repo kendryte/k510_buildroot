@@ -801,7 +801,7 @@ static int  isp_share_memory_alloc(void)
         return 1 ;
     }
 
-    allocAlignMem[0].size      = MEMORY_TEST_BLOCK_SIZE * 1024 * 3;//MEMORY_TEST_BLOCK_SIZE; 1920x1080*3/2+1920*1080
+    allocAlignMem[0].size      = MEMORY_TEST_BLOCK_SIZE * 1024 * 8;//MEMORY_TEST_BLOCK_SIZE; 1920x1080*3/2+1920*1080
     allocAlignMem[0].alignment = MEMORY_TEST_BLOCK_ALIGN;
     allocAlignMem[0].phyAddr   = 0;
 
@@ -1173,6 +1173,7 @@ int mediactl_sw_set_ae(enum isp_pipeline_e pipeline)
 int sw_ae_value_set(enum isp_pipeline_e pipeline, struct media_entity *pipe)
 {
 	int ret,i,j;
+	static int y_everage_temp = 0;
 	struct k510isp_ae_stats ae_stats;
 	AE_CTL_AE_STAT_T ae_ctl_callback;
 	struct media_entity *sensor_n;
@@ -1191,6 +1192,10 @@ int sw_ae_value_set(enum isp_pipeline_e pipeline, struct media_entity *pipe)
 		{
 			ioctl(pipe->fd,VIDIOC_K510ISP_R2K_AE_STAT_REQ, &ae_stats);
 			v4l2_subdev_close(pipe);
+		}
+		else
+		{
+			ae_stats.y_av = y_everage_temp;
 		}
 		sensor_n = v4l_isp.sensor1;
 	}
@@ -1493,14 +1498,14 @@ int mediactl_init(char *video_cfg_file,struct video_info *dev_info)
 			/* ae ctl */
 			ae_ctl_init(ISP_F2K_PIPELINE, sensor0.isp_cfg.isp_core_cfg);
 			// adap img timing init
-			ADAPTIVE_IMG_TIMING_CFG_T adaptive_img_timing;
-			adaptive_img_timing.nItcTtlV = AE_Para_Inf[ISP_F2K].FrameLines;
-			adaptive_img_timing.nMaxExpLine = AE_Para_Inf[ISP_F2K].maxET;
-			adaptive_img_timing.nMinExpLine = AE_Para_Inf[ISP_F2K].minET;
-			adaptive_img_timing.nMaxGain = AE_Para_Inf[ISP_F2K].maxGain;
-			adaptive_img_timing.nMinGain = AE_Para_Inf[ISP_F2K].minGain;
-			adaptive_img_timing.nDefaultSaturation = sensor0.isp_cfg.isp_core_cfg.postInfo.satu_ad_intensity;
-			adaptive_calc_feture_init(ISP_F2K, adaptive_img_timing);
+			// ADAPTIVE_IMG_TIMING_CFG_T adaptive_img_timing;
+			// adaptive_img_timing.nItcTtlV = AE_Para_Inf[ISP_F2K].FrameLines;
+			// adaptive_img_timing.nMaxExpLine = AE_Para_Inf[ISP_F2K].maxET;
+			// adaptive_img_timing.nMinExpLine = AE_Para_Inf[ISP_F2K].minET;
+			// adaptive_img_timing.nMaxGain = AE_Para_Inf[ISP_F2K].maxGain;
+			// adaptive_img_timing.nMinGain = AE_Para_Inf[ISP_F2K].minGain;
+			// adaptive_img_timing.nDefaultSaturation = sensor0.isp_cfg.isp_core_cfg.postInfo.satu_ad_intensity;
+			// adaptive_calc_feture_init(ISP_F2K, adaptive_img_timing);
 		}
 
 		if(r2k_cfg_file != NULL)
@@ -1526,14 +1531,14 @@ int mediactl_init(char *video_cfg_file,struct video_info *dev_info)
 			/* ae ctl */
 			ae_ctl_init(ISP_R2K, sensor1.isp_cfg.isp_core_cfg);
 			// adap img timing init
-			ADAPTIVE_IMG_TIMING_CFG_T adaptive_img_timing;
-			adaptive_img_timing.nItcTtlV = AE_Para_Inf[ISP_R2K].FrameLines;
-			adaptive_img_timing.nMaxExpLine = AE_Para_Inf[ISP_R2K].maxET;
-			adaptive_img_timing.nMinExpLine = AE_Para_Inf[ISP_R2K].minET;
-			adaptive_img_timing.nMaxGain = AE_Para_Inf[ISP_R2K].maxGain;
-			adaptive_img_timing.nMinGain = AE_Para_Inf[ISP_R2K].minGain;
-			adaptive_img_timing.nDefaultSaturation = sensor1.isp_cfg.isp_core_cfg.postInfo.satu_ad_intensity;
-			adaptive_calc_feture_init(ISP_R2K, adaptive_img_timing);
+			// ADAPTIVE_IMG_TIMING_CFG_T adaptive_img_timing;
+			// adaptive_img_timing.nItcTtlV = AE_Para_Inf[ISP_R2K].FrameLines;
+			// adaptive_img_timing.nMaxExpLine = AE_Para_Inf[ISP_R2K].maxET;
+			// adaptive_img_timing.nMinExpLine = AE_Para_Inf[ISP_R2K].minET;
+			// adaptive_img_timing.nMaxGain = AE_Para_Inf[ISP_R2K].maxGain;
+			// adaptive_img_timing.nMinGain = AE_Para_Inf[ISP_R2K].minGain;
+			// adaptive_img_timing.nDefaultSaturation = sensor1.isp_cfg.isp_core_cfg.postInfo.satu_ad_intensity;
+			// adaptive_calc_feture_init(ISP_R2K, adaptive_img_timing);
 		}
 	}
 	else
@@ -1595,7 +1600,7 @@ int mediactl_init(char *video_cfg_file,struct video_info *dev_info)
 			return -1;
 		}
 
-		adaptive_param_init(ISP_F2K_PIPELINE, adaptive_sensor_name_s, sensor0.sensor_name);
+		// adaptive_param_init(ISP_F2K_PIPELINE, adaptive_sensor_name_s, sensor0.sensor_name);
 
 		if (ret < 0) {
 			printf("%s:error: unable to init f2k adaptive %d\n",__func__,ret);
@@ -1611,7 +1616,7 @@ int mediactl_init(char *video_cfg_file,struct video_info *dev_info)
 			return -1;
 		}
 
-		adaptive_param_init(ISP_R2K_PIPELINE, adaptive_sensor_name_s, sensor1.sensor_name);
+		// adaptive_param_init(ISP_R2K_PIPELINE, adaptive_sensor_name_s, sensor1.sensor_name);
 
 		if (ret < 0) {
 			printf("%s:error: unable to init r2k adaptive %d\n",__func__,ret);
@@ -1620,6 +1625,24 @@ int mediactl_init(char *video_cfg_file,struct video_info *dev_info)
 	}
 	// ae ctl
 	ae_ctl_cfg_init(v4l_isp.isp_pipeline[ISP_F2K].pipeline_en, v4l_isp.isp_pipeline[ISP_R2K].pipeline_en, ae_ctl_sensor_name_s,sensor0.sensor_name, sensor1.sensor_name);
+	ADAPTIVE_IMG_TIMING_CFG_T adaptive_img_timing;
+	adaptive_img_timing.nItcTtlV = AE_Para_Inf[ISP_F2K].FrameLines;
+	adaptive_img_timing.nMaxExpLine = AE_Para_Inf[ISP_F2K].maxET;
+	adaptive_img_timing.nMinExpLine = AE_Para_Inf[ISP_F2K].minET;
+	adaptive_img_timing.nMaxGain = AE_Para_Inf[ISP_F2K].maxGain;
+	adaptive_img_timing.nMinGain = AE_Para_Inf[ISP_F2K].minGain;
+	adaptive_img_timing.nDefaultSaturation = sensor0.isp_cfg.isp_core_cfg.postInfo.satu_ad_intensity;
+	adaptive_calc_feture_init(ISP_F2K, adaptive_img_timing);
+	adaptive_param_init(ISP_F2K_PIPELINE, adaptive_sensor_name_s, sensor0.sensor_name);
+
+	adaptive_img_timing.nItcTtlV = AE_Para_Inf[ISP_R2K].FrameLines;
+	adaptive_img_timing.nMaxExpLine = AE_Para_Inf[ISP_R2K].maxET;
+	adaptive_img_timing.nMinExpLine = AE_Para_Inf[ISP_R2K].minET;
+	adaptive_img_timing.nMaxGain = AE_Para_Inf[ISP_R2K].maxGain;
+	adaptive_img_timing.nMinGain = AE_Para_Inf[ISP_R2K].minGain;
+	adaptive_img_timing.nDefaultSaturation = sensor1.isp_cfg.isp_core_cfg.postInfo.satu_ad_intensity;
+	adaptive_calc_feture_init(ISP_R2K, adaptive_img_timing);
+	adaptive_param_init(ISP_R2K_PIPELINE, adaptive_sensor_name_s, sensor1.sensor_name);
 	//
 	printf("%s:total_size.width(0x%x),total_size.height(0x%x)\n",__func__,vi_cfg.vi_pipe_cfg[0].total_size.width,vi_cfg.vi_pipe_cfg[0].total_size.height);
 	//

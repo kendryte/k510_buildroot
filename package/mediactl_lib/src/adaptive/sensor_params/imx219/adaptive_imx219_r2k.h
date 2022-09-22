@@ -32,7 +32,7 @@ static ADAPTIVE_ISP_PIPELINE_PARAM_T adap_imx219_r2k =
 
 {
     /* fps */
-    29.97,
+    30,
     {
     /* AE Parameters */
 
@@ -46,7 +46,7 @@ static ADAPTIVE_ISP_PIPELINE_PARAM_T adap_imx219_r2k =
             /* 0 */
             {
                 /* nExposureTime */
-                168, // 10000lux
+                280, // 6000lux
                 /* nExposureGain */
                 512,
                 /* ae ctl */
@@ -118,7 +118,7 @@ static ADAPTIVE_ISP_PIPELINE_PARAM_T adap_imx219_r2k =
     /* AE gain */
 
     {
-        {256, 768, 1024, 2048, 2304},
+        {256, 768, 1024, 2048, 4095},
     },
 
     {
@@ -134,11 +134,11 @@ static ADAPTIVE_ISP_PIPELINE_PARAM_T adap_imx219_r2k =
             /* 1 */
             {240},
             /* 2 */
-            {240},
+            {224},
             /* 3 */
-            {240},
+            {224},
             /* 4 */
-            {240},
+            {224},
         },
     // };
     },
@@ -316,11 +316,11 @@ static ADAPTIVE_ISP_PIPELINE_PARAM_T adap_imx219_r2k =
                 /* nRawDomainIntensity */
                 16,
                 /* n2dAdjacentPixIntensity */
-                511,
+                128,
                 /* n2dEdgeIntensity */
-                48,
+                32,
                 /* n2dLumaIntensity */
-                64,
+                32,
                 /* n2dChromaIntensity */
                 1,
             },
@@ -329,11 +329,11 @@ static ADAPTIVE_ISP_PIPELINE_PARAM_T adap_imx219_r2k =
                 /* nRawDomainIntensity */
                 16,
                 /* n2dAdjacentPixIntensity */
-                511,
+                128,
                 /* n2dEdgeIntensity */
-                48,
+                32,
                 /* n2dLumaIntensit */
-                64,
+                32,
                 /* n2dChromaIntensity */
                 1,
             },
@@ -342,11 +342,11 @@ static ADAPTIVE_ISP_PIPELINE_PARAM_T adap_imx219_r2k =
                 /* nRawDomainIntensity */
                 16,
                 /* n2dAdjacentPixIntensity */
-                511,
+                128,
                 /* n2dEdgeIntensity */
-                48,
+                40,
                 /* n2dLumaIntensit */
-                64,
+                48,
                 /* n2dChromaIntensity */
                 160,
             },
@@ -727,16 +727,16 @@ static ADAPTIVE_ISP_PIPELINE_PARAM_T adap_imx219_r2k =
             /* 0 */
             {
             /* nRGain[2]; [0]: Min [1]: Max */
-            {194, 257},
+            {194, 247},
             /* nBGain[2]; [0]: Min [1]: Max */
-            {269, 360},
+            {275, 360},
             },
             /* 1 */
             {
             /* nRGain[2]; [0]: Min [1]: Max */
-            {162, 257},
+            {194, 257},
             /* nBGain[2]; [0]: Min [1]: Max */
-            {269, 449},
+            {269, 360},
             },
             /* 2 */
             {
@@ -889,7 +889,7 @@ static ADAPTIVE_ISP_PIPELINE_PARAM_T adap_imx219_r2k =
             /* 3 */
             {100},
             /* 4 */
-            {100},
+            {90},
         },
     // };
     },
@@ -899,7 +899,7 @@ static ADAPTIVE_ISP_PIPELINE_PARAM_T adap_imx219_r2k =
 
     // static ADAPTIVE_ISP_COLOR_GREY_SWI2CH_PARAM_T color_grey_switch_param = {
         /* nAutoSwitchEnable  */
-        1, // use csm mode
+        0, // use csm mode
         /* tColorGreySwitchParam */
         {
             /* Color2BW */

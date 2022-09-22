@@ -29,10 +29,14 @@
 /* f2k adaptive param include */
 #include "sensor_params/imx219/adaptive_imx219_f2k.h"
 #include "sensor_params/imx385/adaptive_imx385_f2k.h"
+#include "sensor_params/gc2093_gc2053/adaptive_gc2093_f2k.h"
 
 /* r2k adaptive param include */
 #include "sensor_params/imx219/adaptive_imx219_r2k.h"
 #include "sensor_params/imx385/adaptive_imx385_r2k.h"
+#include "sensor_params/gc2093_gc2053/adaptive_gc2053_r2k.h"
+
+
 
 #include "adaptive_setting.h"
 
@@ -52,6 +56,13 @@ ADAPTIVE_SENSOR_NAME_T adaptive_sensor_name[] =
         .cSensor1Name = "m00_f_imx385_0 3-0010",
         .tAdapIspParamF2k = &adap_imx385_f2k,
         .tAdapIspParamR2k = &adap_imx385_r2k,
+    },
+    // gc2093_gc2053
+    {
+        .cSensor0Name = "m00_f_gc2093 0-007e",
+        .cSensor1Name = "m01_f_gc2053 0-0037",
+        .tAdapIspParamF2k = &adap_gc2093_f2k,
+        .tAdapIspParamR2k = &adap_gc2053_r2k,
     },
 };
 
