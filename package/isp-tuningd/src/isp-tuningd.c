@@ -748,7 +748,7 @@ int main(int argc, char *argv[]) {
     // open encoder
     EncSettings encoder_settings = {
         .channel = 0,
-        .width = pic_yuv_width,
+        .width = active_yuv_width,
         .height = pic_yuv_height,
         .FrameRate = 30,
         .BitRate = 4000000,
@@ -770,7 +770,7 @@ int main(int argc, char *argv[]) {
     henc = VideoEncoder_Create(&encoder_settings);
     EncSettings encoder_settings_h264 = {
         .channel = 1,
-        .width = pic_yuv_width,
+        .width = active_yuv_width,
         .height = pic_yuv_height,
         .FrameRate = 30,
         .BitRate = 4000000,
