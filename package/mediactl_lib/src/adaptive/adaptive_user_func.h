@@ -23,24 +23,30 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __SEQUEUE_H__
-#define __SEQUEUE_H__
+#ifndef __ADAPTIVE_USER_FUNC_H__
+#define __ADAPTIVE_USER_FUNC_H__
 
-#include "stdio.h"
+#include "sensor_params/canaan_isp_struct.h"
+#include "adaptive_isp_reg.h"
+#include "adaptive_setting.h"
 
-#define N  64
-typedef unsigned int data_t;
+/* user init */
+int adaptive_calc_feture_init(enum adaptive_isp_pipeline_e pipeline, ADAPTIVE_IMG_TIMING_CFG_T image_timing_cfg);
+int adaptive_param_init(enum adaptive_isp_pipeline_e pipeline, ADAPTIVE_SENSOR_NAME_S_T adaptive_sensor_name_s, char * sensor_name);
 
-typedef struct{
-    data_t data[N];
-    int front,rear;
-}sequeue_t;
-//
-sequeue_t *CreateEmptySequeue(void);
-void DestroySequeue(sequeue_t *queue);
-int EmptySequeue(sequeue_t *queue);
-int FullSequeue(sequeue_t *queue);
-void ClearSequeue(sequeue_t *queue);
-int EnQueue(sequeue_t *queue, data_t x);
-int DeQueue(sequeue_t *queue, data_t *x);
-#endif 
+/* user functions */
+int adaptive_get_3a_stat(enum adaptive_isp_pipeline_e pipeline, struct media_entity * pipe);
+int adaptive_setting_ctl(enum adaptive_isp_pipeline_e pipeline);
+int adaptive_param_apply(enum adaptive_isp_pipeline_e pipeline, struct media_entity * pipe);
+
+/* user ex opeartion */
+int adaptive_ex_gt_update_flag(enum adaptive_isp_pipeline_e pipeline);
+int adaptive_ex_gt_awb_apply_flag(enum adaptive_isp_pipeline_e pipeline);
+int adaptive_ex_st_ev_apply_flag(enum adaptive_isp_pipeline_e pipeline, int flag);
+int adaptive_ex_st_ae_apply(enum adaptive_isp_pipeline_e pipeline, int yeverage, int expl, int agco);
+int adaptive_ex_st_update_flag(enum adaptive_isp_pipeline_e pipeline);
+
+/* user get version */
+char * adaptive_get_version();
+
+#endif

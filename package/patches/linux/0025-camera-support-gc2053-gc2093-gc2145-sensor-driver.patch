@@ -1,0 +1,4671 @@
+From fc97ecbf7224a3127a02fcacc3ffc496ea7fe7b2 Mon Sep 17 00:00:00 2001
+From: "Chenggen.Wang" <wangchenggen@canaan-creative.com>
+Date: Tue, 23 Aug 2022 19:52:27 +0800
+Subject: [PATCH 1/2] camera: support gc2053,gc2093,gc2145 sensor driver.
+
+Signed-off-by: Chenggen.Wang <wangchenggen@canaan-creative.com>
+---
+ .../k510_common/camera-gc2053_gc2093.dtsi     |  115 ++
+ .../k510_common/camera-gc2093_gc2053.dtsi     |  115 ++
+ .../k510_common/camera-gc2093_gc2145.dtsi     |  115 ++
+ .../k510_common/camera-gc2145_gc2093.dtsi     |  115 ++
+ .../boot/dts/canaan/k510_crb_lp3_v1_2.dts     |   10 +
+ .../media/i2c/soc_camera/canaanchip/Kconfig   |   33 +-
+ .../media/i2c/soc_camera/canaanchip/Makefile  |    5 +-
+ .../media/i2c/soc_camera/canaanchip/gc2053.c  | 1258 ++++++++++++++
+ .../media/i2c/soc_camera/canaanchip/gc2093.c  | 1522 +++++++++++++++++
+ .../media/i2c/soc_camera/canaanchip/gc2145.c  | 1264 ++++++++++++++
+ 10 files changed, 4548 insertions(+), 4 deletions(-)
+ create mode 100755 arch/riscv/boot/dts/canaan/k510_common/camera-gc2053_gc2093.dtsi
+ create mode 100755 arch/riscv/boot/dts/canaan/k510_common/camera-gc2093_gc2053.dtsi
+ create mode 100755 arch/riscv/boot/dts/canaan/k510_common/camera-gc2093_gc2145.dtsi
+ create mode 100755 arch/riscv/boot/dts/canaan/k510_common/camera-gc2145_gc2093.dtsi
+ create mode 100755 drivers/media/i2c/soc_camera/canaanchip/gc2053.c
+ create mode 100755 drivers/media/i2c/soc_camera/canaanchip/gc2093.c
+ create mode 100755 drivers/media/i2c/soc_camera/canaanchip/gc2145.c
+
+diff --git a/arch/riscv/boot/dts/canaan/k510_common/camera-gc2053_gc2093.dtsi b/arch/riscv/boot/dts/canaan/k510_common/camera-gc2053_gc2093.dtsi
+new file mode 100755
+index 00000000..39bb17ea
+--- /dev/null
++++ b/arch/riscv/boot/dts/canaan/k510_common/camera-gc2053_gc2093.dtsi
+@@ -0,0 +1,115 @@
++//RGB
++&i2c4 {
++    status = "okay";
++    #address-cells  = <1>;
++    #size-cells     = <0>;
++    gc2053: gc2053@37 {
++        compatible = "galaxycore,gc2053";
++        reg = <0x37>;
++        reset-gpios = <&porta 8 GPIO_ACTIVE_LOW>;
++        pwdn-gpios = <&porta 9 GPIO_ACTIVE_LOW>;
++        canaanchip,camera-module-index = <0>;
++        canaanchip,camera-module-facing = "front";
++        canaanchip,camera-module-name = "BFC105-DUAL-L";
++        canaanchip,camera-module-lens-name = "RGB";
++        // ir-cut = <&cam_ircut0>;
++        hflip = <1>;
++
++        port {
++            ucam_out0: endpoint {
++                remote-endpoint = <&mipi_in_ucam0>;
++                data-lanes = <1 2>;
++            };
++        };
++    };
++};
++
++&i2c1 {
++    status = "okay";
++    #address-cells  = <1>;
++    #size-cells     = <0>;
++    gc2093: gc2093@7e {
++        compatible = "galaxycore,gc2093";
++        reg = <0x7e>;
++        reset-gpios = <&porta 17 GPIO_ACTIVE_LOW>;
++        pwdn-gpios = <&porta 18 GPIO_ACTIVE_LOW>;
++        canaanchip,camera-module-index = <1>;
++        canaanchip,camera-module-facing = "front";
++        canaanchip,camera-module-name = "BFC105-DUAL-L";
++        canaanchip,camera-module-lens-name = "RGB";
++        //ir-cut = <&cam_ircut0>;
++        hflip = <1>;
++
++        port {
++            ucam_out1: endpoint {
++                remote-endpoint = <&mipi_in_ucam1>;
++                data-lanes = <3 4>;
++            };
++        };
++    }; 
++};
++
++&isp1{
++	status = "okay";
++	sensor_num =<2>;
++	dphy_speed =<1>; //0-RXDPHY_SPEED_MODE_2500M,1-RXDPHY_SPEED_MODE_1500M
++	dphy_mode = <0>;//0-TWO_LANES_MODE,1-FOUR_LANES_MODE
++	sony_mode = <0>;//0-SONY_POL_MODE_DIS,1-SONY_POL_MODE_EN
++	ports {
++		#address-cells = <1>;
++		#size-cells = <0>;
++		//port@0 {
++		//	dvp_in_ucam2: endpoint@2 {
++		//		//status = "okay";
++		//		//remote-endpoint = <&ucam_out1>;
++		//		//data-lanes = <3 4>;
++		//		data-type = <0x2b>; //0x1E-MIPI_YUV422,0x2A-MIPI_RAW8,0x2B-MIPI_RAW10,0x2C-MIPI_RAW12
++		//		tpg_r_en = <0>;
++		//		tpg_w_en = <0>;
++		//		wdr_sensor_vendor =<0>;//0-"SONY_WDR_SENSOR", 1=OTHERS_WDR_SENSOR
++		//		wdr_mode = <0>;//0-none wdr mode, 1-2frame wdr mode, 2-3frame wdr mode
++		//		mipi_csi_mode = <0>; //0- normal mode, 1 -debug mode
++		//		isp_pipeline = <3>;//1 -ISP_F_2K, 2 -ISP_R_2K,3-ISP_TOF
++		//	};
++		//};
++		port@1 {
++			reg = <1>;
++			#address-cells = <1>;
++			#size-cells = <0>;
++			mipi_in_ucam0: endpoint@0 {
++				status = "okay";
++				reg = <1>;
++				remote-endpoint = <&ucam_out0>;
++				clock-lanes = <0>;
++				data-lanes = <1 2>;
++				data-type = <0x2b>; //0x1E-MIPI_YUV422,0x2A-MIPI_RAW8,0x2B-MIPI_RAW10,0x2C-MIPI_RAW12
++				tpg_r_en = <0>;
++				tpg_w_en = <0>;
++				wdr_sensor_vendor =<0>;//0-"SONY_WDR_SENSOR", 1=OTHERS_WDR_SENSOR
++				wdr_mode = <0>;//0-none wdr mode ,1-2frame wdr mode, 2-3frame wdr mode
++				mipi_csi_mode = <0>; //0- normal mode ,1 -debug mode
++				isp_pipeline = <1>;//1 -ISP_F_2K, 2 -ISP_R_2K, 3-ISP_TOF
++			};
++		};
++		port@2 {
++			reg = <2>;
++			#address-cells = <1>;
++			#size-cells = <0>;
++			mipi_in_ucam1: endpoint@1{
++				status = "okay";
++				reg = <1>;
++				remote-endpoint = <&ucam_out1>;
++				clock-lanes = <1>;
++				data-lanes = <3 4>;
++				data-type = <0x2b>; //0x1E-MIPI_YUV422,0x2A-MIPI_RAW8,0x2B-MIPI_RAW10,0x2C-MIPI_RAW12
++				tpg_r_en = <0>;
++				tpg_w_en = <0>;
++				wdr_sensor_vendor =<0>;//0-"SONY_WDR_SENSOR", 1=OTHERS_WDR_SENSOR
++				wdr_mode = <0>;//0-none wdr mode, 1-2frame wdr mode ,2-3frame wdr mode
++				mipi_csi_mode = <0>; //0- normal mode ,1 -debug mode
++				isp_pipeline = <2>;//1 -ISP_F_2K, 2 -ISP_R_2K, 3-ISP_TOF
++			};
++		};
++
++	};
++};
+diff --git a/arch/riscv/boot/dts/canaan/k510_common/camera-gc2093_gc2053.dtsi b/arch/riscv/boot/dts/canaan/k510_common/camera-gc2093_gc2053.dtsi
+new file mode 100755
+index 00000000..1a486f3b
+--- /dev/null
++++ b/arch/riscv/boot/dts/canaan/k510_common/camera-gc2093_gc2053.dtsi
+@@ -0,0 +1,115 @@
++//RGB
++&i2c4 {
++    status = "okay";
++    #address-cells  = <1>;
++    #size-cells     = <0>;
++    gc2053: gc2053@37 {
++        compatible = "galaxycore,gc2053";
++        reg = <0x37>;
++        reset-gpios = <&porta 8 GPIO_ACTIVE_LOW>;
++        pwdn-gpios = <&porta 9 GPIO_ACTIVE_LOW>;
++        canaanchip,camera-module-index = <1>;
++        canaanchip,camera-module-facing = "front";
++        canaanchip,camera-module-name = "BFC105-DUAL-L";
++        canaanchip,camera-module-lens-name = "RGB";
++        // ir-cut = <&cam_ircut0>;
++        hflip = <1>;
++
++        port {
++            ucam_out1: endpoint {
++                remote-endpoint = <&mipi_in_ucam1>;
++                data-lanes = <1 2>;
++            };
++        };
++    };
++};
++
++&i2c1 {
++    status = "okay";
++    #address-cells  = <1>;
++    #size-cells     = <0>;
++    gc2093: gc2093@7e {
++        compatible = "galaxycore,gc2093";
++        reg = <0x7e>;
++        reset-gpios = <&porta 17 GPIO_ACTIVE_LOW>;
++        pwdn-gpios = <&porta 18 GPIO_ACTIVE_LOW>;
++        canaanchip,camera-module-index = <0>;
++        canaanchip,camera-module-facing = "front";
++        canaanchip,camera-module-name = "BFC105-DUAL-L";
++        canaanchip,camera-module-lens-name = "RGB";
++        //ir-cut = <&cam_ircut0>;
++        hflip = <1>;
++
++        port {
++            ucam_out0: endpoint {
++                remote-endpoint = <&mipi_in_ucam0>;
++                data-lanes = <3 4>;
++            };
++        };
++    }; 
++};
++
++&isp1{
++	status = "okay";
++	sensor_num =<2>;
++	dphy_speed =<1>; //0-RXDPHY_SPEED_MODE_2500M,1-RXDPHY_SPEED_MODE_1500M
++	dphy_mode = <0>;//0-TWO_LANES_MODE,1-FOUR_LANES_MODE
++	sony_mode = <0>;//0-SONY_POL_MODE_DIS,1-SONY_POL_MODE_EN
++	ports {
++		#address-cells = <1>;
++		#size-cells = <0>;
++		//port@0 {
++		//	dvp_in_ucam2: endpoint@2 {
++		//		//status = "okay";
++		//		//remote-endpoint = <&ucam_out1>;
++		//		//data-lanes = <3 4>;
++		//		data-type = <0x2b>; //0x1E-MIPI_YUV422,0x2A-MIPI_RAW8,0x2B-MIPI_RAW10,0x2C-MIPI_RAW12
++		//		tpg_r_en = <0>;
++		//		tpg_w_en = <0>;
++		//		wdr_sensor_vendor =<0>;//0-"SONY_WDR_SENSOR", 1=OTHERS_WDR_SENSOR
++		//		wdr_mode = <0>;//0-none wdr mode, 1-2frame wdr mode, 2-3frame wdr mode
++		//		mipi_csi_mode = <0>; //0- normal mode, 1 -debug mode
++		//		isp_pipeline = <3>;//1 -ISP_F_2K, 2 -ISP_R_2K,3-ISP_TOF
++		//	};
++		//};
++		port@1 {
++			reg = <1>;
++			#address-cells = <1>;
++			#size-cells = <0>;
++			mipi_in_ucam0: endpoint@0 {
++				status = "okay";
++				reg = <1>;
++				remote-endpoint = <&ucam_out0>;
++				clock-lanes = <1>;
++				data-lanes = <3 4>;
++				data-type = <0x2b>; //0x1E-MIPI_YUV422,0x2A-MIPI_RAW8,0x2B-MIPI_RAW10,0x2C-MIPI_RAW12
++				tpg_r_en = <0>;
++				tpg_w_en = <0>;
++				wdr_sensor_vendor =<0>;//0-"SONY_WDR_SENSOR", 1=OTHERS_WDR_SENSOR
++				wdr_mode = <0>;//0-none wdr mode ,1-2frame wdr mode, 2-3frame wdr mode
++				mipi_csi_mode = <0>; //0- normal mode ,1 -debug mode
++				isp_pipeline = <1>;//1 -ISP_F_2K, 2 -ISP_R_2K, 3-ISP_TOF
++			};
++		};
++		port@2 {
++			reg = <2>;
++			#address-cells = <1>;
++			#size-cells = <0>;
++			mipi_in_ucam1: endpoint@1{
++				status = "okay";
++				reg = <1>;
++				remote-endpoint = <&ucam_out1>;
++				clock-lanes = <0>;
++				data-lanes = <1 2>;
++				data-type = <0x2b>; //0x1E-MIPI_YUV422,0x2A-MIPI_RAW8,0x2B-MIPI_RAW10,0x2C-MIPI_RAW12
++				tpg_r_en = <0>;
++				tpg_w_en = <0>;
++				wdr_sensor_vendor =<0>;//0-"SONY_WDR_SENSOR", 1=OTHERS_WDR_SENSOR
++				wdr_mode = <0>;//0-none wdr mode, 1-2frame wdr mode ,2-3frame wdr mode
++				mipi_csi_mode = <0>; //0- normal mode ,1 -debug mode
++				isp_pipeline = <2>;//1 -ISP_F_2K, 2 -ISP_R_2K, 3-ISP_TOF
++			};
++		};
++
++	};
++};
+diff --git a/arch/riscv/boot/dts/canaan/k510_common/camera-gc2093_gc2145.dtsi b/arch/riscv/boot/dts/canaan/k510_common/camera-gc2093_gc2145.dtsi
+new file mode 100755
+index 00000000..59d470d6
+--- /dev/null
++++ b/arch/riscv/boot/dts/canaan/k510_common/camera-gc2093_gc2145.dtsi
+@@ -0,0 +1,115 @@
++//RGB
++&i2c1 {
++    status = "okay";
++    #address-cells  = <1>;
++    #size-cells     = <0>;
++    gc2093: gc2093@37 {
++        compatible = "galaxycore,gc2093";
++        reg = <0x37>;
++        reset-gpios = <&porta 8 GPIO_ACTIVE_LOW>;
++        pwdn-gpios = <&porta 9 GPIO_ACTIVE_LOW>;
++        canaanchip,camera-module-index = <0>;
++        canaanchip,camera-module-facing = "front";
++        canaanchip,camera-module-name = "BFC105-DUAL-L";
++        canaanchip,camera-module-lens-name = "RGB";
++        // ir-cut = <&cam_ircut0>;
++        hflip = <1>;
++
++        port {
++            ucam_out0: endpoint {
++                remote-endpoint = <&mipi_in_ucam0>;
++                data-lanes = <1 2>;
++            };
++        };
++    };
++};
++
++&i2c4 {
++    status = "okay";
++    #address-cells  = <1>;
++    #size-cells     = <0>;
++    gc2145: gc2145@3c {
++        compatible = "galaxycore,gc2145";
++        reg = <0x3c>;
++        reset-gpios = <&porta 23 GPIO_ACTIVE_LOW>;
++        pwdn-gpios = <&porta 17 GPIO_ACTIVE_HIGH>;
++        canaanchip,camera-module-index = <1>;
++        canaanchip,camera-module-facing = "front";
++        canaanchip,camera-module-name = "BFC105-DUAL-L";
++        canaanchip,camera-module-lens-name = "RGB";
++        //ir-cut = <&cam_ircut0>;
++        hflip = <1>;
++
++        port {
++            ucam_out1: endpoint {
++                remote-endpoint = <&mipi_in_ucam1>;
++                data-lanes = <3 4>;
++            };
++        };
++    }; 
++};
++
++&isp1{
++	status = "okay";
++	sensor_num =<2>;
++	dphy_speed =<1>; //0-RXDPHY_SPEED_MODE_2500M,1-RXDPHY_SPEED_MODE_1500M
++	dphy_mode = <0>;//0-TWO_LANES_MODE,1-FOUR_LANES_MODE
++	sony_mode = <0>;//0-SONY_POL_MODE_DIS,1-SONY_POL_MODE_EN
++	ports {
++		#address-cells = <1>;
++		#size-cells = <0>;
++		//port@0 {
++		//	dvp_in_ucam2: endpoint@2 {
++		//		//status = "okay";
++		//		//remote-endpoint = <&ucam_out1>;
++		//		//data-lanes = <3 4>;
++		//		data-type = <0x2b>; //0x1E-MIPI_YUV422,0x2A-MIPI_RAW8,0x2B-MIPI_RAW10,0x2C-MIPI_RAW12
++		//		tpg_r_en = <0>;
++		//		tpg_w_en = <0>;
++		//		wdr_sensor_vendor =<0>;//0-"SONY_WDR_SENSOR", 1=OTHERS_WDR_SENSOR
++		//		wdr_mode = <0>;//0-none wdr mode, 1-2frame wdr mode, 2-3frame wdr mode
++		//		mipi_csi_mode = <0>; //0- normal mode, 1 -debug mode
++		//		isp_pipeline = <3>;//1 -ISP_F_2K, 2 -ISP_R_2K,3-ISP_TOF
++		//	};
++		//};
++		port@1 {
++			reg = <1>;
++			#address-cells = <1>;
++			#size-cells = <0>;
++			mipi_in_ucam0: endpoint@0 {
++				status = "okay";
++				reg = <1>;
++				remote-endpoint = <&ucam_out0>;
++				clock-lanes = <0>;
++				data-lanes = <1 2>;
++				data-type = <0x2b>; //0x1E-MIPI_YUV422,0x2A-MIPI_RAW8,0x2B-MIPI_RAW10,0x2C-MIPI_RAW12
++				tpg_r_en = <0>;
++				tpg_w_en = <0>;
++				wdr_sensor_vendor =<0>;//0-"SONY_WDR_SENSOR", 1=OTHERS_WDR_SENSOR
++				wdr_mode = <0>;//0-none wdr mode ,1-2frame wdr mode, 2-3frame wdr mode
++				mipi_csi_mode = <0>; //0- normal mode ,1 -debug mode
++				isp_pipeline = <1>;//1 -ISP_F_2K, 2 -ISP_R_2K, 3-ISP_TOF
++			};
++		};
++		port@2 {
++			reg = <2>;
++			#address-cells = <1>;
++			#size-cells = <0>;
++			mipi_in_ucam1: endpoint@1{
++				status = "okay";
++				reg = <1>;
++				remote-endpoint = <&ucam_out1>;
++				clock-lanes = <1>;
++				data-lanes = <3 4>;
++				data-type = <0x2b>; //0x1E-MIPI_YUV422,0x2A-MIPI_RAW8,0x2B-MIPI_RAW10,0x2C-MIPI_RAW12
++				tpg_r_en = <0>;
++				tpg_w_en = <0>;
++				wdr_sensor_vendor =<0>;//0-"SONY_WDR_SENSOR", 1=OTHERS_WDR_SENSOR
++				wdr_mode = <0>;//0-none wdr mode, 1-2frame wdr mode ,2-3frame wdr mode
++				mipi_csi_mode = <0>; //0- normal mode ,1 -debug mode
++				isp_pipeline = <2>;//1 -ISP_F_2K, 2 -ISP_R_2K, 3-ISP_TOF
++			};
++		};
++
++	};
++};
+diff --git a/arch/riscv/boot/dts/canaan/k510_common/camera-gc2145_gc2093.dtsi b/arch/riscv/boot/dts/canaan/k510_common/camera-gc2145_gc2093.dtsi
+new file mode 100755
+index 00000000..81a2ff7c
+--- /dev/null
++++ b/arch/riscv/boot/dts/canaan/k510_common/camera-gc2145_gc2093.dtsi
+@@ -0,0 +1,115 @@
++//RGB
++&i2c1 {
++    status = "okay";
++    #address-cells  = <1>;
++    #size-cells     = <0>;
++    gc2093: gc2093@37 {
++        compatible = "galaxycore,gc2093";
++        reg = <0x37>;
++        reset-gpios = <&porta 8 GPIO_ACTIVE_LOW>;
++        pwdn-gpios = <&porta 9 GPIO_ACTIVE_LOW>;
++        canaanchip,camera-module-index = <1>;
++        canaanchip,camera-module-facing = "front";
++        canaanchip,camera-module-name = "BFC105-DUAL-L";
++        canaanchip,camera-module-lens-name = "RGB";
++        // ir-cut = <&cam_ircut0>;
++        hflip = <1>;
++
++        port {
++            ucam_out1: endpoint {
++                remote-endpoint = <&mipi_in_ucam1>;
++                data-lanes = <1 2>;
++            };
++        };
++    };
++};
++
++&i2c4 {
++    status = "okay";
++    #address-cells  = <1>;
++    #size-cells     = <0>;
++    gc2145: gc2145@3c {
++        compatible = "galaxycore,gc2145";
++        reg = <0x3c>;
++        reset-gpios = <&porta 23 GPIO_ACTIVE_LOW>;
++        pwdn-gpios = <&porta 17 GPIO_ACTIVE_HIGH>;
++        canaanchip,camera-module-index = <0>;
++        canaanchip,camera-module-facing = "front";
++        canaanchip,camera-module-name = "BFC105-DUAL-L";
++        canaanchip,camera-module-lens-name = "RGB";
++        //ir-cut = <&cam_ircut0>;
++        hflip = <1>;
++
++        port {
++            ucam_out0: endpoint {
++                remote-endpoint = <&mipi_in_ucam0>;
++                data-lanes = <3 4>;
++            };
++        };
++    }; 
++};
++
++&isp1{
++	status = "okay";
++	sensor_num =<2>;
++	dphy_speed =<1>; //0-RXDPHY_SPEED_MODE_2500M,1-RXDPHY_SPEED_MODE_1500M
++	dphy_mode = <0>;//0-TWO_LANES_MODE,1-FOUR_LANES_MODE
++	sony_mode = <0>;//0-SONY_POL_MODE_DIS,1-SONY_POL_MODE_EN
++	ports {
++		#address-cells = <1>;
++		#size-cells = <0>;
++		//port@0 {
++		//	dvp_in_ucam2: endpoint@2 {
++		//		//status = "okay";
++		//		//remote-endpoint = <&ucam_out1>;
++		//		//data-lanes = <3 4>;
++		//		data-type = <0x2b>; //0x1E-MIPI_YUV422,0x2A-MIPI_RAW8,0x2B-MIPI_RAW10,0x2C-MIPI_RAW12
++		//		tpg_r_en = <0>;
++		//		tpg_w_en = <0>;
++		//		wdr_sensor_vendor =<0>;//0-"SONY_WDR_SENSOR", 1=OTHERS_WDR_SENSOR
++		//		wdr_mode = <0>;//0-none wdr mode, 1-2frame wdr mode, 2-3frame wdr mode
++		//		mipi_csi_mode = <0>; //0- normal mode, 1 -debug mode
++		//		isp_pipeline = <3>;//1 -ISP_F_2K, 2 -ISP_R_2K,3-ISP_TOF
++		//	};
++		//};
++		port@1 {
++			reg = <1>;
++			#address-cells = <1>;
++			#size-cells = <0>;
++			mipi_in_ucam0: endpoint@0 {
++				status = "okay";
++				reg = <1>;
++				remote-endpoint = <&ucam_out0>;
++				clock-lanes = <1>;
++				data-lanes = <3 4>;
++				data-type = <0x2b>; //0x1E-MIPI_YUV422,0x2A-MIPI_RAW8,0x2B-MIPI_RAW10,0x2C-MIPI_RAW12
++				tpg_r_en = <0>;
++				tpg_w_en = <0>;
++				wdr_sensor_vendor =<0>;//0-"SONY_WDR_SENSOR", 1=OTHERS_WDR_SENSOR
++				wdr_mode = <0>;//0-none wdr mode ,1-2frame wdr mode, 2-3frame wdr mode
++				mipi_csi_mode = <0>; //0- normal mode ,1 -debug mode
++				isp_pipeline = <1>;//1 -ISP_F_2K, 2 -ISP_R_2K, 3-ISP_TOF
++			};
++		};
++		port@2 {
++			reg = <2>;
++			#address-cells = <1>;
++			#size-cells = <0>;
++			mipi_in_ucam1: endpoint@1{
++				status = "okay";
++				reg = <1>;
++				remote-endpoint = <&ucam_out1>;
++				clock-lanes = <0>;
++				data-lanes = <1 2>;
++				data-type = <0x2b>; //0x1E-MIPI_YUV422,0x2A-MIPI_RAW8,0x2B-MIPI_RAW10,0x2C-MIPI_RAW12
++				tpg_r_en = <0>;
++				tpg_w_en = <0>;
++				wdr_sensor_vendor =<0>;//0-"SONY_WDR_SENSOR", 1=OTHERS_WDR_SENSOR
++				wdr_mode = <0>;//0-none wdr mode, 1-2frame wdr mode ,2-3frame wdr mode
++				mipi_csi_mode = <0>; //0- normal mode ,1 -debug mode
++				isp_pipeline = <2>;//1 -ISP_F_2K, 2 -ISP_R_2K, 3-ISP_TOF
++			};
++		};
++
++	};
++};
+diff --git a/arch/riscv/boot/dts/canaan/k510_crb_lp3_v1_2.dts b/arch/riscv/boot/dts/canaan/k510_crb_lp3_v1_2.dts
+index 39e7b26b..cecd61c1 100755
+--- a/arch/riscv/boot/dts/canaan/k510_crb_lp3_v1_2.dts
++++ b/arch/riscv/boot/dts/canaan/k510_crb_lp3_v1_2.dts
+@@ -20,6 +20,11 @@
+ #include "k510_common/iomux_provider.dtsi"          /* k510 soc iomux provider */
+ #include "k510_common/iomux_consumer.dtsi"          /* k510 soc iomux consumer */
+ #include "k510_common/camera-imx219x2.dtsi"          /* camera imx219 */
++//#include "k510_common/camera-gc2053_gc2093.dtsi"          /* camera gc2053/gc2093 */
++//#include "k510_common/camera-gc2093_gc2053.dtsi"          /* camera gc2053/gc2093 */
++//#include "k510_common/camera-gc2093_gc2145.dtsi"          /* camera gc2093/gc2145 */
++//#include "k510_common/camera-gc2145_gc2093.dtsi"          /* camera gc2093/gc2145 */
++
+ #include <dt-bindings/display/drm_mipi_dsi.h>
+ 
+ /* evalution board device tree, include nandflash/emmc/ethphy/sensor/hdmi/pmic etc. */
+@@ -207,9 +212,13 @@
+         pinctrl-k510,pins = <
+             (32) (FUNC_GPIO22) /*OEB*/
+             (34) (FUNC_GPIO21) /*SEL*/
++            (67) (FUNC_GPIO9)
++            (68) (FUNC_GPIO23)
+             (69) (FUNC_GPIO2) /*WIFI_WAKE_OUT*/
+             (70) (FUNC_GPIO3) /*BT_RST_IN*/
+             (71) (FUNC_GPIO4) /*KEY_1*/
++            (72) (FUNC_GPIO17)
++            (73) (FUNC_GPIO18)
+             (75) (FUNC_GPIO5) /*HP_INSERT_DET*/
+             (76) (FUNC_GPIO6) /*KEY_2*/
+             (77) (FUNC_GPIO7) /*SYS_LED*/
+@@ -217,6 +226,7 @@
+             (79) (FUNC_GPIO20) /*MIPI_DSI_LCD_EN*/
+             (80) (FUNC_GPIO10) /*MIPI_DSI_T_RST*/
+             (81) (FUNC_GPIO11) /*BT_WAKE_OUT*/
++            (82) (FUNC_GPIO8)
+             (83) (FUNC_GPIO12) /*MIPI_DSI_T_INT*/
+             (84) (FUNC_GPIO13) /*BT_WAKE_IN*/
+             (85) (FUNC_GPIO14) /*WIFI_EN*/
+diff --git a/drivers/media/i2c/soc_camera/canaanchip/Kconfig b/drivers/media/i2c/soc_camera/canaanchip/Kconfig
+index fb072753..7be3e789 100755
+--- a/drivers/media/i2c/soc_camera/canaanchip/Kconfig
++++ b/drivers/media/i2c/soc_camera/canaanchip/Kconfig
+@@ -14,9 +14,36 @@ config VIDEO_IMX219_1
+ 	  CMOS image sensor.
+ 
+ config VIDEO_IMX385
+-	tristate "Sony IMX385 sensor support"
++        tristate "Sony IMX385 sensor support"
++        depends on I2C && VIDEO_V4L2 && VIDEO_V4L2_SUBDEV_API && VIDEO_CANAAN_K510
++        depends on MEDIA_CAMERA_SUPPORT
++        ---help---
++          This is a V4L2 sensor-level driver for the Sony IMX385
++          CMOS image sensor.
++
++config VIDEO_GC2053
++	tristate "Galaxycore GC2053 sensor support"
+ 	depends on I2C && VIDEO_V4L2 && VIDEO_V4L2_SUBDEV_API && VIDEO_CANAAN_K510
+ 	depends on MEDIA_CAMERA_SUPPORT
+ 	---help---
+-	  This is a V4L2 sensor-level driver for the Sony IMX385
+-	  CMOS image sensor.
+\ No newline at end of file
++	  This is a V4L2 sensor-level driver for the Galaxycore GC2053
++	  CMOS image sensor.
++
++config VIDEO_GC2093
++        tristate "Galaxycore GC2093 sensor support"
++        depends on I2C && VIDEO_V4L2 && VIDEO_V4L2_SUBDEV_API && VIDEO_CANAAN_K510
++        depends on MEDIA_CAMERA_SUPPORT
++        ---help---
++          This is a V4L2 sensor-level driver for the Galaxycore GC2093
++          CMOS image sensor.
++
++config VIDEO_GC2145
++        tristate "Galaxycore GC2145 sensor support"
++        depends on I2C && VIDEO_V4L2 && VIDEO_V4L2_SUBDEV_API && VIDEO_CANAAN_K510
++        depends on MEDIA_CAMERA_SUPPORT
++        ---help---
++          This is a V4L2 sensor-level driver for the Galaxycore GC2145
++          CMOS image sensor.
++
++
++
+diff --git a/drivers/media/i2c/soc_camera/canaanchip/Makefile b/drivers/media/i2c/soc_camera/canaanchip/Makefile
+index feaf60f7..3b53d53e 100755
+--- a/drivers/media/i2c/soc_camera/canaanchip/Makefile
++++ b/drivers/media/i2c/soc_camera/canaanchip/Makefile
+@@ -1,3 +1,6 @@
+ obj-$(CONFIG_VIDEO_IMX219_0)	+= imx219_0.o
+ obj-$(CONFIG_VIDEO_IMX219_1)	+= imx219_1.o
+-obj-$(CONFIG_VIDEO_IMX385)	+= imx385.o
+\ No newline at end of file
++obj-$(CONFIG_VIDEO_IMX385)	+= imx385.o
++obj-$(CONFIG_VIDEO_GC2053)	+= gc2053.o
++obj-$(CONFIG_VIDEO_GC2093)	+= gc2093.o
++obj-$(CONFIG_VIDEO_GC2145)	+= gc2145.o
+diff --git a/drivers/media/i2c/soc_camera/canaanchip/gc2053.c b/drivers/media/i2c/soc_camera/canaanchip/gc2053.c
+new file mode 100755
+index 00000000..c939c890
+--- /dev/null
++++ b/drivers/media/i2c/soc_camera/canaanchip/gc2053.c
+@@ -0,0 +1,1258 @@
++/*
++ * Driver for GC2053 CMOS Image Sensor
++ *
++ * Copyright (C) 2022, Canaan Bright Sight Co., Ltd
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software Foundation.
++ */
++
++#include <linux/clk.h>
++#include <linux/device.h>
++#include <linux/delay.h>
++#include <linux/gpio/consumer.h>
++#include <linux/i2c.h>
++#include <linux/module.h>
++#include <linux/pm_runtime.h>
++#include <linux/of.h>
++#include <linux/of_graph.h>
++#include <linux/regulator/consumer.h>
++#include <linux/sysfs.h>
++#include <linux/slab.h>
++#include <linux/pinctrl/consumer.h>
++#include <linux/version.h>
++#include <linux/canaan-camera-module.h>
++
++#include <media/v4l2-async.h>
++#include <media/media-entity.h>
++#include <media/v4l2-common.h>
++#include <media/v4l2-ctrls.h>
++#include <media/v4l2-device.h>
++#include <media/v4l2-event.h>
++#include <media/v4l2-fwnode.h>
++#include <media/v4l2-image-sizes.h>
++#include <media/v4l2-mediabus.h>
++#include <media/v4l2-subdev.h>
++
++#define DRIVER_VERSION          KERNEL_VERSION(0, 0x01, 0x01)
++#define GC2053_NAME             "gc2053"
++#define GC2053_MEDIA_BUS_FMT    MEDIA_BUS_FMT_SRGGB10_1X10
++
++#define MIPI_FREQ_297M          297000000
++#define GC2053_XVCLK_FREQ       24000000
++
++#define GC2053_PAGE_SELECT      0xFE
++
++#define GC2053_REG_CHIP_ID_H    0xF0
++#define GC2053_REG_CHIP_ID_L    0xF1
++
++#define GC2053_REG_EXP_H        0x03
++#define GC2053_REG_EXP_L        0x04
++
++#define GC2053_REG_VTS_H        0x41
++#define GC2053_REG_VTS_L        0x42
++
++#define GC2053_REG_CTRL_MODE    0x3E
++#define GC2053_MODE_SW_STANDBY  0x11
++#define GC2053_MODE_STREAMING   0x91
++
++#define REG_NULL                0xFF
++
++#define GC2053_CHIP_ID          0x2053
++
++#define GC2053_VTS_MAX          0x3FFF
++#define GC2053_HTS_MAX          0xFFF
++
++#define GC2053_EXPOSURE_MAX     0x3FFF
++#define GC2053_EXPOSURE_MIN     1
++#define GC2053_EXPOSURE_STEP    1
++
++#define GC2053_GAIN_MIN         0x40
++#define GC2053_GAIN_MAX         0x2000
++#define GC2053_GAIN_STEP        1
++#define GC2053_GAIN_DEFAULT     64
++
++#define GC2053_LANES            2
++
++#define SENSOR_ID(_msb, _lsb)   ((_msb) << 8 | (_lsb))
++
++#define GC2053_FLIP_MIRROR_REG  0x17
++
++#define GC_MIRROR_BIT_MASK      BIT(0)
++#define GC_FLIP_BIT_MASK        BIT(1)
++
++#define GC2053_NUM_SUPPLIES ARRAY_SIZE(gc2053_supply_names)
++
++#define to_gc2053(sd) container_of(sd, struct gc2053, subdev)
++
++struct regval {
++	u8 addr;
++	u8 val;
++};
++
++struct gc2053_mode {
++	u32 width;
++	u32 height;
++	struct v4l2_fract max_fps;
++	u32 hts_def;
++	u32 vts_def;
++	u32 exp_def;
++	const struct regval *reg_list;
++};
++
++struct gc2053 {
++	struct i2c_client   *client;
++	struct gpio_desc    *reset_gpio;
++	struct gpio_desc    *pwdn_gpio;
++
++	struct v4l2_subdev  subdev;
++	struct media_pad    pad;
++	struct v4l2_ctrl_handler ctrl_handler;
++	struct v4l2_ctrl    *exposure;
++	struct v4l2_ctrl    *anal_gain;
++	struct v4l2_ctrl    *hblank;
++	struct v4l2_ctrl    *vblank;
++	struct v4l2_ctrl    *h_flip;
++	struct v4l2_ctrl    *v_flip;
++	struct mutex        mutex;
++	bool            streaming;
++	bool			power_on;
++	const struct gc2053_mode *cur_mode;
++	unsigned int        lane_num;
++	unsigned int        cfg_num;
++	unsigned int        pixel_rate;
++
++	u32         module_index;
++	const char      *module_facing;
++	const char      *module_name;
++	const char      *len_name;
++	u8			flip;
++};
++
++static const struct regval gc2053_start[] = {
++	{0xf0, 0x00},		/* mode select streaming on */
++	{0x3e, 0x91},
++	{REG_NULL, 0x00},
++};
++
++static const struct regval gc2053_stop[] = {
++	{0xf0, 0x00},		/* mode select streaming off */
++	{0x3e, 0x00},
++	{REG_NULL, 0x00},
++};
++
++/*
++ * window_size=1920*1080 mipi@2lane
++ * mclk=24mhz,mipi_clk=594Mbps
++ * pixel_line_total=2200,line_frame_total=1125
++ * row_time=29.629us,frame_rate=30fps
++ */
++static const struct regval gc2053_1920x1080_regs_2lane[] = {
++	/****system****/
++	{0xfe, 0x80},
++	{0xfe, 0x80},
++	{0xfe, 0x80},
++	{0xfe, 0x00},
++	{0xf2, 0x00},
++	{0xf3, 0x00},
++	{0xf4, 0x36},
++	{0xf5, 0xc0},
++	{0xf6, 0x44},
++	{0xf7, 0x01},
++	{0xf8, 0x63},
++	{0xf9, 0x40},
++	{0xfc, 0x8e},
++	/****CISCTL & ANALOG****/
++	{0xfe, 0x00},
++	{0x87, 0x18},
++	{0xee, 0x30},
++	{0xd0, 0xb7},
++	{0x03, 0x04},
++	{0x04, 0x60},
++	{0x05, 0x04},
++	{0x06, 0x4c},
++	{0x07, 0x00},
++	{0x08, 0x11},
++	{0x09, 0x00},
++	{0x0a, 0x02},
++	{0x0b, 0x00},
++	{0x0c, 0x02},
++	{0x0d, 0x04},
++	{0x0e, 0x40},
++	{0x12, 0xe2},
++	{0x13, 0x16},
++	{0x19, 0x0a},
++	{0x21, 0x1c},
++	{0x28, 0x0a},
++	{0x29, 0x24},
++	{0x2b, 0x04},
++	{0x32, 0xf8},
++	{0x37, 0x03},
++	{0x39, 0x15},
++	{0x43, 0x07},
++	{0x44, 0x40},
++	{0x46, 0x0b},
++	{0x4b, 0x20},
++	{0x4e, 0x08},
++	{0x55, 0x20},
++	{0x66, 0x05},
++	{0x67, 0x05},
++	{0x77, 0x01},
++	{0x78, 0x00},
++	{0x7c, 0x93},
++	{0x8c, 0x12},
++	{0x8d, 0x92},
++	{0x90, 0x01},
++	{0x9d, 0x10},
++	{0xce, 0x7c},
++	{0xd2, 0x41},
++	{0xd3, 0xdc},
++	{0xe6, 0x50},
++	/*gain*/
++	{0xb6, 0xc0},
++	{0xb0, 0x60},
++	{0xb1, 0x01},
++	{0xb2, 0x00},
++	{0xb3, 0x00},
++	{0xb4, 0x00},
++	{0xb8, 0x01},
++	{0xb9, 0x00},
++	/*blk*/
++	{0x26, 0x30},
++	{0xfe, 0x01},
++	{0x40, 0x23},
++	{0x55, 0x07},
++	{0x60, 0x40},
++	{0xfe, 0x04},
++	{0x14, 0x78},
++	{0x15, 0x78},
++	{0x16, 0x78},
++	{0x17, 0x78},
++	/*window*/
++	{0xfe, 0x01},
++	{0x92, 0x00},
++	{0x94, 0x03},
++	{0x95, 0x04},//[10:0]win_out_height-1080
++	{0x96, 0x38},
++	{0x97, 0x07},//[11:0]win_out_width-1920
++	{0x98, 0x80},
++	/*ISP*/
++	{0xfe, 0x01},
++	{0x01, 0x05},
++	{0x02, 0x89},
++	{0x04, 0x01},
++	{0x07, 0xa6},
++	{0x08, 0xa9},
++	{0x09, 0xa8},
++	{0x0a, 0xa7},
++	{0x0b, 0xff},
++	{0x0c, 0xff},
++	{0x0f, 0x00},
++	{0x50, 0x1c},
++	{0x89, 0x03},
++	{0xfe, 0x04},
++	{0x28, 0x86},
++	{0x29, 0x86},
++	{0x2a, 0x86},
++	{0x2b, 0x68},
++	{0x2c, 0x68},
++	{0x2d, 0x68},
++	{0x2e, 0x68},
++	{0x2f, 0x68},
++	{0x30, 0x4f},
++	{0x31, 0x68},
++	{0x32, 0x67},
++	{0x33, 0x66},
++	{0x34, 0x66},
++	{0x35, 0x66},
++	{0x36, 0x66},
++	{0x37, 0x66},
++	{0x38, 0x62},
++	{0x39, 0x62},
++	{0x3a, 0x62},
++	{0x3b, 0x62},
++	{0x3c, 0x62},
++	{0x3d, 0x62},
++	{0x3e, 0x62},
++	{0x3f, 0x62},
++	/****DVP & MIPI****/
++	{0xfe, 0x01},
++	{0x9a, 0x06},
++	{0x99, 0x00},
++	{0xfe, 0x00},
++	{0x7b, 0x2a},
++	{0x23, 0x2d},
++	{0xfe, 0x03},
++	{0x01, 0x27},
++	{0x02, 0x56},
++	{0x03, 0x8e},
++	{0x12, 0x80},
++	{0x13, 0x07},
++	{0xfe, 0x00},
++	{0x3e, 0x81},
++	{REG_NULL, 0x00},
++};
++
++static const struct gc2053_mode supported_modes[] = {
++	{
++		.width = 1920,
++		.height = 1080,
++		.max_fps = {
++			.numerator = 10000,
++			.denominator = 300000,
++		},
++		.exp_def = 0x460,
++		.hts_def = 0x898,
++		.vts_def = 0x465,
++		.reg_list = gc2053_1920x1080_regs_2lane,
++	},
++};
++
++static const s64 link_freq_menu_items[] = {
++	MIPI_FREQ_297M
++};
++
++/* sensor register write */
++static int gc2053_write_reg(struct i2c_client *client, u8 reg, u8 val)
++{
++	struct i2c_msg msg;
++	u8 buf[2];
++	int ret;
++
++	buf[0] = reg & 0xFF;
++	buf[1] = val;
++
++	msg.addr = client->addr;
++	msg.flags = client->flags;
++	msg.buf = buf;
++	msg.len = sizeof(buf);
++
++	ret = i2c_transfer(client->adapter, &msg, 1);
++	if (ret >= 0)
++		return 0;
++
++	dev_err(&client->dev,
++		"gc2053 write reg(0x%x val:0x%x) failed !\n", reg, val);
++
++	return ret;
++}
++
++static int gc2053_write_array(struct i2c_client *client,
++				  const struct regval *regs)
++{
++	int i, ret = 0;
++
++	i = 0;
++	while (regs[i].addr != REG_NULL) {
++		ret = gc2053_write_reg(client, regs[i].addr, regs[i].val);
++		if (ret) {
++			dev_err(&client->dev, "%s failed !\n", __func__);
++			break;
++		}
++		i++;
++	}
++
++	return ret;
++}
++
++/* sensor register read */
++static int gc2053_read_reg(struct i2c_client *client, u8 reg, u8 *val)
++{
++	struct i2c_msg msg[2];
++	u8 buf[1];
++	int ret;
++
++	buf[0] = reg & 0xFF;
++
++	msg[0].addr = client->addr;
++	msg[0].flags = client->flags;
++	msg[0].buf = buf;
++	msg[0].len = sizeof(buf);
++
++	msg[1].addr = client->addr;
++	msg[1].flags = client->flags | I2C_M_RD;
++	msg[1].buf = buf;
++	msg[1].len = 1;
++
++	ret = i2c_transfer(client->adapter, msg, 2);
++	if (ret >= 0) {
++		*val = buf[0];
++		return 0;
++	}
++
++	dev_err(&client->dev,
++		"gc2053 read reg(0x%x val:0x%x) failed !\n", reg, *val);
++
++	return ret;
++}
++
++static int gc2053_get_reso_dist(const struct gc2053_mode *mode,
++				struct v4l2_mbus_framefmt *framefmt)
++{
++	return abs(mode->width - framefmt->width) +
++		   abs(mode->height - framefmt->height);
++}
++
++static const struct gc2053_mode *
++gc2053_find_best_fit(struct gc2053 *gc2053, struct v4l2_subdev_format *fmt)
++{
++	struct v4l2_mbus_framefmt *framefmt = &fmt->format;
++	int dist;
++	int cur_best_fit = 0;
++	int cur_best_fit_dist = -1;
++	unsigned int i;
++
++	for (i = 0; i < gc2053->cfg_num; i++) {
++		dist = gc2053_get_reso_dist(&supported_modes[i], framefmt);
++		if (cur_best_fit_dist == -1 || dist <= cur_best_fit_dist) {
++			cur_best_fit_dist = dist;
++			cur_best_fit = i;
++		}
++	}
++
++	return &supported_modes[cur_best_fit];
++}
++
++static uint8_t gain_reg_table[29][4] = {
++	{0x00, 0x00, 0x01, 0x00},
++	{0x00, 0x10, 0x01, 0x0c},
++	{0x00, 0x20, 0x01, 0x1b},
++	{0x00, 0x30, 0x01, 0x2c},
++	{0x00, 0x40, 0x01, 0x3f},
++	{0x00, 0x50, 0x02, 0x16},
++	{0x00, 0x60, 0x02, 0x35},
++	{0x00, 0x70, 0x03, 0x16},
++	{0x00, 0x80, 0x04, 0x02},
++	{0x00, 0x90, 0x04, 0x31},
++	{0x00, 0xa0, 0x05, 0x32},
++	{0x00, 0xb0, 0x06, 0x35},
++	{0x00, 0xc0, 0x08, 0x04},
++	{0x00, 0x5a, 0x09, 0x19},
++	{0x00, 0x83, 0x0b, 0x0f},
++	{0x00, 0x93, 0x0d, 0x12},
++	{0x00, 0x84, 0x10, 0x00},
++	{0x00, 0x94, 0x12, 0x3a},
++	{0x01, 0x2c, 0x1a, 0x02},
++	{0x01, 0x3c, 0x1b, 0x20},
++	{0x00, 0x8c, 0x20, 0x0f},
++	{0x00, 0x9c, 0x26, 0x07},
++	{0x02, 0x64, 0x36, 0x21},
++	{0x02, 0x74, 0x37, 0x3a},
++	{0x00, 0xc6, 0x3d, 0x02},
++	{0x00, 0xdc, 0x3f, 0x3f},
++	{0x02, 0x85, 0x3f, 0x3f},
++	{0x02, 0x95, 0x3f, 0x3f},
++	{0x00, 0xce, 0x3f, 0x3f},
++};
++
++static  uint32_t gain_level_table[30] = {
++	64,
++	76,
++	91,
++	108,
++	127,
++	150,
++	181,
++	214,
++	258,
++	305,
++	370,
++	437,
++	516,
++	601,
++	719,
++	850,
++	1024,
++	1210,
++	1538,
++	1760,
++	2063,
++	2439,
++	2881,
++	3393,
++	3970,
++	4737,
++	5572,
++	6552,
++	7713,
++	0xffffffff
++};
++
++static int gc2053_set_gain(struct gc2053 *gc2053, u32 gain)
++{
++	int ret = 0;
++	uint8_t i = 0;
++	uint8_t total = 0;
++	uint8_t temp = 0;
++
++	total = sizeof(gain_level_table) / sizeof(u32) - 1;
++	for (i = 0; i < total; i++) {
++		if ((gain_level_table[i] <= gain) && (gain < gain_level_table[i+1]))
++			break;
++	}
++
++	ret = gc2053_write_reg(gc2053->client, 0xb4, gain_reg_table[i][0]);
++	ret |= gc2053_write_reg(gc2053->client, 0xb3, gain_reg_table[i][1]);
++	ret |= gc2053_write_reg(gc2053->client, 0xb8, gain_reg_table[i][2]);
++	ret |= gc2053_write_reg(gc2053->client, 0xb9, gain_reg_table[i][3]);
++
++	temp = 64 * gain / gain_level_table[i];
++	ret |= gc2053_write_reg(gc2053->client, 0xb1, (temp >> 6));
++	ret |= gc2053_write_reg(gc2053->client, 0xb2, (temp << 2) & 0xfc);
++
++	return ret;
++}
++
++static int gc2053_set_ctrl(struct v4l2_ctrl *ctrl)
++{
++	struct gc2053 *gc2053 = container_of(ctrl->handler,
++						 struct gc2053, ctrl_handler);
++	struct i2c_client *client = gc2053->client;
++	s64 max;
++	int ret = 0;
++	u32 vts = 0;
++
++	/* Propagate change of current control to all related controls */
++	switch (ctrl->id) {
++	case V4L2_CID_VBLANK:
++		/* Update max exposure while meeting expected vblanking */
++		max = gc2053->cur_mode->height + ctrl->val - 1;
++		__v4l2_ctrl_modify_range(gc2053->exposure,
++					 gc2053->exposure->minimum, max,
++					 gc2053->exposure->step,
++					 gc2053->exposure->default_value);
++		break;
++	}
++
++	switch (ctrl->id) {
++	case V4L2_CID_EXPOSURE:
++		ret = gc2053_write_reg(gc2053->client, GC2053_REG_EXP_H,
++									(ctrl->val >> 8) & 0x3f);
++		ret |= gc2053_write_reg(gc2053->client, GC2053_REG_EXP_L,
++									ctrl->val & 0xff);
++		break;
++	case V4L2_CID_ANALOGUE_GAIN:
++	case V4L2_CID_GAIN:
++		gc2053_set_gain(gc2053, ctrl->val);
++		break;
++	case V4L2_CID_VBLANK:
++		vts = ctrl->val + gc2053->cur_mode->height;
++		ret = gc2053_write_reg(gc2053->client, GC2053_REG_VTS_H, (vts >> 8) & 0x3f);
++		ret |= gc2053_write_reg(gc2053->client, GC2053_REG_VTS_L, vts & 0xff);
++		break;
++	case V4L2_CID_HFLIP:
++		if (ctrl->val)
++			gc2053->flip |= GC_MIRROR_BIT_MASK;
++		else
++			gc2053->flip &= ~GC_MIRROR_BIT_MASK;
++		break;
++	case V4L2_CID_VFLIP:
++		if (ctrl->val)
++			gc2053->flip |= GC_FLIP_BIT_MASK;
++		else
++			gc2053->flip &= ~GC_FLIP_BIT_MASK;
++		break;
++	default:
++		dev_warn(&client->dev, "%s Unhandled id:0x%x, val:0x%x\n",
++			 __func__, ctrl->id, ctrl->val);
++		break;
++	}
++
++	return ret;
++}
++
++static const struct v4l2_ctrl_ops gc2053_ctrl_ops = {
++	.s_ctrl = gc2053_set_ctrl,
++};
++
++static int gc2053_parse_of(struct gc2053 *gc2053)
++{
++	struct device *dev = &gc2053->client->dev;
++	struct device_node *endpoint;
++	struct fwnode_handle *fwnode;
++	int rval;
++
++	endpoint = of_graph_get_next_endpoint(dev->of_node, NULL);
++	if (!endpoint) {
++		dev_err(dev, "Failed to get endpoint\n");
++		return -EINVAL;
++	}
++	fwnode = of_fwnode_handle(endpoint);
++	rval = fwnode_property_read_u32_array(fwnode, "data-lanes", NULL, 0);
++	if (rval <= 0) {
++		dev_warn(dev, " Get mipi lane num failed!\n");
++		return -1;
++	}
++
++	gc2053->lane_num = rval;
++	if (2 == gc2053->lane_num) {
++		gc2053->cur_mode = &supported_modes[0];
++		gc2053->cfg_num = ARRAY_SIZE(supported_modes);
++
++		/*pixel rate = link frequency * 2 * lanes / BITS_PER_SAMPLE */
++		gc2053->pixel_rate = MIPI_FREQ_297M * 2U * (gc2053->lane_num) / 10U;
++		dev_info(dev, "lane_num(%d)  pixel_rate(%u)\n",
++				 gc2053->lane_num, gc2053->pixel_rate);
++	} else {
++		dev_info(dev, "gc2053 can not support the lane num(%d)\n", gc2053->lane_num);
++	}
++	return 0;
++}
++
++static int gc2053_initialize_controls(struct gc2053 *gc2053)
++{
++	const struct gc2053_mode *mode;
++	struct v4l2_ctrl_handler *handler;
++	struct v4l2_ctrl *ctrl;
++	s64 exposure_max, vblank_def;
++	u32 h_blank;
++	int ret;
++
++	handler = &gc2053->ctrl_handler;
++	mode = gc2053->cur_mode;
++	ret = v4l2_ctrl_handler_init(handler, 10);
++	if (ret)
++		return ret;
++	handler->lock = &gc2053->mutex;
++
++	ctrl = v4l2_ctrl_new_int_menu(handler, NULL, V4L2_CID_LINK_FREQ,
++					  0, 0, link_freq_menu_items);
++	if (ctrl)
++		ctrl->flags |= V4L2_CTRL_FLAG_READ_ONLY;
++
++	v4l2_ctrl_new_std(handler, NULL, V4L2_CID_PIXEL_RATE,
++			  0, gc2053->pixel_rate, 1, gc2053->pixel_rate);
++
++	h_blank = mode->hts_def - mode->width;
++	gc2053->hblank = v4l2_ctrl_new_std(handler, NULL, V4L2_CID_HBLANK,
++				h_blank, h_blank, 1, h_blank);
++	if (gc2053->hblank)
++		gc2053->hblank->flags |= V4L2_CTRL_FLAG_READ_ONLY;
++
++	vblank_def = mode->vts_def - mode->height;
++	gc2053->vblank = v4l2_ctrl_new_std(handler, &gc2053_ctrl_ops,
++				V4L2_CID_VBLANK, vblank_def,
++				GC2053_VTS_MAX - mode->height,
++				1, vblank_def);
++
++	exposure_max = mode->vts_def - 1;
++	gc2053->exposure = v4l2_ctrl_new_std(handler, &gc2053_ctrl_ops,
++				V4L2_CID_EXPOSURE, GC2053_EXPOSURE_MIN,
++				exposure_max, GC2053_EXPOSURE_STEP,
++				mode->exp_def);
++
++	gc2053->anal_gain = v4l2_ctrl_new_std(handler, &gc2053_ctrl_ops,
++				V4L2_CID_ANALOGUE_GAIN, GC2053_GAIN_MIN,
++				GC2053_GAIN_MAX, GC2053_GAIN_STEP,
++				GC2053_GAIN_DEFAULT);
++
++	v4l2_ctrl_new_std(handler, &gc2053_ctrl_ops,
++				V4L2_CID_GAIN, GC2053_GAIN_MIN,
++				GC2053_GAIN_MAX, GC2053_GAIN_STEP,
++				GC2053_GAIN_DEFAULT);
++
++
++	gc2053->h_flip = v4l2_ctrl_new_std(handler, &gc2053_ctrl_ops,
++				V4L2_CID_HFLIP, 0, 1, 1, 0);
++
++	gc2053->v_flip = v4l2_ctrl_new_std(handler, &gc2053_ctrl_ops,
++				V4L2_CID_VFLIP, 0, 1, 1, 0);
++	gc2053->flip = 0;
++
++	if (handler->error) {
++		ret = handler->error;
++		dev_err(&gc2053->client->dev,
++			"Failed to init controls(%d)\n", ret);
++		goto err_free_handler;
++	}
++
++	gc2053->subdev.ctrl_handler = handler;
++	return 0;
++
++err_free_handler:
++	v4l2_ctrl_handler_free(handler);
++	return ret;
++}
++
++/* Calculate the delay in us by clock rate and clock cycles */
++static inline u32 gc2053_cal_delay(u32 cycles)
++{
++	return DIV_ROUND_UP(cycles, GC2053_XVCLK_FREQ / 1000 / 1000);
++}
++
++static int __gc2053_power_on(struct gc2053 *gc2053)
++{
++	u32 delay_us;
++
++	if (!IS_ERR(gc2053->reset_gpio)) {
++		gpiod_set_value_cansleep(gc2053->reset_gpio, 1);
++		usleep_range(100, 200);
++	}
++	if (!IS_ERR(gc2053->pwdn_gpio))
++		gpiod_set_value_cansleep(gc2053->pwdn_gpio, 0);
++
++	if (!IS_ERR(gc2053->reset_gpio))
++		gpiod_set_value_cansleep(gc2053->reset_gpio, 0);
++	usleep_range(3000, 6000);
++	/* 8192 cycles prior to first SCCB transaction */
++	delay_us = gc2053_cal_delay(8192);
++	usleep_range(delay_us, delay_us * 2);
++	return 0;
++}
++
++static void __gc2053_power_off(struct gc2053 *gc2053)
++{
++	if (!IS_ERR(gc2053->pwdn_gpio))
++		gpiod_set_value_cansleep(gc2053->pwdn_gpio, 1);
++
++	if (!IS_ERR(gc2053->reset_gpio))
++		gpiod_set_value_cansleep(gc2053->reset_gpio, 1);
++}
++
++static int gc2053_check_sensor_id(struct gc2053 *gc2053,
++				   struct i2c_client *client)
++{
++	struct device *dev = &gc2053->client->dev;
++	u8 pid = 0, ver = 0;
++	u16 id = 0;
++	int ret = 0;
++
++	/* Check sensor revision */
++	ret = gc2053_read_reg(client, GC2053_REG_CHIP_ID_H, &pid);
++	ret |= gc2053_read_reg(client, GC2053_REG_CHIP_ID_L, &ver);
++	if (ret) {
++		dev_err(&client->dev, "gc2053_read_reg failed (%d)\n", ret);
++		return ret;
++	}
++
++	id = SENSOR_ID(pid, ver);
++	if (id != GC2053_CHIP_ID) {
++		dev_err(&client->dev,
++				"Sensor detection failed (%04X,%d)\n",
++				id, ret);
++		return -ENODEV;
++	}
++
++	dev_info(dev, "Detected GC%04x sensor\n", id);
++	return 0;
++}
++
++static int gc2053_set_flip(struct gc2053 *gc2053, u8 mode)
++{
++	u8 match_reg = 0;
++
++	gc2053_read_reg(gc2053->client, GC2053_FLIP_MIRROR_REG, &match_reg);
++
++	if (mode == GC_FLIP_BIT_MASK) {
++		match_reg |= GC_FLIP_BIT_MASK;
++		match_reg &= ~GC_MIRROR_BIT_MASK;
++	} else if (mode == GC_MIRROR_BIT_MASK) {
++		match_reg |= GC_MIRROR_BIT_MASK;
++		match_reg &= ~GC_FLIP_BIT_MASK;
++	} else if (mode == (GC_MIRROR_BIT_MASK |
++		GC_FLIP_BIT_MASK)) {
++		match_reg |= GC_FLIP_BIT_MASK;
++		match_reg |= GC_MIRROR_BIT_MASK;
++	} else {
++		match_reg &= ~GC_FLIP_BIT_MASK;
++		match_reg &= ~GC_MIRROR_BIT_MASK;
++	}
++	return gc2053_write_reg(gc2053->client, GC2053_FLIP_MIRROR_REG, match_reg);
++}
++
++static int __gc2053_start_stream(struct gc2053 *gc2053)
++{
++	int ret;
++
++	ret = gc2053_write_array(gc2053->client, gc2053->cur_mode->reg_list);
++	if (ret)
++		return ret;
++
++	/* In case these controls are set before streaming */
++	mutex_unlock(&gc2053->mutex);
++	ret = v4l2_ctrl_handler_setup(&gc2053->ctrl_handler);
++	mutex_lock(&gc2053->mutex);
++
++	ret = gc2053_set_flip(gc2053, gc2053->flip);
++	if (ret)
++		return ret;
++
++	ret = gc2053_write_array(gc2053->client, gc2053_start);
++	if (ret)
++		return ret;
++	
++	return ret;
++}
++
++static int __gc2053_stop_stream(struct gc2053 *gc2053)
++{
++	int ret;
++
++	ret = gc2053_write_array(gc2053->client, gc2053_stop);
++	if (ret)
++		return ret;
++
++	return ret;
++}
++
++static long gc2053_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
++{
++	struct gc2053 *gc2053 = to_gc2053(sd);
++	long ret = 0;
++
++	dev_info(&gc2053->client->dev, "gc2053_ioctl\n");
++
++	switch (cmd) {
++	//case:
++	default:
++		ret = -ENOIOCTLCMD;
++		break;
++	}
++	return ret;
++}
++
++#ifdef CONFIG_COMPAT
++static long gc2053_compat_ioctl32(struct v4l2_subdev *sd,
++				  unsigned int cmd, unsigned long arg)
++{
++	void __user *up = compat_ptr(arg);
++	struct module_inf *inf;
++	struct module_awb_cfg *awb_cfg;
++	long ret = 0;
++
++	switch (cmd) {
++	case CANAANMODULE_GET_MODULE_INFO:
++		inf = kzalloc(sizeof(*inf), GFP_KERNEL);
++		if (!inf) {
++			ret = -ENOMEM;
++			return ret;
++		}
++
++		ret = gc2053_ioctl(sd, cmd, inf);
++		if (!ret)
++			ret = copy_to_user(up, inf, sizeof(*inf));
++		kfree(inf);
++		break;
++	case CANAANMODULE_AWB_CFG:
++		awb_cfg = kzalloc(sizeof(*awb_cfg), GFP_KERNEL);
++		if (!awb_cfg) {
++			ret = -ENOMEM;
++			return ret;
++		}
++
++		ret = gc2053_ioctl(sd, cmd, awb_cfg);
++		if (!ret)
++			ret = copy_to_user(up, awb_cfg, sizeof(*awb_cfg));
++		kfree(awb_cfg);
++		break;
++	default:
++		ret = -ENOIOCTLCMD;
++		break;
++	}
++	return ret;
++}
++
++#endif
++
++static int gc2053_s_stream(struct v4l2_subdev *sd, int on)
++{
++	struct gc2053 *gc2053 = to_gc2053(sd);
++	int ret = 0;
++
++	mutex_lock(&gc2053->mutex);
++	on = !!on;
++	if (on == gc2053->streaming)
++		goto unlock_and_return;
++
++	if (on) {
++		ret = __gc2053_start_stream(gc2053);
++		if (ret) {
++			v4l2_err(sd, "start stream failed while write regs\n");
++			goto unlock_and_return;
++		}
++	} else {
++		__gc2053_stop_stream(gc2053);
++	}
++
++	gc2053->streaming = on;
++
++unlock_and_return:
++	mutex_unlock(&gc2053->mutex);
++	return 0;
++}
++
++static int gc2053_g_frame_interval(struct v4l2_subdev *sd,
++				   struct v4l2_subdev_frame_interval *fi)
++{
++	struct gc2053 *gc2053 = to_gc2053(sd);
++	const struct gc2053_mode *mode = gc2053->cur_mode;
++
++	mutex_lock(&gc2053->mutex);
++	fi->interval = mode->max_fps;
++	mutex_unlock(&gc2053->mutex);
++
++	return 0;
++}
++
++static int gc2053_g_mbus_config(struct v4l2_subdev *sd,
++				struct v4l2_mbus_config *config)
++{
++	u32 val = 1 << (GC2053_LANES - 1) | V4L2_MBUS_CSI2_CHANNEL_0 |
++		  V4L2_MBUS_CSI2_CONTINUOUS_CLOCK;
++
++	config->type = V4L2_MBUS_CSI2;
++	config->flags = (val | V4L2_MBUS_CSI2_CHANNEL_1);
++
++	return 0;
++}
++static int gc2053_enum_mbus_code(struct v4l2_subdev *sd,
++				 struct v4l2_subdev_pad_config *cfg,
++				 struct v4l2_subdev_mbus_code_enum *code)
++{
++	if (code->index != 0)
++		return -EINVAL;
++	code->code = GC2053_MEDIA_BUS_FMT;
++	return 0;
++}
++
++static int gc2053_enum_frame_sizes(struct v4l2_subdev *sd,
++				   struct v4l2_subdev_pad_config *cfg,
++				   struct v4l2_subdev_frame_size_enum *fse)
++{
++	struct gc2053 *gc2053 = to_gc2053(sd);
++
++	if (fse->index >= gc2053->cfg_num)
++		return -EINVAL;
++
++	if (fse->code != GC2053_MEDIA_BUS_FMT)
++		return -EINVAL;
++
++	fse->min_width  = supported_modes[fse->index].width;
++	fse->max_width  = supported_modes[fse->index].width;
++	fse->max_height = supported_modes[fse->index].height;
++	fse->min_height = supported_modes[fse->index].height;
++	return 0;
++}
++
++static int gc2053_enum_frame_interval(struct v4l2_subdev *sd,
++						  struct v4l2_subdev_pad_config *cfg,
++						  struct v4l2_subdev_frame_interval_enum *fie)
++{
++	struct gc2053 *gc2053 = to_gc2053(sd);
++
++	if (fie->index >= gc2053->cfg_num)
++		return -EINVAL;
++
++	fie->code = GC2053_MEDIA_BUS_FMT;
++	fie->width = supported_modes[fie->index].width;
++	fie->height = supported_modes[fie->index].height;
++	fie->interval = supported_modes[fie->index].max_fps;
++	return 0;
++}
++
++static int gc2053_set_fmt(struct v4l2_subdev *sd,
++			  struct v4l2_subdev_pad_config *cfg,
++			  struct v4l2_subdev_format *fmt)
++{
++	struct gc2053 *gc2053 = to_gc2053(sd);
++	const struct gc2053_mode *mode;
++	s64 h_blank, vblank_def;
++
++	mutex_lock(&gc2053->mutex);
++
++	mode = gc2053_find_best_fit(gc2053, fmt);
++	dev_info(&gc2053->client->dev, "set_fmt, width:%u, height:%u.\n", mode->width, mode->height);
++
++	fmt->format.code = GC2053_MEDIA_BUS_FMT;
++	fmt->format.width = mode->width;
++	fmt->format.height = mode->height;
++	fmt->format.field = V4L2_FIELD_NONE;
++
++	if (fmt->which == V4L2_SUBDEV_FORMAT_TRY) {
++#ifdef CONFIG_VIDEO_V4L2_SUBDEV_API
++		*v4l2_subdev_get_try_format(sd, cfg, fmt->pad) = fmt->format;
++#else
++		mutex_unlock(&gc2053->mutex);
++		return -ENOTTY;
++#endif
++	} else {
++		gc2053->cur_mode = mode;
++		h_blank = mode->hts_def - mode->width;
++		__v4l2_ctrl_modify_range(gc2053->hblank, h_blank,
++					 h_blank, 1, h_blank);
++		vblank_def = mode->vts_def - mode->height;
++		__v4l2_ctrl_modify_range(gc2053->vblank, vblank_def,
++					 GC2053_VTS_MAX - mode->height,
++					 1, vblank_def);
++	}
++
++	mutex_unlock(&gc2053->mutex);
++	return 0;
++}
++
++static int gc2053_get_fmt(struct v4l2_subdev *sd,
++			  struct v4l2_subdev_pad_config *cfg,
++			  struct v4l2_subdev_format *fmt)
++{
++	struct gc2053 *gc2053 = to_gc2053(sd);
++	const struct gc2053_mode *mode = gc2053->cur_mode;
++
++	mutex_lock(&gc2053->mutex);
++	if (fmt->which == V4L2_SUBDEV_FORMAT_TRY) {
++#ifdef CONFIG_VIDEO_V4L2_SUBDEV_API
++		fmt->format = *v4l2_subdev_get_try_format(sd, cfg, fmt->pad);
++#else
++		mutex_unlock(&gc2053->mutex);
++		return -ENOTTY;
++#endif
++	} else {
++		fmt->format.width = mode->width;
++		fmt->format.height = mode->height;
++		fmt->format.code = GC2053_MEDIA_BUS_FMT;
++		fmt->format.field = V4L2_FIELD_NONE;
++	}
++	mutex_unlock(&gc2053->mutex);
++	return 0;
++}
++
++#ifdef CONFIG_VIDEO_V4L2_SUBDEV_API
++static int gc2053_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
++{
++	struct gc2053 *gc2053 = to_gc2053(sd);
++	struct v4l2_mbus_framefmt *try_fmt =
++				v4l2_subdev_get_try_format(sd, fh->pad, 0);
++	const struct gc2053_mode *def_mode = &supported_modes[0];
++
++	mutex_lock(&gc2053->mutex);
++	/* Initialize try_fmt */
++	try_fmt->width = def_mode->width;
++	try_fmt->height = def_mode->height;
++	try_fmt->code = GC2053_MEDIA_BUS_FMT;
++	try_fmt->field = V4L2_FIELD_NONE;
++
++	mutex_unlock(&gc2053->mutex);
++	/* No crop or compose */
++	return 0;
++}
++#endif
++
++#ifdef CONFIG_VIDEO_V4L2_SUBDEV_API
++static const struct v4l2_subdev_internal_ops gc2053_internal_ops = {
++	.open = gc2053_open,
++};
++#endif
++
++static int gc2053_s_power(struct v4l2_subdev *sd, int on)
++{
++	struct gc2053 *gc2053 = to_gc2053(sd);
++	int ret = 0;
++
++	mutex_lock(&gc2053->mutex);
++
++	/* If the power state is not modified - no work to do. */
++	if (gc2053->power_on == !!on)
++		goto unlock_and_return;
++
++	if (on) {
++		gc2053->power_on = true;
++	} else {
++		gc2053->power_on = false;
++	}
++
++unlock_and_return:
++	mutex_unlock(&gc2053->mutex);
++
++	return ret;
++}
++
++static const struct v4l2_subdev_core_ops gc2053_core_ops = {
++	.s_power = gc2053_s_power,
++	.ioctl = gc2053_ioctl,
++#ifdef CONFIG_COMPAT
++	.compat_ioctl32 = gc2053_compat_ioctl32,
++#endif
++};
++
++static const struct v4l2_subdev_video_ops gc2053_video_ops = {
++	.s_stream = gc2053_s_stream,
++	.g_frame_interval = gc2053_g_frame_interval,
++	.g_mbus_config = gc2053_g_mbus_config,
++};
++
++static const struct v4l2_subdev_pad_ops gc2053_pad_ops = {
++	.enum_mbus_code = gc2053_enum_mbus_code,
++	.enum_frame_size = gc2053_enum_frame_sizes,
++	.enum_frame_interval = gc2053_enum_frame_interval,
++	.get_fmt = gc2053_get_fmt,
++	.set_fmt = gc2053_set_fmt,
++};
++
++static const struct v4l2_subdev_ops gc2053_subdev_ops = {
++	.core   = &gc2053_core_ops,
++	.video  = &gc2053_video_ops,
++	.pad    = &gc2053_pad_ops,
++};
++
++static int gc2053_probe(struct i2c_client *client,
++			 const struct i2c_device_id *id)
++{
++	struct device *dev = &client->dev;
++	struct device_node *node = dev->of_node;
++	struct gc2053 *gc2053;
++	struct v4l2_subdev *sd;
++	char facing[2];
++	int ret;
++
++	dev_info(dev, "driver version: %02x.%02x.%02x",
++		DRIVER_VERSION >> 16,
++		(DRIVER_VERSION & 0xff00) >> 8,
++		DRIVER_VERSION & 0x00ff);
++
++	gc2053 = devm_kzalloc(dev, sizeof(*gc2053), GFP_KERNEL);
++	if (!gc2053)
++		return -ENOMEM;
++
++	gc2053->client = client;
++	ret = of_property_read_u32(node, CANAANMODULE_CAMERA_MODULE_INDEX,
++				   &gc2053->module_index);
++	ret |= of_property_read_string(node, CANAANMODULE_CAMERA_MODULE_FACING,
++				       &gc2053->module_facing);
++	ret |= of_property_read_string(node, CANAANMODULE_CAMERA_MODULE_NAME,
++				       &gc2053->module_name);
++	ret |= of_property_read_string(node, CANAANMODULE_CAMERA_LENS_NAME,
++				       &gc2053->len_name);
++	if (ret) {
++		dev_err(dev, "could not get module information!\n");
++		return -EINVAL;
++	}
++
++	gc2053->reset_gpio = devm_gpiod_get(dev, "reset", GPIOD_OUT_LOW);
++	if (IS_ERR(gc2053->reset_gpio))
++		dev_warn(dev, "Failed to get reset-gpios\n");
++
++	gc2053->pwdn_gpio = devm_gpiod_get(dev, "pwdn", GPIOD_OUT_LOW);
++	if (IS_ERR(gc2053->pwdn_gpio))
++		dev_info(dev, "Failed to get pwdn-gpios, maybe no used\n");
++
++	if (gpiod_export(gc2053->reset_gpio, 0)) {
++		dev_err(dev, "gpiod export gc2053 reset failed.");
++	}
++
++	if (gpiod_export(gc2053->pwdn_gpio, 0)) {
++		dev_err(dev, "gpiod export gc2053 powerdown failed.");
++	}
++
++	ret = gc2053_parse_of(gc2053);
++	if (ret != 0)
++		return -EINVAL;
++
++	/* 1920 * 1080 by default */
++	gc2053->cur_mode = &supported_modes[0];
++	gc2053->cfg_num = ARRAY_SIZE(supported_modes);
++
++	mutex_init(&gc2053->mutex);
++
++	sd = &gc2053->subdev;
++	v4l2_i2c_subdev_init(sd, client, &gc2053_subdev_ops);
++	ret = gc2053_initialize_controls(gc2053);
++	if (ret)
++		goto err_destroy_mutex;
++
++	ret = __gc2053_power_on(gc2053);
++	if (ret)
++		goto err_free_handler;
++
++	ret = gc2053_check_sensor_id(gc2053, client);
++	if (ret)
++		goto err_power_off;
++
++	sd->internal_ops = &gc2053_internal_ops;
++	sd->flags |= V4L2_SUBDEV_FL_HAS_DEVNODE |
++		     V4L2_SUBDEV_FL_HAS_EVENTS;
++
++	gc2053->pad.flags = MEDIA_PAD_FL_SOURCE;
++	sd->entity.function = MEDIA_ENT_F_CAM_SENSOR;
++	ret = media_entity_pads_init(&sd->entity, 1, &gc2053->pad);
++	if (ret < 0)
++		goto err_power_off;
++
++	memset(facing, 0, sizeof(facing));
++	if (strcmp(gc2053->module_facing, "back") == 0)
++		facing[0] = 'b';
++	else
++		facing[0] = 'f';
++
++	snprintf(sd->name, sizeof(sd->name), "m%02d_%s_%s %s",
++		 gc2053->module_index, facing,
++		 GC2053_NAME, dev_name(sd->dev));
++
++	ret = v4l2_async_register_subdev_sensor_common(sd);
++	if (ret) {
++		dev_err(dev, "v4l2 async register subdev failed\n");
++		goto err_clean_entity;
++	}
++
++	return 0;
++
++err_clean_entity:
++#if defined(CONFIG_MEDIA_CONTROLLER)
++	media_entity_cleanup(&sd->entity);
++#endif
++
++err_power_off:
++	__gc2053_power_off(gc2053);
++err_free_handler:
++	v4l2_ctrl_handler_free(&gc2053->ctrl_handler);
++
++err_destroy_mutex:
++	mutex_destroy(&gc2053->mutex);
++	return ret;
++}
++
++static int gc2053_remove(struct i2c_client *client)
++{
++	struct v4l2_subdev *sd = i2c_get_clientdata(client);
++	struct gc2053 *gc2053 = to_gc2053(sd);
++
++	v4l2_async_unregister_subdev(sd);
++#if defined(CONFIG_MEDIA_CONTROLLER)
++	media_entity_cleanup(&sd->entity);
++#endif
++	v4l2_ctrl_handler_free(&gc2053->ctrl_handler);
++	mutex_destroy(&gc2053->mutex);
++
++	pm_runtime_disable(&client->dev);
++	if (!pm_runtime_status_suspended(&client->dev))
++		__gc2053_power_off(gc2053);
++	pm_runtime_set_suspended(&client->dev);
++	return 0;
++}
++
++static const struct i2c_device_id gc2053_match_id[] = {
++	{ "gc2053", 0 },
++	{ },
++};
++
++#if IS_ENABLED(CONFIG_OF)
++static const struct of_device_id gc2053_of_match[] = {
++	{ .compatible = "galaxycore,gc2053" },
++	{},
++};
++MODULE_DEVICE_TABLE(of, gc2053_of_match);
++#endif
++
++static struct i2c_driver gc2053_i2c_driver = {
++	.driver = {
++		.name = GC2053_NAME,
++		.of_match_table = of_match_ptr(gc2053_of_match),
++	},
++	.probe      = &gc2053_probe,
++	.remove     = &gc2053_remove,
++	.id_table   = gc2053_match_id,
++};
++
++module_i2c_driver(gc2053_i2c_driver);
++MODULE_DESCRIPTION("GC2035 CMOS Image Sensor driver");
++MODULE_LICENSE("GPL v2");
++
+diff --git a/drivers/media/i2c/soc_camera/canaanchip/gc2093.c b/drivers/media/i2c/soc_camera/canaanchip/gc2093.c
+new file mode 100755
+index 00000000..d2832b73
+--- /dev/null
++++ b/drivers/media/i2c/soc_camera/canaanchip/gc2093.c
+@@ -0,0 +1,1522 @@
++/*
++ * Driver for GC2093 CMOS Image Sensor
++ *
++ * Copyright (C) 2022, Canaan Bright Sight Co., Ltd
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software Foundation.
++ */
++
++#include <linux/clk.h>
++#include <linux/delay.h>
++#include <linux/gpio/consumer.h>
++#include <linux/i2c.h>
++#include <linux/module.h>
++#include <linux/pm_runtime.h>
++#include <linux/of_graph.h>
++#include <linux/regulator/consumer.h>
++#include <linux/version.h>
++#include <linux/canaan-camera-module.h>
++
++#include <media/v4l2-async.h>
++#include <media/media-entity.h>
++#include <media/v4l2-ctrls.h>
++#include <media/v4l2-device.h>
++#include <media/v4l2-fwnode.h>
++#include <media/v4l2-subdev.h>
++
++#define DRIVER_VERSION		KERNEL_VERSION(0, 0x01, 0x01)
++#define GC2093_NAME		"gc2093"
++#define GC2093_MEDIA_BUS_FMT	MEDIA_BUS_FMT_SRGGB10_1X10
++
++#define MIPI_FREQ_297M		297000000
++#define MIPI_FREQ_396M		396000000
++
++#define GC2093_XVCLK_FREQ	24000000
++
++#define GC2093_REG_CHIP_ID_H	0x03F0
++#define GC2093_REG_CHIP_ID_L	0x03F1
++
++#define GC2093_REG_EXP_SHORT_H	0x0001
++#define GC2093_REG_EXP_SHORT_L	0x0002
++#define GC2093_REG_EXP_LONG_H	0x0003
++#define GC2093_REG_EXP_LONG_L	0x0004
++
++#define GC2093_MIRROR_FLIP_REG	0x0017
++#define MIRROR_MASK		BIT(0)
++#define FLIP_MASK		BIT(1)
++
++#define GC2093_REG_CTRL_MODE	0x003E
++#define GC2093_MODE_SW_STANDBY	0x11
++#define GC2093_MODE_STREAMING	0x91
++
++#define GC2093_CHIP_ID		0x2093
++
++#define GC2093_VTS_MAX		0x3FFF
++#define GC2093_HTS_MAX		0xFFF
++
++#define GC2093_EXPOSURE_MAX	0x3FFF
++#define GC2093_EXPOSURE_MIN	1
++#define GC2093_EXPOSURE_STEP	1
++
++#define GC2093_GAIN_MIN		0x40
++#define GC2093_GAIN_MAX		0x2000
++#define GC2093_GAIN_STEP	1
++#define GC2093_GAIN_DEFAULT	64
++
++#define GC2093_LANES		2
++
++#define REG_NULL			0xFFFF
++
++#define to_gc2093(sd) container_of(sd, struct gc2093, subdev)
++
++enum {
++	LINK_FREQ_297M_INDEX,
++	LINK_FREQ_396M_INDEX,
++};
++
++struct gc2093_reg {
++	u16 addr;
++	u8 val;
++};
++
++struct gain_reg_config {
++	u32 value;
++	u16 analog_gain;
++	u16 col_gain;
++	u16 analog_sw;
++	u16 ram_width;
++};
++
++struct gc2093_mode {
++	u32 width;
++	u32 height;
++	struct v4l2_fract max_fps;
++	u32 hts_def;
++	u32 vts_def;
++	u32 exp_def;
++	u32 link_freq_index;
++	const struct gc2093_reg *reg_list;
++};
++
++struct gc2093 {
++	struct i2c_client *client;
++	struct gpio_desc *reset_gpio;
++	struct gpio_desc *pwdn_gpio;
++
++	struct v4l2_subdev  subdev;
++	struct media_pad    pad;
++	struct v4l2_ctrl_handler ctrl_handler;
++	struct v4l2_ctrl    *exposure;
++	struct v4l2_ctrl    *anal_gain;
++	struct v4l2_ctrl    *hblank;
++	struct v4l2_ctrl    *vblank;
++	struct v4l2_ctrl    *h_flip;
++	struct v4l2_ctrl    *v_flip;
++	struct v4l2_ctrl    *link_freq;
++	struct v4l2_ctrl    *pixel_rate;
++
++	struct mutex    lock;
++	bool		    streaming;
++	bool		    power_on;
++	unsigned int    cfg_num;
++	const struct gc2093_mode *cur_mode;
++
++	u32		module_index;
++	const char      *module_facing;
++	const char      *module_name;
++	const char      *len_name;
++
++	bool			  has_init_exp;
++};
++
++static const s64 link_freq_menu_items[] = {
++	MIPI_FREQ_297M,
++	MIPI_FREQ_396M,
++};
++
++/*
++ * window size=800*1080 mipi@2lane
++ * mclk=24M mipi_clk=792Mbps
++ * pixel_line_total=2640  line_frame_total=2500
++ * row_time=13.3333us frame_rate=30fps
++ */
++static const struct gc2093_reg gc2093_800x1080_linear_30fps_settings[] = {
++	/****system****/
++	{0x03fe, 0xf0},
++	{0x03fe, 0xf0},
++	{0x03fe, 0xf0},
++	{0x03fe, 0x00},
++	{0x03f2, 0x00},
++	{0x03f3, 0x00}, 
++	{0x03f4, 0x36}, 
++	{0x03f5, 0xc0},
++	{0x03f6, 0x0b}, 
++	{0x03f7, 0x11}, 
++	{0x03f8, 0x58},
++	{0x03f9, 0x42}, 
++	{0x03fc, 0x8e},
++	/****CISCTL & ANALOG****/
++	{0x0087, 0x18},
++	{0x00ee, 0x30},
++	{0x00d0, 0xbf},
++	{0x01a0, 0x00},
++	{0x01a4, 0x40},
++	{0x01a5, 0x40},
++	{0x01a6, 0x40},
++	{0x01af, 0x09},
++	{0x0003, 0x04},
++	{0x0004, 0x65},
++	{0x0005, 0x05},
++	{0x0006, 0x78},
++	{0x0007, 0x00}, //VB[13:8]
++	{0x0008, 0x11}, //VB[7:0]
++	{0x0009, 0x00}, //Row Start[10:8]
++	{0x000a, 0x02}, //Row Start[7:0]
++	{0x000b, 0x00}, //Col Start[10:8]
++	{0x000c, 0x04}, //Col Start[7:0]
++	{0x000d, 0x04}, //Window height[10:8] 1088
++	{0x000e, 0x40}, //Window height[7:0]
++	{0x000f, 0x07}, //Window width[11:8] 1932
++	{0x0010, 0x8c}, //Window width[7:0]
++	{0x0013, 0x15},
++	{0x0019, 0x0c},
++	{0x0041, 0x09}, //FrameLength[13:8] 09c4=2500
++	{0x0042, 0xc4}, //FrameLength[7:0]
++	{0x0053, 0x60},
++	{0x008d, 0x92},
++	{0x0090, 0x00},
++	{0x00c7, 0xe1},
++	{0x001b, 0x73},
++	{0x0028, 0x0d},
++	{0x0029, 0x40},
++	{0x002b, 0x04},
++	{0x002e, 0x23},
++	{0x0037, 0x03},
++	{0x0043, 0x04},
++	{0x0044, 0x30},
++	{0x004a, 0x01},
++	{0x004b, 0x28},
++	{0x0055, 0x30},
++	{0x0066, 0x3f},
++	{0x0068, 0x3f},
++	{0x006b, 0x44},
++	{0x0077, 0x00},
++	{0x0078, 0x20},
++	{0x007c, 0xa1},
++	{0x00ce, 0x7c},
++	{0x00d3, 0xd4},
++	{0x00e6, 0x50},
++	/*gain*/
++	{0x00b6, 0xc0},
++	{0x00b0, 0x68},//0x60
++	/*isp*/
++	{0x0101, 0x0c},
++	{0x0102, 0x89},
++	{0x0104, 0x01},
++	{0x010f, 0x00},
++	{0x0158, 0x00},
++	{/*dark sun*/},
++	{0x0123, 0x08},
++	{0x0123, 0x00},
++	{0x0120, 0x01},
++	{0x0121, 0x04},
++	{0x0122, 0xd8},
++	{0x0124, 0x03},
++	{0x0125, 0xff},
++	{0x001a, 0x8c},
++	{0x00c6, 0xe0},
++	/*blk*/
++	{0x0026, 0x30},
++	{0x0142, 0x00},
++	{0x0149, 0x1e},
++	{0x014a, 0x0f},
++	{0x014b, 0x00},
++	{0x0155, 0x07},
++	{0x0414, 0x78},
++	{0x0415, 0x78},
++	{0x0416, 0x78},
++	{0x0417, 0x78},
++	{0x0454, 0x78},
++	{0x0455, 0x78},
++	{0x0456, 0x78},
++	{0x0457, 0x78},
++	{0x04e0, 0x18},
++	/*window*/
++	{0x0191, 0x00}, //Out Window Y1[10:8]
++	{0x0192, 0x02}, //Out Window Y1[7:0]
++	{0x0193, 0x02}, //Out Window X1[11:8]
++	{0x0194, 0x2f}, //Out Window X1[7:0]
++	{0x0195, 0x04}, //Out Window Height[10:8] 1080=0438
++	{0x0196, 0x38}, //Out Window Height[7:0]  
++	{0x0197, 0x03}, //Out Window Width[11:8]  1920=0780
++	{0x0198, 0x20}, //Out Window Width[7:0] 800=0320
++	/****DVP & MIPI****/
++	{0x019a, 0x06},
++	{0x007b, 0x2a},
++	{0x0023, 0x2d},
++	{0x0201, 0x27},
++	{0x0202, 0x5f},
++	{0x0203, 0xce},
++	{0x0212, 0x20},
++	{0x0213, 0x03},
++	{0x0215, 0x10},
++	{REG_NULL, 0x00},
++};
++
++/*
++ * window size=1920*1080 mipi@2lane
++ * mclk=24M mipi_clk=792Mbps
++ * pixel_line_total=  line_frame_total=2500
++ * row_time=13.3333us frame_rate=30fps
++ */
++static const struct gc2093_reg gc2093_1080p_linear_30fps_settings[] = {
++	/****system****/
++	{0x03fe, 0xf0},
++	{0x03fe, 0xf0},
++	{0x03fe, 0xf0},
++	{0x03fe, 0x00},
++	{0x03f2, 0x00},
++	{0x03f3, 0x00},
++	{0x03f4, 0x36},
++	{0x03f5, 0xc0},
++	{0x03f6, 0x0B},
++	{0x03f7, 0x01},
++	{0x03f8, 0x63},
++	{0x03f9, 0x40},
++	{0x03fc, 0x8e},
++	/****CISCTL & ANALOG****/
++	{0x0087, 0x18},
++	{0x00ee, 0x30},
++	{0x00d0, 0xbf},
++	{0x01a0, 0x00},
++	{0x01a4, 0x40},
++	{0x01a5, 0x40},
++	{0x01a6, 0x40},
++	{0x01af, 0x09},
++	{0x0001, 0x00},
++	{0x0002, 0x02},
++	{0x0003, 0x04}, //shutter time[13:8]
++	{0x0004, 0x02}, //shutter time[7:0]
++	{0x0005, 0x02}, //Line length[11:8]
++	{0x0006, 0x94}, //Line length[7:0]
++	{0x0007, 0x00}, //VB[13:8]
++	{0x0008, 0x11}, //VB[7:0]
++	{0x0009, 0x00}, //Row Start[10:8]
++	{0x000a, 0x02}, //Row Start[7:0]
++	{0x000b, 0x00}, //Col Start[10:8]
++	{0x000c, 0x04}, //Col Start[7:0]
++	{0x000d, 0x04}, //Window height[10:8] 1088
++	{0x000e, 0x40}, //Window height[7:0]
++	{0x000f, 0x07}, //Window width[11:8] 1932
++	{0x0010, 0x8c}, //Window width[7:0]
++	{0x0013, 0x15},
++	{0x0013, 0x15},
++	{0x0019, 0x0c},
++	{0x0041, 0x09}, //FrameLength[13:8] 09c4=2500
++	{0x0042, 0xc4}, //FrameLength[7:0]
++	{0x0053, 0x60},
++	{0x008d, 0x92},
++	{0x0090, 0x00},
++	{0x00c7, 0xe1},
++	{0x001b, 0x73},
++	{0x0028, 0x0d},
++	{0x0029, 0x24},
++	{0x002b, 0x04},
++	{0x002e, 0x23},
++	{0x0037, 0x03},
++	{0x0043, 0x04},
++	{0x0044, 0x28},
++	{0x004a, 0x01},
++	{0x004b, 0x20},
++	{0x0055, 0x28},
++	{0x0066, 0x3f},
++	{0x0068, 0x3f},
++	{0x006b, 0x44},
++	{0x0077, 0x00},
++	{0x0078, 0x20},
++	{0x007c, 0xa1},
++	{0x00ce, 0x7c},
++	{0x00d3, 0xd4},
++	{0x00e6, 0x50},
++	/*gain*/
++	{0x00b6, 0xc0},
++	{0x00b0, 0x68},//0x60
++	/*isp*/
++	{0x0101, 0x0c},
++	{0x0102, 0x89},
++	{0x0104, 0x01},
++	{0x010f, 0x00},
++	{0x0158, 0x00},
++	{/*dark sun*/},
++	{0x0123, 0x08},
++	{0x0123, 0x00},
++	{0x0120, 0x01},
++	{0x0121, 0x04},
++	{0x0122, 0xd8},
++	{0x0124, 0x03},
++	{0x0125, 0xff},
++	{0x001a, 0x8c},
++	{0x00c6, 0xe0},
++	/*blk*/
++	{0x0026, 0x30},
++	{0x0142, 0x00},
++	{0x0149, 0x1e},
++	{0x014a, 0x0f},
++	{0x014b, 0x00},
++	{0x0155, 0x07},
++	{0x0414, 0x78},
++	{0x0415, 0x78},
++	{0x0416, 0x78},
++	{0x0417, 0x78},
++	{0x0454, 0x78},
++	{0x0455, 0x78},
++	{0x0456, 0x78},
++	{0x0457, 0x78},
++	{0x04e0, 0x18},
++	/*window*/
++	{0x0192, 0x02}, //Out Window Y1[7:0]
++	{0x0194, 0x03}, //Out Window X1[7:0]
++	{0x0195, 0x04}, //Out Window Height[10:8]
++	{0x0196, 0x38}, //Out Window Height[7:0]  
++	{0x0197, 0x07}, //Out Window Width[11:8]
++	{0x0198, 0x80}, //Out Window Width[7:0]
++	/****DVP & MIPI****/
++	{0x019a, 0x06},
++	{0x007b, 0x2a},
++	{0x0023, 0x2d},
++	{0x0201, 0x27},
++	{0x0202, 0x56},
++	{0x0203, 0xce},
++	{0x0212, 0x80},
++	{0x0213, 0x07},
++	{0x0215, 0x10},
++	{REG_NULL, 0x00},
++};
++
++/*
++ * window size=1920*1080 mipi@2lane
++ * mclk=24M mipi_clk=792Mbps
++ * pixel_line_total=2640  line_frame_total=1250
++ * row_time=13.3333us frame_rate=60fps
++ */
++static const struct gc2093_reg gc2093_1080p_linear_60fps_settings[] = {
++	/****system****/
++	{0x03fe, 0xf0},
++	{0x03fe, 0xf0},
++	{0x03fe, 0xf0},
++	{0x03fe, 0x00},
++	{0x03f2, 0x00},
++	{0x03f3, 0x00},
++	{0x03f4, 0x36},
++	{0x03f5, 0xc0},
++	{0x03f6, 0x0B},
++	{0x03f7, 0x01},
++	{0x03f8, 0x63},
++	{0x03f9, 0x40},
++	{0x03fc, 0x8e},
++	/****CISCTL & ANALOG****/
++	{0x0087, 0x18},
++	{0x00ee, 0x30},
++	{0x00d0, 0xbf},
++	{0x01a0, 0x00},
++	{0x01a4, 0x40},
++	{0x01a5, 0x40},
++	{0x01a6, 0x40},
++	{0x01af, 0x09},
++	{0x0001, 0x00},
++	{0x0002, 0x02},
++	{0x0003, 0x04}, //shutter time[13:8]
++	{0x0004, 0x02}, //shutter time[7:0]
++	{0x0005, 0x02}, //Line length[11:8]
++	{0x0006, 0x94}, //Line length[7:0]
++	{0x0007, 0x00}, //VB[13:8]
++	{0x0008, 0x11}, //VB[7:0]
++	{0x0009, 0x00}, //Row Start[10:8]
++	{0x000a, 0x02}, //Row Start[7:0]
++	{0x000b, 0x00}, //Col Start[10:8]
++	{0x000c, 0x04}, //Col Start[7:0]
++	{0x000d, 0x04}, //Window height[10:8] 1088
++	{0x000e, 0x40}, //Window height[7:0]
++	{0x000f, 0x07}, //Window width[11:8] 1932
++	{0x0010, 0x8c}, //Window width[7:0]
++	{0x0013, 0x15},
++	{0x0013, 0x15},
++	{0x0019, 0x0c},
++	{0x0041, 0x04}, //FrameLength[13:8] 09c4=2500
++	{0x0042, 0xe2}, //FrameLength[7:0]
++	{0x0053, 0x60},
++	{0x008d, 0x92},
++	{0x0090, 0x00},
++	{0x00c7, 0xe1},
++	{0x001b, 0x73},
++	{0x0028, 0x0d},
++	{0x0029, 0x24},
++	{0x002b, 0x04},
++	{0x002e, 0x23},
++	{0x0037, 0x03},
++	{0x0043, 0x04},
++	{0x0044, 0x28},
++	{0x004a, 0x01},
++	{0x004b, 0x20},
++	{0x0055, 0x28},
++	{0x0066, 0x3f},
++	{0x0068, 0x3f},
++	{0x006b, 0x44},
++	{0x0077, 0x00},
++	{0x0078, 0x20},
++	{0x007c, 0xa1},
++	{0x00ce, 0x7c},
++	{0x00d3, 0xd4},
++	{0x00e6, 0x50},
++	/*gain*/
++	{0x00b6, 0xc0},
++	{0x00b0, 0x68},//0x60
++	/*isp*/
++	{0x0101, 0x0c},
++	{0x0102, 0x89},
++	{0x0104, 0x01},
++	{0x010f, 0x00},
++	{0x0158, 0x00},
++	{/*dark sun*/},
++	{0x0123, 0x08},
++	{0x0123, 0x00},
++	{0x0120, 0x01},
++	{0x0121, 0x04},
++	{0x0122, 0xd8},
++	{0x0124, 0x03},
++	{0x0125, 0xff},
++	{0x001a, 0x8c},
++	{0x00c6, 0xe0},
++	/*blk*/
++	{0x0026, 0x30},
++	{0x0142, 0x00},
++	{0x0149, 0x1e},
++	{0x014a, 0x0f},
++	{0x014b, 0x00},
++	{0x0155, 0x07},
++	{0x0414, 0x78},
++	{0x0415, 0x78},
++	{0x0416, 0x78},
++	{0x0417, 0x78},
++	{0x0454, 0x78},
++	{0x0455, 0x78},
++	{0x0456, 0x78},
++	{0x0457, 0x78},
++	{0x04e0, 0x18},
++	/*window*/
++	{0x0192, 0x02}, //Out Window Y1[7:0]
++	{0x0194, 0x03}, //Out Window X1[7:0]
++	{0x0195, 0x04}, //Out Window Height[10:8]
++	{0x0196, 0x38}, //Out Window Height[7:0]  
++	{0x0197, 0x07}, //Out Window Width[11:8]
++	{0x0198, 0x80}, //Out Window Width[7:0]
++	/****DVP & MIPI****/
++	{0x019a, 0x06},
++	{0x007b, 0x2a},
++	{0x0023, 0x2d},
++	{0x0201, 0x27},
++	{0x0202, 0x56},
++	{0x0203, 0xce},
++	{0x0212, 0x80},
++	{0x0213, 0x07},
++	{0x0215, 0x10},
++	{REG_NULL, 0x00},
++};
++
++/*
++ * window size=1920*1080 mipi@2lane
++ * mclk=24M mipi_clk=792Mbps
++ * pixel_line_total=2640  line_frame_total=1250
++ * row_time=13.3333us frame_rate=30fps
++ */
++static const struct gc2093_reg gc2093_1080p_hdr_30fps_settings[] = {
++	/****system****/
++	{0x03fe, 0xf0},
++	{0x03fe, 0xf0},
++	{0x03fe, 0xf0},
++	{0x03fe, 0x00},
++	{0x03f2, 0x00},
++	{0x03f3, 0x00},
++	{0x03f4, 0x36},
++	{0x03f5, 0xc0},
++	{0x03f6, 0x0B},
++	{0x03f7, 0x01},
++	{0x03f8, 0x63},
++	{0x03f9, 0x40},
++	{0x03fc, 0x8e},
++	/****CISCTL & ANALOG****/
++	{0x0087, 0x18},
++	{0x00ee, 0x30},
++	{0x00d0, 0xbf},
++	{0x01a0, 0x00},
++	{0x01a4, 0x40},
++	{0x01a5, 0x40},
++	{0x01a6, 0x40},
++	{0x01af, 0x09},
++	{0x0001, 0x00},
++	{0x0002, 0x02},
++	{0x0003, 0x04}, //shutter time[13:8]
++	{0x0004, 0x02}, //shutter time[7:0]
++	{0x0005, 0x02}, //Line length[11:8]
++	{0x0006, 0x94}, //Line length[7:0]
++	{0x0007, 0x00}, //VB[13:8]
++	{0x0008, 0x11}, //VB[7:0]
++	{0x0009, 0x00}, //Row Start[10:8]
++	{0x000a, 0x02}, //Row Start[7:0]
++	{0x000b, 0x00}, //Col Start[10:8]
++	{0x000c, 0x04}, //Col Start[7:0]
++	{0x000d, 0x04}, //Window height[10:8] 1088
++	{0x000e, 0x40}, //Window height[7:0]
++	{0x000f, 0x07}, //Window width[11:8] 1932
++	{0x0010, 0x8c}, //Window width[7:0]
++	{0x0013, 0x15},
++	{0x0013, 0x15},
++	{0x0019, 0x0c},
++	{0x0041, 0x04}, //FrameLength[13:8] 09c4=2500 04e2=1250
++	{0x0042, 0xe2}, //FrameLength[7:0]
++	{0x0053, 0x60},
++	{0x008d, 0x92},
++	{0x0090, 0x00},
++	{0x00c7, 0xe1},
++	{0x001b, 0x73},
++	{0x0028, 0x0d},
++	{0x0029, 0x24},
++	{0x002b, 0x04},
++	{0x002e, 0x23},
++	{0x0037, 0x03},
++	{0x0043, 0x04},
++	{0x0044, 0x28},
++	{0x004a, 0x01},
++	{0x004b, 0x20},
++	{0x0055, 0x28},
++	{0x0066, 0x3f},
++	{0x0068, 0x3f},
++	{0x006b, 0x44},
++	{0x0077, 0x00},
++	{0x0078, 0x20},
++	{0x007c, 0xa1},
++	{0x00ce, 0x7c},
++	{0x00d3, 0xd4},
++	{0x00e6, 0x50},
++	/*gain*/
++	{0x00b6, 0xc0},
++	{0x00b0, 0x68},//0x60
++	/*isp*/
++	{0x0101, 0x0c},
++	{0x0102, 0x89},
++	{0x0104, 0x01},
++	{0x010e, 0x01},
++	{0x010f, 0x00},
++	{0x0158, 0x00},
++	{/*dark sun*/},
++	{0x0123, 0x08},
++	{0x0123, 0x00},
++	{0x0120, 0x01},
++	{0x0121, 0x04},
++	{0x0122, 0xd8},
++	{0x0124, 0x03},
++	{0x0125, 0xff},
++	{0x001a, 0x8c},
++	{0x00c6, 0xe0},
++	/*blk*/
++	{0x0026, 0x30},
++	{0x0142, 0x00},
++	{0x0149, 0x1e},
++	{0x014a, 0x0f},
++	{0x014b, 0x00},
++	{0x0155, 0x07},
++	{0x0414, 0x78},
++	{0x0415, 0x78},
++	{0x0416, 0x78},
++	{0x0417, 0x78},
++	{0x0454, 0x78},
++	{0x0455, 0x78},
++	{0x0456, 0x78},
++	{0x0457, 0x78},
++	{0x04e0, 0x18},
++	/*window*/
++	{0x0192, 0x02}, //Out Window Y1[7:0]
++	{0x0194, 0x03}, //Out Window X1[7:0]
++	{0x0195, 0x04}, //Out Window Height[10:8]
++	{0x0196, 0x38}, //Out Window Height[7:0]  
++	{0x0197, 0x07}, //Out Window Width[11:8]
++	{0x0198, 0x80}, //Out Window Width[7:0]
++	/****DVP & MIPI****/
++	{0x019a, 0x06},
++	{0x007b, 0x2a},
++	{0x0023, 0x2d},
++	{0x0201, 0x27},
++	{0x0202, 0x5f},
++	{0x0203, 0xce},
++	{0x0212, 0x80},
++	{0x0213, 0x07},
++	{0x0215, 0x10},
++	/****HDR EN****/
++	{0x0027, 0x71},
++	{0x0215, 0x92},
++	{0x024d, 0x01},
++	//{0x001a, 0x9c}, //exp_exp2_th_mode
++	//{0x005a, 0x00}, //exp_exp2_th
++	//{0x005b, 0x49}, //exp_exp2_th
++	{REG_NULL, 0x00},
++};
++
++static const struct gc2093_mode supported_modes[] = {
++	{
++		.width = 1920,
++		.height = 1080,
++		.max_fps = {
++			.numerator = 10000,
++			.denominator = 300000,
++		},
++		.exp_def = 0x460,
++		.hts_def = 0xa50,//0x898,
++		.vts_def = 0x9c4,//0x465,
++		.link_freq_index = LINK_FREQ_396M_INDEX,
++		.reg_list = gc2093_1080p_linear_30fps_settings,
++	},
++	{
++		.width = 1920,
++		.height = 1080,
++		.max_fps = {
++			.numerator = 10000,
++			.denominator = 600000,
++		},
++		.exp_def = 0x460,
++		.hts_def = 0xa50,
++		.vts_def = 0x4e2,
++		.link_freq_index = LINK_FREQ_396M_INDEX,
++		.reg_list = gc2093_1080p_linear_60fps_settings,
++	},
++	{
++		.width = 1920,
++		.height = 1080,
++		.max_fps = {
++			.numerator = 10000,
++			.denominator = 300000,
++		},
++		.exp_def = 0x460,
++		.hts_def = 0xa50,
++		.vts_def = 0x4e2,
++		.link_freq_index = LINK_FREQ_396M_INDEX,
++		.reg_list = gc2093_1080p_hdr_30fps_settings,
++	},
++	{
++		.width = 800,
++		.height = 1080,
++		.max_fps = {
++			.numerator = 10000,
++			.denominator = 300000,
++		},
++		.exp_def = 0x460,
++		.hts_def = 0xa50,//0x898,
++		.vts_def = 0x9c4,//0x465,
++		.link_freq_index = LINK_FREQ_396M_INDEX,
++		.reg_list = gc2093_800x1080_linear_30fps_settings,
++	},
++};
++
++/* pixel rate = link frequency * 2 * lanes / BITS_PER_SAMPLE */
++static u64 to_pixel_rate(u32 index)
++{
++	u64 pixel_rate = link_freq_menu_items[index] * 2 * GC2093_LANES;
++
++	do_div(pixel_rate, 10);
++
++	return pixel_rate;
++}
++
++/* sensor register write */
++static int gc2093_write_reg(struct i2c_client *client, u16 reg, u8 val)
++{
++	struct i2c_msg msg;
++	u8 buf[3];
++	int ret;
++
++	buf[0] = reg >> 8;
++	buf[1] = reg & 0xff;
++	buf[2] = val;
++
++	msg.addr = client->addr;
++	msg.flags = client->flags;
++	msg.buf = buf;
++	msg.len = sizeof(buf);
++
++	ret = i2c_transfer(client->adapter, &msg, 1);
++	if (ret >= 0)
++		return 0;
++
++	dev_err(&client->dev, "write reg(0x%x val:0x%x) failed !\n", reg, val);
++
++	return ret;
++}
++
++static int gc2093_write_array(struct i2c_client *client,
++				  const struct gc2093_reg *regs)
++{
++	int i, ret = 0;
++
++	i = 0;
++	while (regs[i].addr != REG_NULL) {
++		ret = gc2093_write_reg(client, regs[i].addr, regs[i].val);
++		if (ret) {
++			dev_err(&client->dev, "%s failed !\n", __func__);
++			break;
++		}
++		i++;
++	}
++
++	return ret;
++}
++
++/* sensor register read */
++static int gc2093_read_reg(struct i2c_client *client, u16 reg, u8 *val)
++{
++	u8 buf[2] = {reg >> 8, reg & 0xff};
++	int ret;
++	struct i2c_msg msgs[] = {
++		{
++			.addr  = client->addr,
++			.flags = 0,
++			.len   = 2,
++			.buf   = buf,
++		}, {
++			.addr  = client->addr,
++			.flags = I2C_M_RD,
++			.len   = 1,
++			.buf   = buf,
++		},
++	};
++
++	ret = i2c_transfer(client->adapter, msgs, ARRAY_SIZE(msgs));
++	if (ret >= 0) {
++		*val = buf[0];
++		return 0;
++	}
++
++	dev_err(&client->dev, "read reg(0x%x val:0x%x) failed !\n", reg, *val);
++
++	return ret;
++}
++
++
++static const struct gain_reg_config gain_reg_configs[] = {
++	{  64, 0x0000, 0x0100, 0x6807, 0x00f8},
++	{  75, 0x0010, 0x010c, 0x6807, 0x00f8},
++	{  90, 0x0020, 0x011b, 0x6c08, 0x00f9},
++	{ 105, 0x0030, 0x012c, 0x6c0a, 0x00fa},
++	{ 122, 0x0040, 0x013f, 0x7c0b, 0x00fb},
++	{ 142, 0x0050, 0x0216, 0x7c0d, 0x00fe},
++	{ 167, 0x0060, 0x0235, 0x7c0e, 0x00ff},
++	{ 193, 0x0070, 0x0316, 0x7c10, 0x0801},
++	{ 223, 0x0080, 0x0402, 0x7c12, 0x0802},
++	{ 257, 0x0090, 0x0431, 0x7c13, 0x0803},
++	{ 299, 0x00a0, 0x0532, 0x7c15, 0x0805},
++	{ 346, 0x00b0, 0x0635, 0x7c17, 0x0807},
++	{ 397, 0x00c0, 0x0804, 0x7c18, 0x0808},
++	{ 444, 0x005a, 0x0919, 0x7c17, 0x0807},
++	{ 523, 0x0083, 0x0b0f, 0x7c17, 0x0807},
++	{ 607, 0x0093, 0x0d12, 0x7c19, 0x0809},
++	{ 700, 0x0084, 0x1000, 0x7c1b, 0x080c},
++	{ 817, 0x0094, 0x123a, 0x7c1e, 0x080f},
++	{1131, 0x005d, 0x1a02, 0x7c23, 0x0814},
++	{1142, 0x009b, 0x1b20, 0x7c25, 0x0816},
++	{1334, 0x008c, 0x200f, 0x7c27, 0x0818},
++	{1568, 0x009c, 0x2607, 0x7c2a, 0x081b},
++	{2195, 0x00b6, 0x3621, 0x7c32, 0x0823},
++	{2637, 0x00ad, 0x373a, 0x7c36, 0x0827},
++	{3121, 0x00bd, 0x3d02, 0x7c3a, 0x082b},
++};
++
++static int gc2093_set_gain(struct gc2093 *gc2093, u32 gain)
++{
++	int ret, i = 0;
++	u16 pre_gain = 0;
++
++	for (i = 0; i < ARRAY_SIZE(gain_reg_configs) - 1; i++)
++		if ((gain_reg_configs[i].value <= gain) && (gain < gain_reg_configs[i+1].value))
++			break;
++
++	ret = gc2093_write_reg(gc2093->client, 0x00b4, gain_reg_configs[i].analog_gain >> 8);
++	ret |= gc2093_write_reg(gc2093->client, 0x00b3, gain_reg_configs[i].analog_gain & 0xff);
++	ret |= gc2093_write_reg(gc2093->client, 0x00b8, gain_reg_configs[i].col_gain >> 8);
++	ret |= gc2093_write_reg(gc2093->client, 0x00b9, gain_reg_configs[i].col_gain & 0xff);
++	ret |= gc2093_write_reg(gc2093->client, 0x00ce, gain_reg_configs[i].analog_sw >> 8);
++	ret |= gc2093_write_reg(gc2093->client, 0x00c2, gain_reg_configs[i].analog_sw & 0xff);
++	ret |= gc2093_write_reg(gc2093->client, 0x00cf, gain_reg_configs[i].ram_width >> 8);
++	ret |= gc2093_write_reg(gc2093->client, 0x00d9, gain_reg_configs[i].ram_width & 0xff);
++
++	pre_gain = 64 * gain / gain_reg_configs[i].value;
++
++	ret |= gc2093_write_reg(gc2093->client, 0x00b1, (pre_gain >> 6));
++	ret |= gc2093_write_reg(gc2093->client, 0x00b2, ((pre_gain & 0x3f) << 2));
++
++	return ret;
++}
++
++static int gc2093_set_ctrl(struct v4l2_ctrl *ctrl)
++{
++	struct gc2093 *gc2093 = container_of(ctrl->handler,
++					     struct gc2093, ctrl_handler);
++	s64 max;
++	int ret = 0;
++	dev_dbg(&gc2093->client->dev, "%s enter, id:0x%X val:%d.\n", __func__, ctrl->id, ctrl->val);
++
++	/* Propagate change of current control to all related controls */
++	switch (ctrl->id) {
++	case V4L2_CID_VBLANK:
++		/* Update max exposure while meeting expected vblanking */
++		max = gc2093->cur_mode->height + ctrl->val - 1;
++		__v4l2_ctrl_modify_range(gc2093->exposure,
++					 gc2093->exposure->minimum, max,
++					 gc2093->exposure->step,
++					 gc2093->exposure->default_value);
++		break;
++	}
++
++	switch (ctrl->id) {
++	case V4L2_CID_EXPOSURE:
++		ret = gc2093_write_reg(gc2093->client, GC2093_REG_EXP_LONG_H,
++				       (ctrl->val >> 8) & 0x3f);
++		ret |= gc2093_write_reg(gc2093->client, GC2093_REG_EXP_LONG_L,
++					ctrl->val & 0xff);
++		break;
++	case V4L2_CID_ANALOGUE_GAIN:
++	case V4L2_CID_GAIN:
++		gc2093_set_gain(gc2093, ctrl->val);
++		break;
++	case V4L2_CID_VBLANK:
++		/* The exposure goes up and reduces the frame rate, no need to write vb */
++		break;
++	case V4L2_CID_HFLIP:
++		break;
++	case V4L2_CID_VFLIP:
++		break;
++	default:
++		dev_warn(&gc2093->client->dev, "%s Unhandled id:0x%x, val:0x%x\n",
++			 __func__, ctrl->id, ctrl->val);
++		break;
++	}
++
++	return ret;
++}
++
++static const struct v4l2_ctrl_ops gc2093_ctrl_ops = {
++	.s_ctrl = gc2093_set_ctrl,
++};
++
++static int gc2093_initialize_controls(struct gc2093 *gc2093)
++{
++	const struct gc2093_mode *mode;
++	struct v4l2_ctrl_handler *handler;
++	s64 exposure_max, vblank_def;
++	u32 h_blank;
++	int ret;
++
++	handler = &gc2093->ctrl_handler;
++	mode = gc2093->cur_mode;
++	ret = v4l2_ctrl_handler_init(handler, 10);
++	if (ret)
++		return ret;
++	handler->lock = &gc2093->lock;
++
++	gc2093->link_freq = v4l2_ctrl_new_int_menu(handler, NULL, V4L2_CID_LINK_FREQ,
++						   ARRAY_SIZE(link_freq_menu_items) - 1, 0,
++						   link_freq_menu_items);
++
++	gc2093->pixel_rate = v4l2_ctrl_new_std(handler, NULL, V4L2_CID_PIXEL_RATE,
++					       0, to_pixel_rate(LINK_FREQ_396M_INDEX),
++					       1, to_pixel_rate(LINK_FREQ_297M_INDEX));
++
++	h_blank = mode->hts_def - mode->width;
++	gc2093->hblank = v4l2_ctrl_new_std(handler, NULL, V4L2_CID_HBLANK,
++					   h_blank, h_blank, 1, h_blank);
++	if (gc2093->hblank)
++		gc2093->hblank->flags |= V4L2_CTRL_FLAG_READ_ONLY;
++
++	vblank_def = mode->vts_def - mode->height;
++	gc2093->vblank = v4l2_ctrl_new_std(handler, &gc2093_ctrl_ops,
++					   V4L2_CID_VBLANK, vblank_def,
++					   GC2093_VTS_MAX - mode->height,
++					   1, vblank_def);
++
++	exposure_max = mode->vts_def - 1;
++	gc2093->exposure = v4l2_ctrl_new_std(handler, &gc2093_ctrl_ops,
++					     V4L2_CID_EXPOSURE, GC2093_EXPOSURE_MIN,
++					     exposure_max, GC2093_EXPOSURE_STEP,
++					     mode->exp_def);
++
++	gc2093->anal_gain = v4l2_ctrl_new_std(handler, &gc2093_ctrl_ops,
++					      V4L2_CID_ANALOGUE_GAIN, GC2093_GAIN_MIN,
++					      GC2093_GAIN_MAX, GC2093_GAIN_STEP,
++					      GC2093_GAIN_DEFAULT);
++
++	v4l2_ctrl_new_std(handler, &gc2093_ctrl_ops,
++					      V4L2_CID_GAIN, GC2093_GAIN_MIN,
++					      GC2093_GAIN_MAX, GC2093_GAIN_STEP,
++					      GC2093_GAIN_DEFAULT);
++
++	gc2093->h_flip = v4l2_ctrl_new_std(handler, &gc2093_ctrl_ops,
++					   V4L2_CID_HFLIP, 0, 1, 1, 0);
++
++	gc2093->v_flip = v4l2_ctrl_new_std(handler, &gc2093_ctrl_ops,
++					   V4L2_CID_VFLIP, 0, 1, 1, 0);
++
++	if (handler->error) {
++		ret = handler->error;
++		dev_err(&gc2093->client->dev, "Failed to init controls(%d)\n", ret);
++		goto err_free_handler;
++	}
++
++	gc2093->subdev.ctrl_handler = handler;
++	gc2093->has_init_exp = false;
++
++	return 0;
++
++err_free_handler:
++	v4l2_ctrl_handler_free(handler);
++	return ret;
++}
++
++/* Calculate the delay in us by clock rate and clock cycles */
++static inline u32 gc2093_cal_delay(u32 cycles)
++{
++	return DIV_ROUND_UP(cycles, GC2093_XVCLK_FREQ / 1000 / 1000);
++}
++
++static int __gc2093_power_on(struct gc2093 *gc2093)
++{
++	u32 delay_us;
++
++	if (!IS_ERR(gc2093->reset_gpio)) {
++		gpiod_set_value_cansleep(gc2093->reset_gpio, 1);
++		usleep_range(100, 200);
++	}
++	if (!IS_ERR(gc2093->pwdn_gpio))
++		gpiod_set_value_cansleep(gc2093->pwdn_gpio, 0);
++
++	if (!IS_ERR(gc2093->reset_gpio))
++		gpiod_set_value_cansleep(gc2093->reset_gpio, 0);
++	usleep_range(3000, 6000);
++	/* 8192 cycles prior to first SCCB transaction */
++	delay_us = gc2093_cal_delay(8192);
++	usleep_range(delay_us, delay_us * 2);
++	return 0;
++}
++
++
++static void __gc2093_power_off(struct gc2093 *gc2093)
++{
++	if (!IS_ERR(gc2093->reset_gpio))
++		gpiod_set_value_cansleep(gc2093->reset_gpio, 1);
++	if (!IS_ERR(gc2093->pwdn_gpio))
++		gpiod_set_value_cansleep(gc2093->pwdn_gpio, 0);
++}
++
++static int gc2093_check_sensor_id(struct gc2093 *gc2093)
++{
++	struct device *dev = &gc2093->client->dev;
++	u8 id_h = 0, id_l = 0;
++	u16 id = 0;
++	int ret = 0;
++
++	ret = gc2093_read_reg(gc2093->client, GC2093_REG_CHIP_ID_H, &id_h);
++	ret |= gc2093_read_reg(gc2093->client, GC2093_REG_CHIP_ID_L, &id_l);
++	if (ret) {
++		dev_err(dev, "Failed to read sensor id, (%d)\n", ret);
++		return ret;
++	}
++
++	id = id_h << 8 | id_l;
++	if (id != GC2093_CHIP_ID) {
++		dev_err(dev, "sensor id: %04X mismatched\n", id);
++		return -ENODEV;
++	}
++
++	dev_info(dev, "Detected GC2093 sensor\n");
++	return 0;
++}
++
++static long gc2093_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
++{
++	struct gc2093 *gc2093 = to_gc2093(sd);
++	long ret = 0;
++
++	dev_info(&gc2093->client->dev, "gc2093_ioctl\n");
++
++	switch (cmd) {
++	//case:
++	default:
++		ret = -ENOIOCTLCMD;
++		break;
++	}
++	return ret;
++}
++
++static int __gc2093_start_stream(struct gc2093 *gc2093)
++{
++	int ret;
++	dev_info(&gc2093->client->dev, "%s enter\n",__func__);
++
++	ret = gc2093_write_array(gc2093->client, gc2093->cur_mode->reg_list);
++	if (ret)
++		return ret;
++
++	/* Apply customized control from user */
++	mutex_unlock(&gc2093->lock);
++	v4l2_ctrl_handler_setup(&gc2093->ctrl_handler);
++	mutex_lock(&gc2093->lock);
++
++	return gc2093_write_reg(gc2093->client, GC2093_REG_CTRL_MODE,
++				GC2093_MODE_STREAMING);
++}
++
++static int __gc2093_stop_stream(struct gc2093 *gc2093)
++{
++	gc2093->has_init_exp = false;
++	return gc2093_write_reg(gc2093->client, GC2093_REG_CTRL_MODE,
++				GC2093_MODE_SW_STANDBY);
++}
++
++#ifdef CONFIG_COMPAT
++static long gc2093_compat_ioctl32(struct v4l2_subdev *sd,
++				  unsigned int cmd, unsigned long arg)
++{
++	void __user *up = compat_ptr(arg);
++	struct module_inf *inf;
++	struct module_awb_cfg *awb_cfg;
++	long ret = 0;
++
++	switch (cmd) {
++	case CANAANMODULE_GET_MODULE_INFO:
++		inf = kzalloc(sizeof(*inf), GFP_KERNEL);
++		if (!inf) {
++			ret = -ENOMEM;
++			return ret;
++		}
++
++		ret = gc2093_ioctl(sd, cmd, inf);
++		if (!ret)
++			ret = copy_to_user(up, inf, sizeof(*inf));
++		kfree(inf);
++		break;
++	case CANAANMODULE_AWB_CFG:
++		awb_cfg = kzalloc(sizeof(*awb_cfg), GFP_KERNEL);
++		if (!awb_cfg) {
++			ret = -ENOMEM;
++			return ret;
++		}
++
++		ret = gc2093_ioctl(sd, cmd, awb_cfg);
++		if (!ret)
++			ret = copy_to_user(up, awb_cfg, sizeof(*awb_cfg));
++		kfree(awb_cfg);
++		break;
++	default:
++		ret = -ENOIOCTLCMD;
++		break;
++	}
++	return ret;
++}
++#endif
++
++static int gc2093_s_stream(struct v4l2_subdev *sd, int on)
++{
++	struct gc2093 *gc2093 = to_gc2093(sd);	
++	int ret = 0;
++
++	mutex_lock(&gc2093->lock);
++	on = !!on;
++	if (on == gc2093->streaming)
++		goto unlock_and_return;
++
++	if (on) {
++		ret = __gc2093_start_stream(gc2093);
++		if (ret) {
++			dev_err(&gc2093->client->dev, "Failed to start gc2093 stream\n");
++			goto unlock_and_return;
++		}
++	} else {
++		__gc2093_stop_stream(gc2093);
++	}
++
++	gc2093->streaming = on;
++
++unlock_and_return:
++	mutex_unlock(&gc2093->lock);
++	return 0;
++}
++
++static int gc2093_g_frame_interval(struct v4l2_subdev *sd,
++				   struct v4l2_subdev_frame_interval *fi)
++{
++	struct gc2093 *gc2093 = to_gc2093(sd);
++	const struct gc2093_mode *mode = gc2093->cur_mode;
++
++	mutex_lock(&gc2093->lock);
++	fi->interval = mode->max_fps;
++	mutex_unlock(&gc2093->lock);
++
++	return 0;
++}
++
++static int gc2093_g_mbus_config(struct v4l2_subdev *sd,
++				struct v4l2_mbus_config *config)
++{
++	u32 val = 1 << (GC2093_LANES - 1) | V4L2_MBUS_CSI2_CHANNEL_0 |
++		  V4L2_MBUS_CSI2_CONTINUOUS_CLOCK;
++
++	config->type = V4L2_MBUS_CSI2;
++	config->flags = (val | V4L2_MBUS_CSI2_CHANNEL_1);
++
++	return 0;
++}
++
++static int gc2093_enum_mbus_code(struct v4l2_subdev *sd,
++				 struct v4l2_subdev_pad_config *cfg,
++				 struct v4l2_subdev_mbus_code_enum *code)
++{
++	if (code->index != 0)
++		return -EINVAL;
++	code->code = GC2093_MEDIA_BUS_FMT;
++	return 0;
++}
++
++static int gc2093_enum_frame_sizes(struct v4l2_subdev *sd,
++				   struct v4l2_subdev_pad_config *cfg,
++				   struct v4l2_subdev_frame_size_enum *fse)
++{
++	struct gc2093 *gc2093 = to_gc2093(sd);
++
++	if (fse->index >= gc2093->cfg_num)
++		return -EINVAL;
++
++	if (fse->code != GC2093_MEDIA_BUS_FMT)
++		return -EINVAL;
++
++	fse->min_width  = supported_modes[fse->index].width;
++	fse->max_width  = supported_modes[fse->index].width;
++	fse->max_height = supported_modes[fse->index].height;
++	fse->min_height = supported_modes[fse->index].height;
++	return 0;
++}
++
++static int gc2093_enum_frame_interval(struct v4l2_subdev *sd,
++						  struct v4l2_subdev_pad_config *cfg,
++						  struct v4l2_subdev_frame_interval_enum *fie)
++{
++	struct gc2093 *gc2093 = to_gc2093(sd);
++
++	if (fie->index >= gc2093->cfg_num)
++		return -EINVAL;
++
++	fie->code = GC2093_MEDIA_BUS_FMT;
++	fie->width = supported_modes[fie->index].width;
++	fie->height = supported_modes[fie->index].height;
++	fie->interval = supported_modes[fie->index].max_fps;
++	return 0;
++}
++
++static int gc2093_set_fmt(struct v4l2_subdev *sd,
++			  struct v4l2_subdev_pad_config *cfg,
++			  struct v4l2_subdev_format *fmt)
++{
++	struct gc2093 *gc2093 = to_gc2093(sd);
++	const struct gc2093_mode *mode;
++	s64 h_blank, vblank_def;
++
++	mutex_lock(&gc2093->lock);
++
++	mode = v4l2_find_nearest_size(supported_modes,
++				      ARRAY_SIZE(supported_modes),
++				      width, height,
++				      fmt->format.width, fmt->format.height);
++	dev_info(&gc2093->client->dev, "set_fmt, width:%u, height:%u.\n", mode->width, mode->height);
++
++	fmt->format.code = GC2093_MEDIA_BUS_FMT;
++	fmt->format.width = mode->width;
++	fmt->format.height = mode->height;
++	fmt->format.field = V4L2_FIELD_NONE;
++
++	if (fmt->which == V4L2_SUBDEV_FORMAT_TRY) {
++#ifdef CONFIG_VIDEO_V4L2_SUBDEV_API
++		*v4l2_subdev_get_try_format(sd, cfg, fmt->pad) = fmt->format;
++#else
++		mutex_unlock(&gc2093->lock);
++		return -ENOTTY;
++#endif
++	} else {
++		gc2093->cur_mode = mode;
++		__v4l2_ctrl_s_ctrl(gc2093->link_freq, mode->link_freq_index);
++		__v4l2_ctrl_s_ctrl_int64(gc2093->pixel_rate,
++					 to_pixel_rate(mode->link_freq_index));
++		h_blank = mode->hts_def - mode->width;
++		__v4l2_ctrl_modify_range(gc2093->hblank, h_blank,
++					 h_blank, 1, h_blank);
++		vblank_def = mode->vts_def - mode->height;
++		__v4l2_ctrl_modify_range(gc2093->vblank, vblank_def,
++					 GC2093_VTS_MAX - mode->height,
++					 1, vblank_def);
++	}
++
++	mutex_unlock(&gc2093->lock);
++	return 0;
++}
++
++static int gc2093_get_fmt(struct v4l2_subdev *sd,
++			  struct v4l2_subdev_pad_config *cfg,
++			  struct v4l2_subdev_format *fmt)
++{
++	struct gc2093 *gc2093 = to_gc2093(sd);
++	const struct gc2093_mode *mode = gc2093->cur_mode;
++
++	mutex_lock(&gc2093->lock);
++	if (fmt->which == V4L2_SUBDEV_FORMAT_TRY) {
++#ifdef CONFIG_VIDEO_V4L2_SUBDEV_API
++		fmt->format = *v4l2_subdev_get_try_format(sd, cfg, fmt->pad);
++#else
++		mutex_unlock(&gc2093->lock);
++		return -ENOTTY;
++#endif
++	} else {
++		fmt->format.width = mode->width;
++		fmt->format.height = mode->height;
++		fmt->format.code = GC2093_MEDIA_BUS_FMT;
++		fmt->format.field = V4L2_FIELD_NONE;
++	}
++	mutex_unlock(&gc2093->lock);
++	return 0;
++}
++
++#ifdef CONFIG_VIDEO_V4L2_SUBDEV_API
++static int gc2093_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
++{
++	struct gc2093 *gc2093 = to_gc2093(sd);
++	struct v4l2_mbus_framefmt *try_fmt =
++				v4l2_subdev_get_try_format(sd, fh->pad, 0);
++	const struct gc2093_mode *def_mode = &supported_modes[0];
++
++	mutex_lock(&gc2093->lock);
++	/* Initialize try_fmt */
++	try_fmt->width = def_mode->width;
++	try_fmt->height = def_mode->height;
++	try_fmt->code = GC2093_MEDIA_BUS_FMT;
++	try_fmt->field = V4L2_FIELD_NONE;
++	mutex_unlock(&gc2093->lock);
++
++	return 0;
++}
++#endif
++
++#ifdef CONFIG_VIDEO_V4L2_SUBDEV_API
++static const struct v4l2_subdev_internal_ops gc2093_internal_ops = {
++	.open = gc2093_open,
++};
++#endif
++
++static int gc2093_s_power(struct v4l2_subdev *sd, int on)
++{
++	struct gc2093 *gc2093 = to_gc2093(sd);
++	int ret = 0;
++
++	mutex_lock(&gc2093->lock);
++
++	if (gc2093->power_on == !!on)
++		goto unlock_and_return;
++
++	if (on) {
++		gc2093->power_on = true;
++	} else {
++		gc2093->power_on = false;
++	}
++
++unlock_and_return:
++	mutex_unlock(&gc2093->lock);
++
++	return ret;
++}
++
++static const struct v4l2_subdev_core_ops gc2093_core_ops = {
++	.s_power = gc2093_s_power,
++	.ioctl = gc2093_ioctl,
++#ifdef CONFIG_COMPAT
++	.compat_ioctl32 = gc2093_compat_ioctl32,
++#endif
++};
++
++static const struct v4l2_subdev_video_ops gc2093_video_ops = {
++	.s_stream = gc2093_s_stream,
++	.g_frame_interval = gc2093_g_frame_interval,
++	.g_mbus_config = gc2093_g_mbus_config,
++};
++
++static const struct v4l2_subdev_pad_ops gc2093_pad_ops = {
++	.enum_mbus_code = gc2093_enum_mbus_code,
++	.enum_frame_size = gc2093_enum_frame_sizes,
++	.enum_frame_interval = gc2093_enum_frame_interval,
++	.get_fmt = gc2093_get_fmt,
++	.set_fmt = gc2093_set_fmt,
++};
++
++static const struct v4l2_subdev_ops gc2093_subdev_ops = {
++	.core   = &gc2093_core_ops,
++	.video  = &gc2093_video_ops,
++	.pad    = &gc2093_pad_ops,
++};
++
++static int gc2093_probe(struct i2c_client *client,
++			 const struct i2c_device_id *id)
++{
++	struct device *dev = &client->dev;
++	struct device_node *node = dev->of_node;
++	struct gc2093 *gc2093;
++	struct v4l2_subdev *sd;
++	char facing[2];
++	int ret;
++
++	dev_info(dev, "driver version: %02x.%02x.%02x",
++		 DRIVER_VERSION >> 16,
++		 (DRIVER_VERSION & 0xff00) >> 8,
++		 DRIVER_VERSION & 0x00ff);
++
++	gc2093 = devm_kzalloc(dev, sizeof(*gc2093), GFP_KERNEL);
++	if (!gc2093)
++		return -ENOMEM;
++
++	gc2093->client = client;
++	ret = of_property_read_u32(node, CANAANMODULE_CAMERA_MODULE_INDEX,
++				   &gc2093->module_index);
++	ret |= of_property_read_string(node, CANAANMODULE_CAMERA_MODULE_FACING,
++				       &gc2093->module_facing);
++	ret |= of_property_read_string(node, CANAANMODULE_CAMERA_MODULE_NAME,
++				       &gc2093->module_name);
++	ret |= of_property_read_string(node, CANAANMODULE_CAMERA_LENS_NAME,
++				       &gc2093->len_name);
++
++	if (ret) {
++		dev_err(dev, "Failed to get module information\n");
++		return -EINVAL;
++	}
++
++	gc2093->reset_gpio = devm_gpiod_get(dev, "reset", GPIOD_OUT_LOW);
++	if (IS_ERR(gc2093->reset_gpio))
++		dev_warn(dev, "Failed to get reset-gpios\n");
++
++	gc2093->pwdn_gpio = devm_gpiod_get(dev, "pwdn", GPIOD_OUT_HIGH);
++	if (IS_ERR(gc2093->pwdn_gpio))
++		dev_warn(dev, "Failed to get pwdn-gpios\n");
++
++
++	if (gpiod_export(gc2093->reset_gpio, 0)) {
++		dev_err(dev, "gpiod export gc2093 reset failed.");
++	}
++
++	if (gpiod_export(gc2093->pwdn_gpio, 0)) {
++		dev_err(dev, "gpiod export gc2093 powerdown failed.");
++	}
++
++	mutex_init(&gc2093->lock);
++
++	/* set default mode */
++	gc2093->cur_mode = &supported_modes[0];
++	gc2093->cfg_num = ARRAY_SIZE(supported_modes);
++
++	sd = &gc2093->subdev;
++	v4l2_i2c_subdev_init(sd, client, &gc2093_subdev_ops);
++	ret = gc2093_initialize_controls(gc2093);
++	if (ret)
++		goto err_destroy_mutex;
++
++	ret = __gc2093_power_on(gc2093);
++	if (ret)
++		goto err_free_handler;
++
++	ret = gc2093_check_sensor_id(gc2093);
++	if (ret)
++		goto err_power_off;
++
++	sd->internal_ops = &gc2093_internal_ops;
++	sd->flags |= V4L2_SUBDEV_FL_HAS_DEVNODE |
++		     V4L2_SUBDEV_FL_HAS_EVENTS;
++
++	gc2093->pad.flags = MEDIA_PAD_FL_SOURCE;
++	sd->entity.function = MEDIA_ENT_F_CAM_SENSOR;
++	ret = media_entity_pads_init(&sd->entity, 1, &gc2093->pad);
++	if (ret < 0)
++		goto err_power_off;
++
++	memset(facing, 0, sizeof(facing));
++	if (strcmp(gc2093->module_facing, "back") == 0)
++		facing[0] = 'b';
++	else
++		facing[0] = 'f';
++
++	snprintf(sd->name, sizeof(sd->name), "m%02d_%s_%s %s",
++		 gc2093->module_index, facing,
++		 GC2093_NAME, dev_name(sd->dev));
++
++	ret = v4l2_async_register_subdev_sensor_common(sd);
++	if (ret) {
++		dev_err(dev, "Failed to register v4l2 async subdev\n");
++		goto err_clean_entity;
++	}
++
++	return 0;
++
++err_clean_entity:
++#ifdef CONFIG_MEDIA_CONTROLLER
++	media_entity_cleanup(&sd->entity);
++#endif
++err_power_off:
++	__gc2093_power_off(gc2093);
++err_free_handler:
++	v4l2_ctrl_handler_free(&gc2093->ctrl_handler);
++err_destroy_mutex:
++	mutex_destroy(&gc2093->lock);
++
++	return ret;
++}
++
++static int gc2093_remove(struct i2c_client *client)
++{
++	struct v4l2_subdev *sd = i2c_get_clientdata(client);
++	struct gc2093 *gc2093 = to_gc2093(sd);
++
++	v4l2_async_unregister_subdev(sd);
++#ifdef CONFIG_MEDIA_CONTROLLER
++	media_entity_cleanup(&sd->entity);
++#endif
++	v4l2_ctrl_handler_free(&gc2093->ctrl_handler);
++	mutex_destroy(&gc2093->lock);
++
++	__gc2093_power_off(gc2093);
++	return 0;
++}
++
++static const struct i2c_device_id gc2093_match_id[] = {
++	{ "gc2093", 0 },
++	{ },
++};
++
++static const struct of_device_id gc2093_of_match[] = {
++	{ .compatible = "galaxycore,gc2093" },
++	{},
++};
++MODULE_DEVICE_TABLE(of, gc2093_of_match);
++
++static struct i2c_driver gc2093_i2c_driver = {
++	.driver = {
++		.name = GC2093_NAME,
++		.of_match_table = of_match_ptr(gc2093_of_match),
++	},
++	.probe      = &gc2093_probe,
++	.remove     = &gc2093_remove,
++	.id_table   = gc2093_match_id,
++};
++
++module_i2c_driver(gc2093_i2c_driver);
++MODULE_DESCRIPTION("Galaxycore GC2093 Image Sensor driver");
++MODULE_LICENSE("GPL v2");
++
+diff --git a/drivers/media/i2c/soc_camera/canaanchip/gc2145.c b/drivers/media/i2c/soc_camera/canaanchip/gc2145.c
+new file mode 100755
+index 00000000..a1b23d35
+--- /dev/null
++++ b/drivers/media/i2c/soc_camera/canaanchip/gc2145.c
+@@ -0,0 +1,1264 @@
++/*
++ * Driver for GC2145 CMOS Image Sensor
++ *
++ * Copyright (C) 2022, Canaan Bright Sight Co., Ltd
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software Foundation.
++ */
++
++#include <linux/clk.h>
++#include <linux/delay.h>
++#include <linux/gpio/consumer.h>
++#include <linux/i2c.h>
++#include <linux/module.h>
++#include <linux/pm_runtime.h>
++#include <linux/of_graph.h>
++#include <linux/regulator/consumer.h>
++#include <linux/version.h>
++#include <linux/canaan-camera-module.h>
++
++#include <media/v4l2-async.h>
++#include <media/media-entity.h>
++#include <media/v4l2-ctrls.h>
++#include <media/v4l2-device.h>
++#include <media/v4l2-fwnode.h>
++#include <media/v4l2-subdev.h>
++
++#define DRIVER_VERSION		KERNEL_VERSION(0, 0x01, 0x01)
++#define GC2145_NAME		"gc2145"
++#define GC2145_MEDIA_BUS_FMT	MEDIA_BUS_FMT_SRGGB10_1X10
++
++#define MIPI_FREQ_120M		120000000
++#define MIPI_FREQ_240M		240000000
++
++#define GC2145_XVCLK_FREQ	24000000
++
++#define GC2145_REG_CHIP_ID_H	0xF0
++#define GC2145_REG_CHIP_ID_L	0xF1
++
++#define GC2145_REG_EXP_SHORT_H	0x01
++#define GC2145_REG_EXP_SHORT_L	0x02
++#define GC2145_REG_EXP_LONG_H	0x03
++#define GC2145_REG_EXP_LONG_L	0x04
++
++#define GC2145_MIRROR_FLIP_REG	0x17
++#define MIRROR_MASK		BIT(0)
++#define FLIP_MASK		BIT(1)
++
++#define GC2145_CHIP_ID		0x2145
++
++#define GC2145_VTS_MAX		0x3FFF
++#define GC2145_HTS_MAX		0xFFF
++
++#define GC2145_EXPOSURE_MAX	0x3FFF
++#define GC2145_EXPOSURE_MIN	1
++#define GC2145_EXPOSURE_STEP	1
++
++#define GC2145_GAIN_MIN		0x40
++#define GC2145_GAIN_MAX		0x2000
++#define GC2145_GAIN_STEP	1
++#define GC2145_GAIN_DEFAULT	64
++
++#define GC2145_LANES		2
++
++#define REG_NULL			0xFF
++
++#define to_gc2145(sd) container_of(sd, struct gc2145, subdev)
++
++enum {
++	LINK_FREQ_120M_INDEX,
++	LINK_FREQ_240M_INDEX,
++};
++
++struct gc2145_reg {
++	u8 addr;
++	u8 val;
++};
++
++struct gain_reg_config {
++	u32 value;
++	u16 analog_gain;
++	u16 col_gain;
++	u16 analog_sw;
++	u16 ram_width;
++};
++
++struct gc2145_mode {
++	u32 width;
++	u32 height;
++	struct v4l2_fract max_fps;
++	u32 hts_def;
++	u32 vts_def;
++	u32 exp_def;
++	u32 link_freq_index;
++	const struct gc2145_reg *reg_list;
++};
++
++struct gc2145 {
++	struct i2c_client *client;
++	struct gpio_desc *reset_gpio;
++	struct gpio_desc *pwdn_gpio;
++
++	struct v4l2_subdev  subdev;
++	struct media_pad    pad;
++	struct v4l2_ctrl_handler ctrl_handler;
++	struct v4l2_ctrl    *exposure;
++	struct v4l2_ctrl    *anal_gain;
++	struct v4l2_ctrl    *hblank;
++	struct v4l2_ctrl    *vblank;
++	struct v4l2_ctrl    *h_flip;
++	struct v4l2_ctrl    *v_flip;
++	struct v4l2_ctrl    *link_freq;
++	struct v4l2_ctrl    *pixel_rate;
++
++	struct mutex    lock;
++	bool		    streaming;
++	bool		    power_on;
++	unsigned int    cfg_num;
++	const struct gc2145_mode *cur_mode;
++
++	u32		module_index;
++	const char      *module_facing;
++	const char      *module_name;
++	const char      *len_name;
++
++	bool			  has_init_exp;
++};
++
++static const s64 link_freq_menu_items[] = {
++	MIPI_FREQ_120M,
++	MIPI_FREQ_240M,
++};
++
++static const struct gc2145_reg gc2145_start[] = {
++	{0xfe, 0x03},
++	{0x10, 0x91},/* mode select streaming on */
++	{0xfe, 0x00},
++	{REG_NULL, 0x00},
++};
++
++static const struct gc2145_reg gc2145_stop[] = {
++	{0xfe, 0x03},
++	{0x10, 0x81},/* mode select streaming off */
++	{0xfe, 0x00},
++	{REG_NULL, 0x00},
++};
++
++/*
++ * window size=1600*1200 mipi@2lane
++ * mclk=24M mipi_clk=480Mbps
++ * pixel_line_total=1920  line_frame_total=1250
++ * row_time=40us frame_rate=20fps
++ */
++static const struct gc2145_reg gc2145_1600x1200_mipi_raw10_settings[] = {
++	{0xfe,0xf0},
++	{0xfe,0xf0},
++	{0xfe,0xf0},
++	{0xfc,0x06},
++	{0xf6,0x00},
++	{0xf7,0x1d},
++	{0xf8,0x84},
++	{0xfa,0x00},
++	{0xf9,0x8e},
++	{0xf2,0x00},
++
++	/*** Analog & Cisctl ***/
++	{0xfe,0x00},
++	{0x03,0x04},//Exposure[12:8] 
++	{0x04,0xe2},//Exposure[7:0] 
++	{0x05,0x01},//hb[11:8]
++	{0x06,0x56},//hb[7:0]
++	{0x07,0x00},//vb[12:8]
++	{0x08,0x14},//vb[7:0]
++
++	{0x09,0x00},//row_start[10:8]
++	{0x0a,0x00},//row_start[7:0]
++	{0x0b,0x00},//col_start[10:8]
++	{0x0c,0x00},//col_start[7:1]
++	{0x0d,0x04},//win_height[10:8] 04c0=1216
++	{0x0e,0xc0},//win_height[7:0]
++	{0x0f,0x06},//win_width[10:8] 0652=1618
++	{0x10,0x52},//win_width[7:0]
++	{0x12,0x2e},
++	{0x17,0x13},
++	{0x18,0x22},
++	{0x19,0x0e},
++	{0x1a,0x01},
++	{0x1b,0x4b},
++	{0x1c,0x07},
++	{0x1d,0x10},
++	{0x1e,0x88},
++	{0x1f,0x78},
++	{0x20,0x03},
++	{0x21,0x40},
++	{0x22,0xa0},
++	{0x24,0x16},
++	{0x25,0x01},
++	{0x26,0x10},
++	{0x2d,0x60},
++	{0x30,0x01},
++	{0x31,0x90},
++	{0x33,0x06},
++	{0x34,0x01},
++
++	/*** ISP reg ***/
++	{0x80,0x06},
++	{0x81,0x00},
++	{0x82,0x30},
++	{0x83,0x00},
++	{0x84,0x19},
++	{0x86,0x02},
++	{0x88,0x03},
++	{0x89,0x03},
++	{0x85,0x30},
++	{0x8a,0x00},
++	{0x8b,0x00},
++	{0xb0,0x55},
++	{0xc3,0x00},
++	{0xc4,0x80},
++	{0xc5,0x90},
++	{0xc6,0x38},
++	{0xc7,0x40},
++	{0xec,0x06},
++	{0xed,0x04},
++	{0xee,0x60},
++	{0xef,0x90},
++	{0xb6,0x00}, //close aec
++	{0x90,0x01},
++	{0x91,0x00},//out_win_y1[10:8]
++	{0x92,0x01},//out_win_y1[7:0]
++	{0x93,0x00},//out_win_x1[10:8]
++	{0x94,0x01},//out_win_x1[7:0]
++	{0x95,0x04},//out_win_height[10:8] 1200=04b0
++	{0x96,0xb0},//out_win_height[7:0]
++	{0x97,0x06},//out_win_width[10:8] 1600=0640
++	{0x98,0x40},//out_win_width[7:0]
++
++	/*** BLK ***/
++	{0x40,0x42},
++	{0x41,0x00},
++	{0x43,0x54},
++	{0x5e,0x00},
++	{0x5f,0x00},
++	{0x60,0x00},
++	{0x61,0x00},
++	{0x62,0x00},
++	{0x63,0x00},
++	{0x64,0x00},
++	{0x65,0x00},
++	{0x66,0x20},
++	{0x67,0x20},
++	{0x68,0x20},
++	{0x69,0x20},
++	{0x76,0x00},
++	{0x6a,0x08}, 
++	{0x6b,0x08}, 
++	{0x6c,0x08}, 
++	{0x6d,0x08}, 
++	{0x6e,0x08}, 
++	{0x6f,0x08}, 
++	{0x70,0x08}, 
++	{0x71,0x08},
++	{0x76,0x00},
++	{0x72,0xf0},
++	{0x7e,0x3c},
++	{0x7f,0x00},
++	{0xfe,0x02},
++	{0x48,0x15},
++	{0x49,0x00},
++	{0x4b,0x0b},
++	{0xfe,0x00},
++
++	/*** dark sun ***/
++	{0xfe,0x00},
++	{0x18,0x22}, 
++	{0xfe,0x02},
++	{0x40,0xbf},
++	{0x46,0xcf},
++	{0xfe,0x00},
++
++	/***MIPI*****/
++	{0xfe,0x03},
++	{0x01,0x87},//[7]:clk lane_p2s_sel
++	{0x02,0x22},
++	{0x03,0x10},//[4]:
++	{0x04,0x90},
++	{0x05,0x01},
++	{0x06,0x88},
++	{0x11,0x2b},
++	{0x12,0xd0},
++	{0x13,0x07},
++	{0x15,0x10},
++	{0x17,0xf1},
++	{0xfe,0x00},
++	{REG_NULL, 0x00},
++};
++
++static const struct gc2145_reg gc2145_1280x960_mipi_raw10_settings[] = {
++	{0xfe, 0xf0},
++	{0xfe, 0xf0},
++	{0xfe, 0xf0},
++	{0xfc, 0x06},
++	{0xf6, 0x00},
++	{0xf7, 0x1d},
++	{0xf8, 0x84},
++	{0xfa, 0x00},
++	{0xf9, 0x8e},
++	{0xf2, 0x00},
++
++    /*** Analog & Cisctl ***/
++	{0xfe, 0x00},
++	{0x03, 0x04},
++	{0x04, 0xe2},
++	{0x05, 0x01},
++	{0x06, 0x56},
++	{0x07, 0x00},
++	{0x08, 0x14},
++	{0x09, 0x00},//row_start[10:8]
++	{0x0a, 0x00},//row_start[7:0]
++	{0x0b, 0x00},//col_start[10:8]
++	{0x0c, 0x00},//col_start[7:1]
++	{0x0d, 0x04},//win_height[10:8] 04c0=1216
++	{0x0e, 0xc0},//win_height[7:0]
++	{0x0f, 0x06},//win_width[10:8] 0652=1618
++	{0x10, 0x52},//win_width[7:0]
++
++	{0x12, 0x2e},
++	{0x17, 0x13}, //mirror
++	{0x18, 0x22},
++	{0x19, 0x0e},
++	{0x1a, 0x01},
++	{0x1b, 0x4b},
++	{0x1c, 0x07},
++	{0x1d, 0x10},
++	{0x1e, 0x88},
++	{0x1f, 0x78},
++	{0x20, 0x03},
++	{0x21, 0x40},
++	{0x22, 0xa0},
++	{0x24, 0x16},
++	{0x25, 0x01},
++	{0x26, 0x10},
++	{0x2d, 0x60},
++	{0x30, 0x01},
++	{0x31, 0x90},
++	{0x33, 0x06},
++	{0x34, 0x01},
++
++    /*** ISP reg ***/
++	{0xfe, 0x00},
++	{0x80, 0x06},
++	{0x81, 0x00},
++	{0x82, 0x30},
++	{0x83, 0x00},
++	{0x84, 0x19},
++	{0x86, 0x02},
++	{0x88, 0x03},
++	{0x89, 0x03},
++	{0x85, 0x30},
++	{0x8a, 0x00},
++	{0x8b, 0x00},
++	{0xb0, 0x55},
++	{0xc3, 0x00},
++	{0xc4, 0x80},
++	{0xc5, 0x90},
++	{0xc6, 0x38},
++	{0xc7, 0x40},
++	{0xec, 0x06},
++	{0xed, 0x04},
++	{0xee, 0x60},
++	{0xef, 0x90},
++	{0xb6, 0x00}, //close aec
++	{0x90, 0x01},//Crop enable
++	{0x91, 0x00},//out_win_y1[10:8]
++	{0x92, 0x01},//out_win_y1[7:0]
++	{0x93, 0x00},//out_win_x1[10:8]
++	{0x94, 0x01},//out_win_x1[7:0]
++	{0x95, 0x03},//out_win_height[10:8]
++	{0x96, 0xc0},//out_win_height[7:0] //960
++	{0x97, 0x05},//out_win_width[10:8] 
++	{0x98, 0x00},//out_win_width[7:0] //1280
++
++	/*** BLK ***/
++	{0x40, 0x42},
++	{0x41, 0x00},
++	{0x43, 0x54},
++	{0x5e, 0x00},
++	{0x5f, 0x00},
++	{0x60, 0x00},
++	{0x61, 0x00},
++	{0x62, 0x00},
++	{0x63, 0x00},
++	{0x64, 0x00},
++	{0x65, 0x00},
++	{0x66, 0x20},
++	{0x67, 0x20},
++	{0x68, 0x20},
++	{0x69, 0x20},
++	{0x76, 0x00},
++	{0x6a, 0x08},
++	{0x6b, 0x08},
++	{0x6c, 0x08},
++	{0x6d, 0x08},
++	{0x6e, 0x08}, 
++	{0x6f, 0x08},
++	{0x70, 0x08}, 
++	{0x71, 0x08},
++	{0x76, 0x00},
++	{0x72, 0xf0},
++	{0x7e, 0x3c},
++	{0x7f, 0x00},
++	{0xfe, 0x02},
++	{0x48, 0x15},
++	{0x49, 0x00},
++	{0x4b, 0x0b},
++	{0xfe, 0x00},
++
++    /*** dark sun ***/
++	{0xfe, 0x00},
++	{0x18, 0x22},
++	{0xfe, 0x02},
++	{0x40, 0xbf},
++	{0x46, 0xcf},
++	{0xfe, 0x00},
++
++    /***MIPI*****/
++	{0xfe, 0x03},
++	{0x01, 0x87},
++	{0x02, 0x22},
++	{0x03, 0x10},
++	{0x04, 0x90},
++	{0x05, 0x01},
++	{0x06, 0x88},
++	{0x11, 0x2b},
++	{0x12, 0x40},
++	{0x13, 0x06},
++	{0x15, 0x10},
++	{0x17, 0xf1},
++	{0xfe, 0x00},
++	{REG_NULL, 0x00},
++};
++
++static const struct gc2145_mode supported_modes[] = {
++	{
++		.width = 1280,
++		.height = 960,
++		.max_fps = {
++			.numerator = 10000,
++			.denominator = 200000,
++		},
++		.exp_def = 0x460,
++		.hts_def = 0x780,
++		.vts_def = 0x4e2,
++		.link_freq_index = LINK_FREQ_240M_INDEX,
++		.reg_list = gc2145_1280x960_mipi_raw10_settings,
++	},
++	{
++		.width = 1600,
++		.height = 1200,
++		.max_fps = {
++			.numerator = 10000,
++			.denominator = 200000,
++		},
++		.exp_def = 0x460,
++		.hts_def = 0x780,
++		.vts_def = 0x4e2,		
++		.link_freq_index = LINK_FREQ_240M_INDEX,
++		.reg_list = gc2145_1600x1200_mipi_raw10_settings,
++	},
++};
++
++/* pixel rate = link frequency * 2 * lanes / BITS_PER_SAMPLE */
++static u64 to_pixel_rate(u32 index)
++{
++	u64 pixel_rate = link_freq_menu_items[index] * 2 * GC2145_LANES;
++
++	do_div(pixel_rate, 10);
++
++	return pixel_rate;
++}
++
++/* sensor register write */
++static int gc2145_write_reg(struct i2c_client *client, u8 reg, u8 val)
++{
++	struct i2c_msg msg;
++	u8 buf[2];
++	int ret;
++
++	buf[0] = reg & 0xFF;
++	buf[1] = val;
++
++	msg.addr = client->addr;
++	msg.flags = client->flags;
++	msg.buf = buf;
++	msg.len = sizeof(buf);
++
++	ret = i2c_transfer(client->adapter, &msg, 1);
++	if (ret >= 0)
++		return 0;
++
++	dev_err(&client->dev,
++		"gc2053 write reg(0x%x val:0x%x) failed !\n", reg, val);
++
++	return ret;
++}
++
++static int gc2145_write_array(struct i2c_client *client,
++				  const struct gc2145_reg *regs)
++{
++	int i, ret = 0;
++
++	i = 0;
++	while (regs[i].addr != REG_NULL) {
++		ret = gc2145_write_reg(client, regs[i].addr, regs[i].val);
++		if (ret) {
++			dev_err(&client->dev, "%s failed !\n", __func__);
++			break;
++		}
++		i++;
++	}
++
++	return ret;
++}
++
++/* sensor register read */
++static int gc2145_read_reg(struct i2c_client *client, u8 reg, u8 *val)
++{
++	struct i2c_msg msg[2];
++	u8 buf[1];
++	int ret;
++
++	buf[0] = reg & 0xFF;
++
++	msg[0].addr = client->addr;
++	msg[0].flags = client->flags;
++	msg[0].buf = buf;
++	msg[0].len = sizeof(buf);
++
++	msg[1].addr = client->addr;
++	msg[1].flags = client->flags | I2C_M_RD;
++	msg[1].buf = buf;
++	msg[1].len = 1;
++
++	ret = i2c_transfer(client->adapter, msg, 2);
++	if (ret >= 0) {
++		*val = buf[0];
++		return 0;
++	}
++
++	dev_err(&client->dev,
++		"gc2145 read reg(0x%x val:0x%x) failed !\n", reg, *val);
++
++	return ret;
++}
++
++static const struct gain_reg_config gain_reg_configs[] = {
++	{  64, 0x0000, 0x0100, 0x6807, 0x00f8},
++	{  75, 0x0010, 0x010c, 0x6807, 0x00f8},
++	{  90, 0x0020, 0x011b, 0x6c08, 0x00f9},
++	{ 105, 0x0030, 0x012c, 0x6c0a, 0x00fa},
++	{ 122, 0x0040, 0x013f, 0x7c0b, 0x00fb},
++	{ 142, 0x0050, 0x0216, 0x7c0d, 0x00fe},
++	{ 167, 0x0060, 0x0235, 0x7c0e, 0x00ff},
++	{ 193, 0x0070, 0x0316, 0x7c10, 0x0801},
++	{ 223, 0x0080, 0x0402, 0x7c12, 0x0802},
++	{ 257, 0x0090, 0x0431, 0x7c13, 0x0803},
++	{ 299, 0x00a0, 0x0532, 0x7c15, 0x0805},
++	{ 346, 0x00b0, 0x0635, 0x7c17, 0x0807},
++	{ 397, 0x00c0, 0x0804, 0x7c18, 0x0808},
++	{ 444, 0x005a, 0x0919, 0x7c17, 0x0807},
++	{ 523, 0x0083, 0x0b0f, 0x7c17, 0x0807},
++	{ 607, 0x0093, 0x0d12, 0x7c19, 0x0809},
++	{ 700, 0x0084, 0x1000, 0x7c1b, 0x080c},
++	{ 817, 0x0094, 0x123a, 0x7c1e, 0x080f},
++	{1131, 0x005d, 0x1a02, 0x7c23, 0x0814},
++	{1142, 0x009b, 0x1b20, 0x7c25, 0x0816},
++	{1334, 0x008c, 0x200f, 0x7c27, 0x0818},
++	{1568, 0x009c, 0x2607, 0x7c2a, 0x081b},
++	{2195, 0x00b6, 0x3621, 0x7c32, 0x0823},
++	{2637, 0x00ad, 0x373a, 0x7c36, 0x0827},
++	{3121, 0x00bd, 0x3d02, 0x7c3a, 0x082b},
++};
++
++static int gc2145_set_gain(struct gc2145 *gc2145, u32 gain)
++{
++	return 0;
++}
++
++static int gc2145_set_ctrl(struct v4l2_ctrl *ctrl)
++{
++	struct gc2145 *gc2145 = container_of(ctrl->handler,
++					     struct gc2145, ctrl_handler);
++	s64 max;
++	int ret = 0;
++	dev_dbg(&gc2145->client->dev, "%s enter, id:0x%X val:%d.\n", __func__, ctrl->id, ctrl->val);
++
++	/* Propagate change of current control to all related controls */
++	switch (ctrl->id) {
++	case V4L2_CID_VBLANK:
++		/* Update max exposure while meeting expected vblanking */
++		max = gc2145->cur_mode->height + ctrl->val - 1;
++		__v4l2_ctrl_modify_range(gc2145->exposure,
++					 gc2145->exposure->minimum, max,
++					 gc2145->exposure->step,
++					 gc2145->exposure->default_value);
++		break;
++	}
++
++	switch (ctrl->id) {
++	case V4L2_CID_EXPOSURE:
++		break;
++	case V4L2_CID_ANALOGUE_GAIN:
++	case V4L2_CID_GAIN:
++		gc2145_set_gain(gc2145, ctrl->val);
++		break;
++	case V4L2_CID_VBLANK:
++		/* The exposure goes up and reduces the frame rate, no need to write vb */
++		break;
++	case V4L2_CID_HFLIP:
++		break;
++	case V4L2_CID_VFLIP:
++		break;
++	default:
++		dev_warn(&gc2145->client->dev, "%s Unhandled id:0x%x, val:0x%x\n",
++			 __func__, ctrl->id, ctrl->val);
++		break;
++	}
++
++	return ret;
++}
++
++static const struct v4l2_ctrl_ops gc2145_ctrl_ops = {
++	.s_ctrl = gc2145_set_ctrl,
++};
++
++static int gc2145_initialize_controls(struct gc2145 *gc2145)
++{
++	const struct gc2145_mode *mode;
++	struct v4l2_ctrl_handler *handler;
++	s64 exposure_max, vblank_def;
++	u32 h_blank;
++	int ret;
++
++	handler = &gc2145->ctrl_handler;
++	mode = gc2145->cur_mode;
++	ret = v4l2_ctrl_handler_init(handler, 10);
++	if (ret)
++		return ret;
++	handler->lock = &gc2145->lock;
++
++	gc2145->link_freq = v4l2_ctrl_new_int_menu(handler, NULL, V4L2_CID_LINK_FREQ,
++						   ARRAY_SIZE(link_freq_menu_items) - 1, 0,
++						   link_freq_menu_items);
++
++	gc2145->pixel_rate = v4l2_ctrl_new_std(handler, NULL, V4L2_CID_PIXEL_RATE,
++						   0, to_pixel_rate(LINK_FREQ_240M_INDEX),
++						   1, to_pixel_rate(LINK_FREQ_120M_INDEX));
++
++	h_blank = mode->hts_def - mode->width;
++	gc2145->hblank = v4l2_ctrl_new_std(handler, NULL, V4L2_CID_HBLANK,
++					   h_blank, h_blank, 1, h_blank);
++	if (gc2145->hblank)
++		gc2145->hblank->flags |= V4L2_CTRL_FLAG_READ_ONLY;
++
++	vblank_def = mode->vts_def - mode->height;
++	gc2145->vblank = v4l2_ctrl_new_std(handler, &gc2145_ctrl_ops,
++					   V4L2_CID_VBLANK, vblank_def,
++					   GC2145_VTS_MAX - mode->height,
++					   1, vblank_def);
++
++	exposure_max = mode->vts_def - 1;
++	gc2145->exposure = v4l2_ctrl_new_std(handler, &gc2145_ctrl_ops,
++					     V4L2_CID_EXPOSURE, GC2145_EXPOSURE_MIN,
++					     exposure_max, GC2145_EXPOSURE_STEP,
++					     mode->exp_def);
++
++	gc2145->anal_gain = v4l2_ctrl_new_std(handler, &gc2145_ctrl_ops,
++					      V4L2_CID_ANALOGUE_GAIN, GC2145_GAIN_MIN,
++					      GC2145_GAIN_MAX, GC2145_GAIN_STEP,
++					      GC2145_GAIN_DEFAULT);
++
++
++	v4l2_ctrl_new_std(handler, &gc2145_ctrl_ops,
++					      V4L2_CID_GAIN, GC2145_GAIN_MIN,
++					      GC2145_GAIN_MAX, GC2145_GAIN_STEP,
++					      GC2145_GAIN_DEFAULT);
++
++	gc2145->h_flip = v4l2_ctrl_new_std(handler, &gc2145_ctrl_ops,
++					   V4L2_CID_HFLIP, 0, 1, 1, 0);
++
++	gc2145->v_flip = v4l2_ctrl_new_std(handler, &gc2145_ctrl_ops,
++					   V4L2_CID_VFLIP, 0, 1, 1, 0);
++
++	if (handler->error) {
++		ret = handler->error;
++		dev_err(&gc2145->client->dev, "Failed to init controls(%d)\n", ret);
++		goto err_free_handler;
++	}
++
++	gc2145->subdev.ctrl_handler = handler;
++	gc2145->has_init_exp = false;
++
++	return 0;
++
++err_free_handler:
++	v4l2_ctrl_handler_free(handler);
++	return ret;
++}
++
++/* Calculate the delay in us by clock rate and clock cycles */
++static inline u32 gc2145_cal_delay(u32 cycles)
++{
++	return DIV_ROUND_UP(cycles, GC2145_XVCLK_FREQ / 1000 / 1000);
++}
++
++static int __gc2145_power_on(struct gc2145 *gc2145)
++{
++	u32 delay_us;
++
++	if (!IS_ERR(gc2145->pwdn_gpio)) {
++		gpiod_set_value_cansleep(gc2145->pwdn_gpio, 0);//exit powerdown mode
++		usleep_range(500, 800);
++	}
++
++	if (!IS_ERR(gc2145->reset_gpio)) {
++		gpiod_set_value_cansleep(gc2145->reset_gpio, 0);//exit reset mode
++		usleep_range(3000, 6000);
++	}
++	if (!IS_ERR(gc2145->reset_gpio)) {
++		gpiod_set_value_cansleep(gc2145->reset_gpio, 1);//enter reset mode
++		usleep_range(3000, 6000);
++	}
++
++	if (!IS_ERR(gc2145->reset_gpio))
++		gpiod_set_value_cansleep(gc2145->reset_gpio, 0);//exit reset mode
++
++	/* 8192 cycles prior to first SCCB transaction */
++	delay_us = gc2145_cal_delay(8192);
++	usleep_range(delay_us, delay_us * 2);
++	return 0;
++}
++
++
++static void __gc2145_power_off(struct gc2145 *gc2145)
++{
++	if (!IS_ERR(gc2145->reset_gpio))
++		gpiod_set_value_cansleep(gc2145->reset_gpio, 1);
++	if (!IS_ERR(gc2145->pwdn_gpio))
++		gpiod_set_value_cansleep(gc2145->pwdn_gpio, 0);
++}
++
++static int gc2145_check_sensor_id(struct gc2145 *gc2145)
++{
++	struct device *dev = &gc2145->client->dev;
++	u8 id_h = 0, id_l = 0;
++	u16 id = 0;
++	int ret = 0;
++
++	ret = gc2145_read_reg(gc2145->client, GC2145_REG_CHIP_ID_H, &id_h);
++	ret |= gc2145_read_reg(gc2145->client, GC2145_REG_CHIP_ID_L, &id_l);
++	if (ret) {
++		dev_err(dev, "Failed to read sensor id, (%d)\n", ret);
++		return ret;
++	}
++
++	id = id_h << 8 | id_l;
++	if (id != GC2145_CHIP_ID) {
++		dev_err(dev, "sensor id: %04X mismatched\n", id);
++		return -ENODEV;
++	}
++
++	dev_info(dev, "Detected GC2145 sensor\n");
++	return 0;
++}
++
++static long gc2145_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
++{
++	struct gc2145 *gc2145 = to_gc2145(sd);
++	long ret = 0;
++
++	dev_info(&gc2145->client->dev, "gc2145_ioctl\n");
++
++	switch (cmd) {
++	//case:
++	default:
++		ret = -ENOIOCTLCMD;
++		break;
++	}
++	return ret;
++}
++
++static int __gc2145_start_stream(struct gc2145 *gc2145)
++{
++	int ret;
++
++	ret = gc2145_write_array(gc2145->client, gc2145->cur_mode->reg_list);
++	if (ret)
++		return ret;
++	usleep_range(2000, 5000);
++
++	/* Apply customized control from user */
++	mutex_unlock(&gc2145->lock);
++	ret = v4l2_ctrl_handler_setup(&gc2145->ctrl_handler);
++	mutex_lock(&gc2145->lock);
++
++	ret = gc2145_write_array(gc2145->client, gc2145_start);
++	if (ret)
++		return ret;
++
++	return ret;
++}
++
++static int __gc2145_stop_stream(struct gc2145 *gc2145)
++{
++	int ret;
++
++	ret = gc2145_write_array(gc2145->client, gc2145_stop);
++	if (ret)
++		return ret;
++
++	return ret;
++}
++
++#ifdef CONFIG_COMPAT
++static long gc2145_compat_ioctl32(struct v4l2_subdev *sd,
++				  unsigned int cmd, unsigned long arg)
++{
++	void __user *up = compat_ptr(arg);
++	struct module_inf *inf;
++	struct module_awb_cfg *awb_cfg;
++	long ret = 0;
++
++	switch (cmd) {
++	case CANAANMODULE_GET_MODULE_INFO:
++		inf = kzalloc(sizeof(*inf), GFP_KERNEL);
++		if (!inf) {
++			ret = -ENOMEM;
++			return ret;
++		}
++
++		ret = gc2145_ioctl(sd, cmd, inf);
++		if (!ret)
++			ret = copy_to_user(up, inf, sizeof(*inf));
++		kfree(inf);
++		break;
++	case CANAANMODULE_AWB_CFG:
++		awb_cfg = kzalloc(sizeof(*awb_cfg), GFP_KERNEL);
++		if (!awb_cfg) {
++			ret = -ENOMEM;
++			return ret;
++		}
++
++		ret = gc2145_ioctl(sd, cmd, awb_cfg);
++		if (!ret)
++			ret = copy_to_user(up, awb_cfg, sizeof(*awb_cfg));
++		kfree(awb_cfg);
++		break;
++	default:
++		ret = -ENOIOCTLCMD;
++		break;
++	}
++	return ret;
++}
++#endif
++
++static int gc2145_s_stream(struct v4l2_subdev *sd, int on)
++{
++	struct gc2145 *gc2145 = to_gc2145(sd);	
++	int ret = 0;
++	dev_info(&gc2145->client->dev, "%s enter\n",__func__);
++
++	mutex_lock(&gc2145->lock);
++	on = !!on;
++	if (on == gc2145->streaming)
++		goto unlock_and_return;
++
++	if (on) {
++		ret = __gc2145_start_stream(gc2145);
++		if (ret) {
++			dev_err(&gc2145->client->dev, "Failed to start gc2145 stream\n");
++			goto unlock_and_return;
++		}
++	} else {
++		__gc2145_stop_stream(gc2145);
++	}
++
++	gc2145->streaming = on;
++
++unlock_and_return:
++	mutex_unlock(&gc2145->lock);
++	dev_info(&gc2145->client->dev, "%s exit\n",__func__);
++
++	return 0;
++}
++
++static int gc2145_g_frame_interval(struct v4l2_subdev *sd,
++				   struct v4l2_subdev_frame_interval *fi)
++{
++	struct gc2145 *gc2145 = to_gc2145(sd);
++	const struct gc2145_mode *mode = gc2145->cur_mode;
++
++	mutex_lock(&gc2145->lock);
++	fi->interval = mode->max_fps;
++	mutex_unlock(&gc2145->lock);
++
++	return 0;
++}
++
++static int gc2145_g_mbus_config(struct v4l2_subdev *sd,
++				struct v4l2_mbus_config *config)
++{
++	config->type = V4L2_MBUS_CSI2;
++	config->flags = 1 << (GC2145_LANES - 1) | V4L2_MBUS_CSI2_CHANNEL_0 |
++		  V4L2_MBUS_CSI2_CONTINUOUS_CLOCK;
++
++	return 0;
++}
++
++static int gc2145_enum_mbus_code(struct v4l2_subdev *sd,
++				 struct v4l2_subdev_pad_config *cfg,
++				 struct v4l2_subdev_mbus_code_enum *code)
++{
++	if (code->index != 0)
++		return -EINVAL;
++	code->code = GC2145_MEDIA_BUS_FMT;
++	return 0;
++}
++
++static int gc2145_enum_frame_sizes(struct v4l2_subdev *sd,
++				   struct v4l2_subdev_pad_config *cfg,
++				   struct v4l2_subdev_frame_size_enum *fse)
++{
++	struct gc2145 *gc2145 = to_gc2145(sd);
++
++	if (fse->index >= gc2145->cfg_num)
++		return -EINVAL;
++
++	if (fse->code != GC2145_MEDIA_BUS_FMT)
++		return -EINVAL;
++
++	fse->min_width  = supported_modes[fse->index].width;
++	fse->max_width  = supported_modes[fse->index].width;
++	fse->max_height = supported_modes[fse->index].height;
++	fse->min_height = supported_modes[fse->index].height;
++	return 0;
++}
++
++static int gc2145_enum_frame_interval(struct v4l2_subdev *sd,
++						  struct v4l2_subdev_pad_config *cfg,
++						  struct v4l2_subdev_frame_interval_enum *fie)
++{
++	struct gc2145 *gc2145 = to_gc2145(sd);
++
++	if (fie->index >= gc2145->cfg_num)
++		return -EINVAL;
++
++	fie->code = GC2145_MEDIA_BUS_FMT;
++	fie->width = supported_modes[fie->index].width;
++	fie->height = supported_modes[fie->index].height;
++	fie->interval = supported_modes[fie->index].max_fps;
++	return 0;
++}
++
++static int gc2145_set_fmt(struct v4l2_subdev *sd,
++			  struct v4l2_subdev_pad_config *cfg,
++			  struct v4l2_subdev_format *fmt)
++{
++	struct gc2145 *gc2145 = to_gc2145(sd);
++	const struct gc2145_mode *mode;
++	s64 h_blank, vblank_def;
++
++	mutex_lock(&gc2145->lock);
++
++	mode = v4l2_find_nearest_size(supported_modes,
++				      ARRAY_SIZE(supported_modes),
++				      width, height,
++				      fmt->format.width, fmt->format.height);
++	dev_info(&gc2145->client->dev, "set_fmt, width:%u, height:%u.\n", mode->width, mode->height);
++
++	fmt->format.code = GC2145_MEDIA_BUS_FMT;
++	fmt->format.width = mode->width;
++	fmt->format.height = mode->height;
++	fmt->format.field = V4L2_FIELD_NONE;
++
++	if (fmt->which == V4L2_SUBDEV_FORMAT_TRY) {
++#ifdef CONFIG_VIDEO_V4L2_SUBDEV_API
++		*v4l2_subdev_get_try_format(sd, cfg, fmt->pad) = fmt->format;
++#else
++		mutex_unlock(&gc2145->lock);
++		return -ENOTTY;
++#endif
++	} else {
++		gc2145->cur_mode = mode;
++		__v4l2_ctrl_s_ctrl(gc2145->link_freq, mode->link_freq_index);
++		__v4l2_ctrl_s_ctrl_int64(gc2145->pixel_rate,
++					 to_pixel_rate(mode->link_freq_index));
++		h_blank = mode->hts_def - mode->width;
++		__v4l2_ctrl_modify_range(gc2145->hblank, h_blank,
++					 h_blank, 1, h_blank);
++		vblank_def = mode->vts_def - mode->height;
++		__v4l2_ctrl_modify_range(gc2145->vblank, vblank_def,
++					 GC2145_VTS_MAX - mode->height,
++					 1, vblank_def);
++	}
++
++	mutex_unlock(&gc2145->lock);
++	return 0;
++}
++
++static int gc2145_get_fmt(struct v4l2_subdev *sd,
++			  struct v4l2_subdev_pad_config *cfg,
++			  struct v4l2_subdev_format *fmt)
++{
++	struct gc2145 *gc2145 = to_gc2145(sd);
++	const struct gc2145_mode *mode = gc2145->cur_mode;
++
++	mutex_lock(&gc2145->lock);
++	if (fmt->which == V4L2_SUBDEV_FORMAT_TRY) {
++#ifdef CONFIG_VIDEO_V4L2_SUBDEV_API
++		fmt->format = *v4l2_subdev_get_try_format(sd, cfg, fmt->pad);
++#else
++		mutex_unlock(&gc2145->lock);
++		return -ENOTTY;
++#endif
++	} else {
++		fmt->format.width = mode->width;
++		fmt->format.height = mode->height;
++		fmt->format.code = GC2145_MEDIA_BUS_FMT;
++		fmt->format.field = V4L2_FIELD_NONE;
++	}
++	mutex_unlock(&gc2145->lock);
++	return 0;
++}
++
++#ifdef CONFIG_VIDEO_V4L2_SUBDEV_API
++static int gc2145_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
++{
++	struct gc2145 *gc2145 = to_gc2145(sd);
++	struct v4l2_mbus_framefmt *try_fmt =
++				v4l2_subdev_get_try_format(sd, fh->pad, 0);
++	const struct gc2145_mode *def_mode = &supported_modes[0];
++
++	mutex_lock(&gc2145->lock);
++	/* Initialize try_fmt */
++	try_fmt->width = def_mode->width;
++	try_fmt->height = def_mode->height;
++	try_fmt->code = GC2145_MEDIA_BUS_FMT;
++	try_fmt->field = V4L2_FIELD_NONE;
++	mutex_unlock(&gc2145->lock);
++
++	return 0;
++}
++#endif
++
++#ifdef CONFIG_VIDEO_V4L2_SUBDEV_API
++static const struct v4l2_subdev_internal_ops gc2145_internal_ops = {
++	.open = gc2145_open,
++};
++#endif
++
++static int gc2145_s_power(struct v4l2_subdev *sd, int on)
++{
++	struct gc2145 *gc2145 = to_gc2145(sd);
++	int ret = 0;
++
++	mutex_lock(&gc2145->lock);
++
++	if (gc2145->power_on == !!on)
++		goto unlock_and_return;
++
++	if (on) {
++		gc2145->power_on = true;
++	} else {
++		gc2145->power_on = false;
++	}
++
++unlock_and_return:
++	mutex_unlock(&gc2145->lock);
++
++	return ret;
++}
++
++static const struct v4l2_subdev_core_ops gc2145_core_ops = {
++	.s_power = gc2145_s_power,
++	.ioctl = gc2145_ioctl,
++#ifdef CONFIG_COMPAT
++	.compat_ioctl32 = gc2145_compat_ioctl32,
++#endif
++};
++
++static const struct v4l2_subdev_video_ops gc2145_video_ops = {
++	.s_stream = gc2145_s_stream,
++	.g_frame_interval = gc2145_g_frame_interval,
++	.g_mbus_config = gc2145_g_mbus_config,
++};
++
++static const struct v4l2_subdev_pad_ops gc2145_pad_ops = {
++	.enum_mbus_code = gc2145_enum_mbus_code,
++	.enum_frame_size = gc2145_enum_frame_sizes,
++	.enum_frame_interval = gc2145_enum_frame_interval,
++	.get_fmt = gc2145_get_fmt,
++	.set_fmt = gc2145_set_fmt,
++};
++
++static const struct v4l2_subdev_ops gc2145_subdev_ops = {
++	.core   = &gc2145_core_ops,
++	.video  = &gc2145_video_ops,
++	.pad    = &gc2145_pad_ops,
++};
++
++static int gc2145_probe(struct i2c_client *client,
++			 const struct i2c_device_id *id)
++{
++	struct device *dev = &client->dev;
++	struct device_node *node = dev->of_node;
++	struct gc2145 *gc2145;
++	struct v4l2_subdev *sd;
++	char facing[2];
++	int ret;
++
++	dev_info(dev, "driver version: %02x.%02x.%02x",
++		 DRIVER_VERSION >> 16,
++		 (DRIVER_VERSION & 0xff00) >> 8,
++		 DRIVER_VERSION & 0x00ff);
++
++	gc2145 = devm_kzalloc(dev, sizeof(*gc2145), GFP_KERNEL);
++	if (!gc2145)
++		return -ENOMEM;
++
++	gc2145->client = client;
++	ret = of_property_read_u32(node, CANAANMODULE_CAMERA_MODULE_INDEX,
++				   &gc2145->module_index);
++	ret |= of_property_read_string(node, CANAANMODULE_CAMERA_MODULE_FACING,
++				       &gc2145->module_facing);
++	ret |= of_property_read_string(node, CANAANMODULE_CAMERA_MODULE_NAME,
++				       &gc2145->module_name);
++	ret |= of_property_read_string(node, CANAANMODULE_CAMERA_LENS_NAME,
++				       &gc2145->len_name);
++
++	if (ret) {
++		dev_err(dev, "Failed to get module information\n");
++		return -EINVAL;
++	}
++
++	gc2145->reset_gpio = devm_gpiod_get(dev, "reset", GPIOD_OUT_HIGH);//reset pin low actvie, set logical value.
++	if (IS_ERR(gc2145->reset_gpio))
++		dev_warn(dev, "Failed to get reset-gpios\n");
++
++	gc2145->pwdn_gpio = devm_gpiod_get(dev, "pwdn", GPIOD_OUT_HIGH);//pwdn pin high active, set logical value.
++	if (IS_ERR(gc2145->pwdn_gpio))
++		dev_warn(dev, "Failed to get pwdn-gpios\n");
++
++	if (gpiod_export(gc2145->reset_gpio, 0)) {
++		dev_err(dev, "gpiod export gc2145 reset failed.");
++	}
++
++	if (gpiod_export(gc2145->pwdn_gpio, 0)) {
++		dev_err(dev, "gpiod export gc2145 powerdown failed.");
++	}
++
++	mutex_init(&gc2145->lock);
++
++	/* set default mode */
++	gc2145->cur_mode = &supported_modes[0];
++	gc2145->cfg_num = ARRAY_SIZE(supported_modes);
++
++	sd = &gc2145->subdev;
++	v4l2_i2c_subdev_init(sd, client, &gc2145_subdev_ops);
++	ret = gc2145_initialize_controls(gc2145);
++	if (ret)
++		goto err_destroy_mutex;
++
++	ret = __gc2145_power_on(gc2145);
++	if (ret)
++		goto err_free_handler;
++
++	ret = gc2145_check_sensor_id(gc2145);
++	if (ret)
++		goto err_power_off;
++
++	sd->internal_ops = &gc2145_internal_ops;
++	sd->flags |= V4L2_SUBDEV_FL_HAS_DEVNODE |
++		     V4L2_SUBDEV_FL_HAS_EVENTS;
++
++	gc2145->pad.flags = MEDIA_PAD_FL_SOURCE;
++	sd->entity.function = MEDIA_ENT_F_CAM_SENSOR;
++	ret = media_entity_pads_init(&sd->entity, 1, &gc2145->pad);
++	if (ret < 0)
++		goto err_power_off;
++
++	memset(facing, 0, sizeof(facing));
++	if (strcmp(gc2145->module_facing, "back") == 0)
++		facing[0] = 'b';
++	else
++		facing[0] = 'f';
++
++	snprintf(sd->name, sizeof(sd->name), "m%02d_%s_%s %s",
++		 gc2145->module_index, facing,
++		 GC2145_NAME, dev_name(sd->dev));
++
++	ret = v4l2_async_register_subdev_sensor_common(sd);
++	if (ret) {
++		dev_err(dev, "Failed to register v4l2 async subdev\n");
++		goto err_clean_entity;
++	}
++
++	return 0;
++
++err_clean_entity:
++#ifdef CONFIG_MEDIA_CONTROLLER
++	media_entity_cleanup(&sd->entity);
++#endif
++err_power_off:
++	__gc2145_power_off(gc2145);
++err_free_handler:
++	v4l2_ctrl_handler_free(&gc2145->ctrl_handler);
++err_destroy_mutex:
++	mutex_destroy(&gc2145->lock);
++
++	return ret;
++}
++
++static int gc2145_remove(struct i2c_client *client)
++{
++	struct v4l2_subdev *sd = i2c_get_clientdata(client);
++	struct gc2145 *gc2145 = to_gc2145(sd);
++
++	v4l2_async_unregister_subdev(sd);
++#ifdef CONFIG_MEDIA_CONTROLLER
++	media_entity_cleanup(&sd->entity);
++#endif
++	v4l2_ctrl_handler_free(&gc2145->ctrl_handler);
++	mutex_destroy(&gc2145->lock);
++
++	__gc2145_power_off(gc2145);
++	return 0;
++}
++
++static const struct i2c_device_id gc2145_match_id[] = {
++	{ "gc2145", 0 },
++	{ },
++};
++
++static const struct of_device_id gc2145_of_match[] = {
++	{ .compatible = "galaxycore,gc2145" },
++	{},
++};
++MODULE_DEVICE_TABLE(of, gc2145_of_match);
++
++static struct i2c_driver gc2145_i2c_driver = {
++	.driver = {
++		.name = GC2145_NAME,
++		.of_match_table = of_match_ptr(gc2145_of_match),
++	},
++	.probe      = &gc2145_probe,
++	.remove     = &gc2145_remove,
++	.id_table   = gc2145_match_id,
++};
++
++module_i2c_driver(gc2145_i2c_driver);
++MODULE_DESCRIPTION("Galaxycore GC2145 Image Sensor driver");
++MODULE_LICENSE("GPL v2");
++
+-- 
+2.17.1
+

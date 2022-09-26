@@ -110,14 +110,14 @@ void doit_video_cfg(char *text,struct vi_cfg_info *vi_cfg,struct sensor_info *se
          //sensor0_active_size
          object=cJSON_GetArrayItem(arrayItem,i++);
          item=cJSON_GetObjectItem(object,"sensor0_active_width");
-         item->valueint = (item->valueint + 15) / 16 * 16;
+         // item->valueint = (item->valueint + 15) / 16 * 16;
          //printf("%s:active_width %p\n",__func__,item);
          if(item != NULL)
          {
-            itcInfo->itc_size.width = item->valueint;
-            vi_cfg->vi_pipe_cfg[0].in_size.width = item->valueint;
-            vi_cfg->vi_pipe_cfg[1].in_size.width = item->valueint;
-            vi_cfg->vi_pipe_cfg[2].in_size.width = item->valueint;
+            itcInfo->itc_size.width = (item->valueint + 15) / 16 * 16;
+            vi_cfg->vi_pipe_cfg[0].in_size.width = (item->valueint + 15) / 16 * 16;
+            vi_cfg->vi_pipe_cfg[1].in_size.width = (item->valueint + 15) / 16 * 16;
+            vi_cfg->vi_pipe_cfg[2].in_size.width = (item->valueint + 15) / 16 * 16;
             //printf("cJSON_GetObjectItem: type=%d, string is %s, valueint is %d\n",item->type,item->string,item->valueint);
          }  
 
@@ -147,12 +147,12 @@ void doit_video_cfg(char *text,struct vi_cfg_info *vi_cfg,struct sensor_info *se
          }  
 
          item=cJSON_GetObjectItem(object,"video2_width");
-         item->valueint = (item->valueint + 15) / 16 * 16;
+         // item->valueint = (item->valueint + 15) / 16 * 16;
          //printf("%s:active_height %p\n",__func__,item);
          if(item != NULL)
          {
             dev_info[0].video_width[0] = item->valueint;
-            mainInfo->main_size.width = item->valueint;
+            mainInfo->main_size.width = (item->valueint + 15) / 16 * 16;
             otcInfo->otc_out_size.width = mainInfo->main_size.width;
             dsInSizeInfo->width = mainInfo->main_size.width;
             //printf("cJSON_GetObjectItem: type=%d, string is %s, valueint is %d\n",item->type,item->string,item->valueint);
@@ -195,12 +195,12 @@ void doit_video_cfg(char *text,struct vi_cfg_info *vi_cfg,struct sensor_info *se
          }  
 
          item=cJSON_GetObjectItem(object,"video3_width");
-         item->valueint = (item->valueint + 15) / 16 * 16;
+         // item->valueint = (item->valueint + 15) / 16 * 16;
          //printf("%s:active_height %p\n",__func__,item);
          if(item != NULL)
          {
             dev_info[0].video_width[1] = item->valueint;
-            wds0Info->ds0_size.width = item->valueint;
+            wds0Info->ds0_size.width = (item->valueint + 15) / 16 * 16;
             ds0Info->ds_out_size.width = wds0Info->ds0_size.width;
              //printf("cJSON_GetObjectItem: type=%d, string is %s, valueint is %d\n",item->type,item->string,item->valueint);
          } 
@@ -241,12 +241,12 @@ void doit_video_cfg(char *text,struct vi_cfg_info *vi_cfg,struct sensor_info *se
          }  
 
          item=cJSON_GetObjectItem(object,"video4_width");
-         item->valueint = (item->valueint + 15) / 16 * 16;
+         // item->valueint = (item->valueint + 15) / 16 * 16;
          //printf("%s:active_height %p\n",__func__,item);
          if(item != NULL)
          {
             dev_info[0].video_width[2] = item->valueint;
-            wds1Info->ds1_size.width = item->valueint;
+            wds1Info->ds1_size.width = (item->valueint + 15) / 16 * 16;
             ds1Info->ds_out_size.width = wds1Info->ds1_size.width;
              //printf("cJSON_GetObjectItem: type=%d, string is %s, valueint is %d\n",item->type,item->string,item->valueint);
          } 
@@ -287,12 +287,12 @@ void doit_video_cfg(char *text,struct vi_cfg_info *vi_cfg,struct sensor_info *se
          }  
 
          item=cJSON_GetObjectItem(object,"video5_width");
-         item->valueint = (item->valueint + 15) / 16 * 16;
+         // item->valueint = (item->valueint + 15) / 16 * 16;
          //printf("%s:active_height %p\n",__func__,item);
          if(item != NULL)
          {
             dev_info[0].video_width[3] = item->valueint;
-            wds2Info->ds2_size.width = item->valueint;
+            wds2Info->ds2_size.width = (item->valueint + 15) / 16 * 16;
             ds2Info->ds_out_size.width = wds2Info->ds2_size.width;
              //printf("cJSON_GetObjectItem: type=%d, string is %s, valueint is %d\n",item->type,item->string,item->valueint);
          } 
@@ -389,12 +389,12 @@ void doit_video_cfg(char *text,struct vi_cfg_info *vi_cfg,struct sensor_info *se
          //sensor1_active_size
          object=cJSON_GetArrayItem(arrayItem,i++);
          item=cJSON_GetObjectItem(object,"sensor1_active_width");
-         item->valueint = (item->valueint + 15) / 16 * 16;
+         // item->valueint = (item->valueint + 15) / 16 * 16;
          //printf("%s:active_width %p\n",__func__,item);
          if(item != NULL)
          {
-             itcInfo->itc_size.width = item->valueint;
-             vi_cfg->vi_pipe_cfg[3].in_size.width = item->valueint;
+             itcInfo->itc_size.width = (item->valueint + 15) / 16 * 16;
+             vi_cfg->vi_pipe_cfg[3].in_size.width = (item->valueint + 15) / 16 * 16;
              //printf("cJSON_GetObjectItem: type=%d, string is %s, valueint is %d\n",item->type,item->string,item->valueint);
          }  
 
@@ -422,12 +422,12 @@ void doit_video_cfg(char *text,struct vi_cfg_info *vi_cfg,struct sensor_info *se
          }  
 
          item=cJSON_GetObjectItem(object,"video6_width");
-         item->valueint = (item->valueint + 15) / 16 * 16;
+         // item->valueint = (item->valueint + 15) / 16 * 16;
          //printf("%s:active_height %p\n",__func__,item);
          if(item != NULL)
          {
             dev_info[1].video_width[0] = item->valueint;
-            mainInfo->main_size.width = item->valueint;
+            mainInfo->main_size.width = (item->valueint + 15) / 16 * 16;
             otcInfo->otc_out_size.width = mainInfo->main_size.width;
             dsInSizeInfo->width = mainInfo->main_size.width;
              //printf("cJSON_GetObjectItem: type=%d, string is %s, valueint is %d\n",item->type,item->string,item->valueint);
@@ -470,12 +470,12 @@ void doit_video_cfg(char *text,struct vi_cfg_info *vi_cfg,struct sensor_info *se
          }  
 
          item=cJSON_GetObjectItem(object,"video7_width");
-         item->valueint = (item->valueint + 15) / 16 * 16;
+         // item->valueint = (item->valueint + 15) / 16 * 16;
          //printf("%s:active_height %p\n",__func__,item);
          if(item != NULL)
          {
             dev_info[1].video_width[1] = item->valueint;
-            wds0Info->ds0_size.width = item->valueint;
+            wds0Info->ds0_size.width = (item->valueint + 15) / 16 * 16;
             ds0Info->ds_out_size.width = wds0Info->ds0_size.width;
              //printf("cJSON_GetObjectItem: type=%d, string is %s, valueint is %d\n",item->type,item->string,item->valueint);
          } 
@@ -516,12 +516,12 @@ void doit_video_cfg(char *text,struct vi_cfg_info *vi_cfg,struct sensor_info *se
          }  
 
          item=cJSON_GetObjectItem(object,"video8_width");
-         item->valueint = (item->valueint + 15) / 16 * 16;
+         // item->valueint = (item->valueint + 15) / 16 * 16;
          //printf("%s:active_height %p\n",__func__,item);
          if(item != NULL)
          {
             dev_info[1].video_width[2] = item->valueint;
-            wds1Info->ds1_size.width = item->valueint;
+            wds1Info->ds1_size.width = (item->valueint + 15) / 16 * 16;
             ds1Info->ds_out_size.width = wds1Info->ds1_size.width;
              //printf("cJSON_GetObjectItem: type=%d, string is %s, valueint is %d\n",item->type,item->string,item->valueint);
          } 
@@ -562,11 +562,11 @@ void doit_video_cfg(char *text,struct vi_cfg_info *vi_cfg,struct sensor_info *se
          }  
 
          item=cJSON_GetObjectItem(object,"video9_width");
-         item->valueint = (item->valueint + 15) / 16 * 16;
+         // item->valueint = (item->valueint + 15) / 16 * 16;
          //printf("%s:active_height %p\n",__func__,item);
          if(item != NULL)
          {
-            wds2Info->ds2_size.width = item->valueint;
+            wds2Info->ds2_size.width = (item->valueint + 15) / 16 * 16;
             ds2Info->ds_out_size.width = wds2Info->ds2_size.width;
 	         dev_info[1].video_width[3] = item->valueint;
              //printf("cJSON_GetObjectItem: type=%d, string is %s, valueint is %d\n",item->type,item->string,item->valueint);
@@ -6009,6 +6009,7 @@ void doit_isp(char *text,struct isp_cfg_info *isp_cfg)
          //ldc
          object=cJSON_GetArrayItem(arrayItem,14);
          parse_ldc(object,&isp_core_cfg->ldcInfo);
+         isp_wrap_cfg->ldcInfo.ldc_en = isp_core_cfg->ldcInfo.ldc_en;
          //af
          object=cJSON_GetArrayItem(arrayItem,15);
          parse_af(object,&isp_core_cfg->afInfo);
