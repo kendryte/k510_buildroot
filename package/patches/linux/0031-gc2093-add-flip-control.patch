@@ -1,0 +1,374 @@
+From df3a69895a85526cf07fb0545abe9c17b7f8a1eb Mon Sep 17 00:00:00 2001
+From: wycwyhwyq <5f20.6d9b@gmail.com>
+Date: Mon, 26 Sep 2022 11:45:27 +0800
+Subject: [PATCH] gc2093 add flip control
+
+---
+ .../media/i2c/soc_camera/canaanchip/gc2093.c  | 172 +++++++++++++-----
+ 1 file changed, 126 insertions(+), 46 deletions(-)
+
+diff --git a/drivers/media/i2c/soc_camera/canaanchip/gc2093.c b/drivers/media/i2c/soc_camera/canaanchip/gc2093.c
+index 67c2d1a6..b1676466 100755
+--- a/drivers/media/i2c/soc_camera/canaanchip/gc2093.c
++++ b/drivers/media/i2c/soc_camera/canaanchip/gc2093.c
+@@ -129,6 +129,7 @@ struct gc2093 {
+ 	const char      *len_name;
+ 
+ 	bool			  has_init_exp;
++	u8			flip;
+ };
+ 
+ static const s64 link_freq_menu_items[] = {
+@@ -139,8 +140,8 @@ static const s64 link_freq_menu_items[] = {
+ /*
+  * window size=800*1080 mipi@2lane
+  * mclk=24M mipi_clk=792Mbps
+- * pixel_line_total=2640  line_frame_total=2500
+- * row_time=13.3333us frame_rate=30fps
++ * pixel_line_total=2640  line_frame_total=1125
++ * row_time=29.62us frame_rate=30fps
+  */
+ static const struct gc2093_reg gc2093_800x1080_linear_30fps_settings[] = {
+ 	/****system****/
+@@ -152,9 +153,9 @@ static const struct gc2093_reg gc2093_800x1080_linear_30fps_settings[] = {
+ 	{0x03f3, 0x00},
+ 	{0x03f4, 0x36},
+ 	{0x03f5, 0xc0},
+-	{0x03f6, 0x0b},
++	{0x03f6, 0x0B},
+ 	{0x03f7, 0x11},
+-	{0x03f8, 0x58},
++	{0x03f8, 0x30},
+ 	{0x03f9, 0x42},
+ 	{0x03fc, 0x8e},
+ 	/****CISCTL & ANALOG****/
+@@ -166,10 +167,10 @@ static const struct gc2093_reg gc2093_800x1080_linear_30fps_settings[] = {
+ 	{0x01a5, 0x40},
+ 	{0x01a6, 0x40},
+ 	{0x01af, 0x09},
+-	{0x0003, 0x04},
+-	{0x0004, 0x65},
+-	{0x0005, 0x05},
+-	{0x0006, 0x78},
++	{0x0003, 0x04}, //shutter time[13:8]
++	{0x0004, 0x60}, //shutter time[7:0]
++	{0x0005, 0x05}, //Line length[11:8]
++	{0x0006, 0x8e}, //Line length[7:0]
+ 	{0x0007, 0x00}, //VB[13:8]
+ 	{0x0008, 0x11}, //VB[7:0]
+ 	{0x0009, 0x00}, //Row Start[10:8]
+@@ -182,8 +183,8 @@ static const struct gc2093_reg gc2093_800x1080_linear_30fps_settings[] = {
+ 	{0x0010, 0x8c}, //Window width[7:0]
+ 	{0x0013, 0x15},
+ 	{0x0019, 0x0c},
+-	{0x0041, 0x09}, //FrameLength[13:8] 09c4=2500
+-	{0x0042, 0xc4}, //FrameLength[7:0]
++	{0x0041, 0x04}, //FrameLength[13:8] 0465
++	{0x0042, 0x65}, //FrameLength[7:0]
+ 	{0x0053, 0x60},
+ 	{0x008d, 0x92},
+ 	{0x0090, 0x00},
+@@ -210,19 +211,54 @@ static const struct gc2093_reg gc2093_800x1080_linear_30fps_settings[] = {
+ 	{0x00e6, 0x50},
+ 	/*gain*/
+ 	{0x00b6, 0xc0},
+-	{0x00b0, 0x68},//0x60
++	{0x00b0, 0x68},
++	{0x00b3, 0x00},
++	{0x00b8, 0x01},
++	{0x00b9, 0x00},
++	{0x00b1, 0x01},
++	{0x00b2, 0x00},
+ 	/*isp*/
+ 	{0x0101, 0x0c},
+ 	{0x0102, 0x89},
+ 	{0x0104, 0x01},
++	{0x0107, 0xa6},
++	{0x0108, 0xa9},
++	{0x0109, 0xa8},
++	{0x010a, 0xa7},
++	{0x010b, 0xff},
++	{0x010c, 0xff},
+ 	{0x010f, 0x00},
+ 	{0x0158, 0x00},
+-	{/*dark sun*/},
++	{0x0428, 0x86},
++	{0x0429, 0x86},
++	{0x042a, 0x86},
++	{0x042b, 0x68},
++	{0x042c, 0x68},
++	{0x042d, 0x68},
++	{0x042e, 0x68},
++	{0x042f, 0x68},
++	{0x0430, 0x4f},
++	{0x0431, 0x68},
++	{0x0432, 0x67},
++	{0x0433, 0x66},
++	{0x0434, 0x66},
++	{0x0435, 0x66},
++	{0x0436, 0x66},
++	{0x0437, 0x66},
++	{0x0438, 0x62},
++	{0x0439, 0x62},
++	{0x043a, 0x62},
++	{0x043b, 0x62},
++	{0x043c, 0x62},
++	{0x043d, 0x62},
++	{0x043e, 0x62},
++	{0x043f, 0x62},
++	/*dark sun*/
+ 	{0x0123, 0x08},
+ 	{0x0123, 0x00},
+ 	{0x0120, 0x01},
+ 	{0x0121, 0x04},
+-	{0x0122, 0xd8},
++	{0x0122, 0x65},
+ 	{0x0124, 0x03},
+ 	{0x0125, 0xff},
+ 	{0x001a, 0x8c},
+@@ -238,10 +274,6 @@ static const struct gc2093_reg gc2093_800x1080_linear_30fps_settings[] = {
+ 	{0x0415, 0x78},
+ 	{0x0416, 0x78},
+ 	{0x0417, 0x78},
+-	{0x0454, 0x78},
+-	{0x0455, 0x78},
+-	{0x0456, 0x78},
+-	{0x0457, 0x78},
+ 	{0x04e0, 0x18},
+ 	/*window*/
+ 	{0x0191, 0x00}, //Out Window Y1[10:8]
+@@ -257,19 +289,20 @@ static const struct gc2093_reg gc2093_800x1080_linear_30fps_settings[] = {
+ 	{0x007b, 0x2a},
+ 	{0x0023, 0x2d},
+ 	{0x0201, 0x27},
+-	{0x0202, 0x5f},
++	{0x0202, 0x56},
+ 	{0x0203, 0xce},
+ 	{0x0212, 0x20},
+ 	{0x0213, 0x03},
+ 	{0x0215, 0x10},
++
+ 	{REG_NULL, 0x00},
+ };
+ 
+ /*
+  * window size=1920*1080 mipi@2lane
+  * mclk=24M mipi_clk=792Mbps
+- * pixel_line_total=  line_frame_total=2500
+- * row_time=13.3333us frame_rate=30fps
++ * pixel_line_total=  line_frame_total=1125
++ * row_time=29.62us frame_rate=30fps
+  */
+ static const struct gc2093_reg gc2093_1080p_linear_30fps_settings[] = {
+ 	/****system****/
+@@ -282,9 +315,9 @@ static const struct gc2093_reg gc2093_1080p_linear_30fps_settings[] = {
+ 	{0x03f4, 0x36},
+ 	{0x03f5, 0xc0},
+ 	{0x03f6, 0x0B},
+-	{0x03f7, 0x01},
+-	{0x03f8, 0x63},
+-	{0x03f9, 0x40},
++	{0x03f7, 0x11},
++	{0x03f8, 0x30},
++	{0x03f9, 0x42},
+ 	{0x03fc, 0x8e},
+ 	/****CISCTL & ANALOG****/
+ 	{0x0087, 0x18},
+@@ -295,12 +328,10 @@ static const struct gc2093_reg gc2093_1080p_linear_30fps_settings[] = {
+ 	{0x01a5, 0x40},
+ 	{0x01a6, 0x40},
+ 	{0x01af, 0x09},
+-	{0x0001, 0x00},
+-	{0x0002, 0x02},
+ 	{0x0003, 0x04}, //shutter time[13:8]
+-	{0x0004, 0x02}, //shutter time[7:0]
+-	{0x0005, 0x02}, //Line length[11:8]
+-	{0x0006, 0x94}, //Line length[7:0]
++	{0x0004, 0x60}, //shutter time[7:0]
++	{0x0005, 0x05}, //Line length[11:8]
++	{0x0006, 0x8e}, //Line length[7:0]
+ 	{0x0007, 0x00}, //VB[13:8]
+ 	{0x0008, 0x11}, //VB[7:0]
+ 	{0x0009, 0x00}, //Row Start[10:8]
+@@ -312,25 +343,24 @@ static const struct gc2093_reg gc2093_1080p_linear_30fps_settings[] = {
+ 	{0x000f, 0x07}, //Window width[11:8] 1932
+ 	{0x0010, 0x8c}, //Window width[7:0]
+ 	{0x0013, 0x15},
+-	{0x0013, 0x15},
+ 	{0x0019, 0x0c},
+-	{0x0041, 0x09}, //FrameLength[13:8] 09c4=2500
+-	{0x0042, 0xc4}, //FrameLength[7:0]
++	{0x0041, 0x04}, //FrameLength[13:8] 0465
++	{0x0042, 0x65}, //FrameLength[7:0]
+ 	{0x0053, 0x60},
+ 	{0x008d, 0x92},
+ 	{0x0090, 0x00},
+ 	{0x00c7, 0xe1},
+ 	{0x001b, 0x73},
+ 	{0x0028, 0x0d},
+-	{0x0029, 0x24},
++	{0x0029, 0x40},
+ 	{0x002b, 0x04},
+ 	{0x002e, 0x23},
+ 	{0x0037, 0x03},
+ 	{0x0043, 0x04},
+-	{0x0044, 0x28},
++	{0x0044, 0x30},
+ 	{0x004a, 0x01},
+-	{0x004b, 0x20},
+-	{0x0055, 0x28},
++	{0x004b, 0x28},
++	{0x0055, 0x30},
+ 	{0x0066, 0x3f},
+ 	{0x0068, 0x3f},
+ 	{0x006b, 0x44},
+@@ -342,19 +372,54 @@ static const struct gc2093_reg gc2093_1080p_linear_30fps_settings[] = {
+ 	{0x00e6, 0x50},
+ 	/*gain*/
+ 	{0x00b6, 0xc0},
+-	{0x00b0, 0x68},//0x60
++	{0x00b0, 0x68},
++	{0x00b3, 0x00},
++	{0x00b8, 0x01},
++	{0x00b9, 0x00},
++	{0x00b1, 0x01},
++	{0x00b2, 0x00},
+ 	/*isp*/
+ 	{0x0101, 0x0c},
+ 	{0x0102, 0x89},
+ 	{0x0104, 0x01},
++	{0x0107, 0xa6},
++	{0x0108, 0xa9},
++	{0x0109, 0xa8},
++	{0x010a, 0xa7},
++	{0x010b, 0xff},
++	{0x010c, 0xff},
+ 	{0x010f, 0x00},
+ 	{0x0158, 0x00},
+-	{/*dark sun*/},
++	{0x0428, 0x86},
++	{0x0429, 0x86},
++	{0x042a, 0x86},
++	{0x042b, 0x68},
++	{0x042c, 0x68},
++	{0x042d, 0x68},
++	{0x042e, 0x68},
++	{0x042f, 0x68},
++	{0x0430, 0x4f},
++	{0x0431, 0x68},
++	{0x0432, 0x67},
++	{0x0433, 0x66},
++	{0x0434, 0x66},
++	{0x0435, 0x66},
++	{0x0436, 0x66},
++	{0x0437, 0x66},
++	{0x0438, 0x62},
++	{0x0439, 0x62},
++	{0x043a, 0x62},
++	{0x043b, 0x62},
++	{0x043c, 0x62},
++	{0x043d, 0x62},
++	{0x043e, 0x62},
++	{0x043f, 0x62},
++	/*dark sun*/
+ 	{0x0123, 0x08},
+ 	{0x0123, 0x00},
+ 	{0x0120, 0x01},
+ 	{0x0121, 0x04},
+-	{0x0122, 0xd8},
++	{0x0122, 0x65},
+ 	{0x0124, 0x03},
+ 	{0x0125, 0xff},
+ 	{0x001a, 0x8c},
+@@ -370,10 +435,6 @@ static const struct gc2093_reg gc2093_1080p_linear_30fps_settings[] = {
+ 	{0x0415, 0x78},
+ 	{0x0416, 0x78},
+ 	{0x0417, 0x78},
+-	{0x0454, 0x78},
+-	{0x0455, 0x78},
+-	{0x0456, 0x78},
+-	{0x0457, 0x78},
+ 	{0x04e0, 0x18},
+ 	/*window*/
+ 	{0x0192, 0x02}, //Out Window Y1[7:0]
+@@ -672,8 +733,8 @@ static const struct gc2093_mode supported_modes[] = {
+ 			.denominator = 300000,
+ 		},
+ 		.exp_def = 0x460,
+-		.hts_def = 0xa50,//0x898,
+-		.vts_def = 0x9c4,//0x465,
++		.hts_def = 0x898,
++		.vts_def = 0x465,//0x9c4,//0x465,
+ 		.link_freq_index = LINK_FREQ_396M_INDEX,
+ 		.reg_list = gc2093_1080p_linear_30fps_settings,
+ 	},
+@@ -711,8 +772,8 @@ static const struct gc2093_mode supported_modes[] = {
+ 			.denominator = 300000,
+ 		},
+ 		.exp_def = 0x460,
+-		.hts_def = 0xa50,//0x898,
+-		.vts_def = 0x9c4,//0x465,
++		.hts_def = 0x898,
++		.vts_def = 0x465,//0x9c4,//0x465,
+ 		.link_freq_index = LINK_FREQ_396M_INDEX,
+ 		.reg_list = gc2093_800x1080_linear_30fps_settings,
+ 	},
+@@ -904,6 +965,7 @@ static int gc2093_set_ctrl(struct v4l2_ctrl *ctrl)
+ 		//ret |= gc2093_write_reg(gc2093->client, GC2093_REG_EXP_LONG_L,
+ 		//			ctrl->val & 0xff);
+ 		ret = reg16_write(gc2093->client,  GC2093_REG_EXP_LONG_H, ctrl->val);
++		//dev_info(&gc2093->client->dev, "V4L2_CID_EXPOSURE, val=%d\n", ctrl->val);
+ 		break;
+ 	case V4L2_CID_ANALOGUE_GAIN:
+ 	case V4L2_CID_GAIN:
+@@ -914,8 +976,16 @@ static int gc2093_set_ctrl(struct v4l2_ctrl *ctrl)
+ 		/* The exposure goes up and reduces the frame rate, no need to write vb */
+ 		break;
+ 	case V4L2_CID_HFLIP:
++		if (ctrl->val)
++			gc2093->flip |= MIRROR_MASK;
++		else
++			gc2093->flip &= ~MIRROR_MASK;
+ 		break;
+ 	case V4L2_CID_VFLIP:
++		if (ctrl->val)
++			gc2093->flip |= FLIP_MASK;
++		else
++			gc2093->flip &= ~FLIP_MASK;
+ 		break;
+ 	default:
+ 		dev_warn(&gc2093->client->dev, "%s Unhandled id:0x%x, val:0x%x\n",
+@@ -986,6 +1056,7 @@ static int gc2093_initialize_controls(struct gc2093 *gc2093)
+ 
+ 	gc2093->v_flip = v4l2_ctrl_new_std(handler, &gc2093_ctrl_ops,
+ 					   V4L2_CID_VFLIP, 0, 1, 1, 0);
++	gc2093->flip = 0;
+ 
+ 	if (handler->error) {
+ 		ret = handler->error;
+@@ -1078,6 +1149,11 @@ static long gc2093_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
+ 	return ret;
+ }
+ 
++static int gc2093_set_flip(struct gc2093 *gc2093, u8 mode)
++{
++	return gc2093_write_reg(gc2093->client,  GC2093_MIRROR_FLIP_REG, mode);
++}
++
+ static int __gc2093_start_stream(struct gc2093 *gc2093)
+ {
+ 	int ret;
+@@ -1092,6 +1168,10 @@ static int __gc2093_start_stream(struct gc2093 *gc2093)
+ 	v4l2_ctrl_handler_setup(&gc2093->ctrl_handler);
+ 	mutex_lock(&gc2093->lock);
+ 
++	ret = gc2093_set_flip(gc2093, gc2093->flip);
++	if (ret)
++		return ret;
++
+ 	return gc2093_write_reg(gc2093->client, GC2093_REG_CTRL_MODE,
+ 				GC2093_MODE_STREAMING);
+ }
+-- 
+2.17.1
+
