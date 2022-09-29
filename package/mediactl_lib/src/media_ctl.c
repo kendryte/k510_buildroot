@@ -1701,6 +1701,62 @@ int mediactl_init(char *video_cfg_file,struct video_info *dev_info)
 	return ret;
 }
 
+/**
+ * @brief Use ISP to draw rect.
+ * @param pipeline
+ * @param layer 0: main out, 1: DS0, 2: DS1.
+ * @param area support 32 area, 0 to 31
+ * @param x
+ * @param y
+ * @param width
+ * @param height
+ * @param line_width 0 to 63 pixels
+ * @param color AYCbCr, Alpha as hight bits, Cr as low bits
+ * @param border_mask up/right/bottom/left, up as low bit, left as hight bit
+ * @return return 0 if success, -1 if failed.
+*/
+int mediactl_rect(enum isp_pipeline_e pipeline, unsigned layer, unsigned area, unsigned x, unsigned y, unsigned width, unsigned height, unsigned line_width, unsigned color, unsigned border_mask) {
+	struct isp_remap_cfg_info cfg = {
+		.DrawAreaNum = area,
+		.LineCtlSet = 0,
+		.LineDataSet = 0,
+		.LineEndPosX = x + width,
+		.LineStartPosX = x,
+		.LineStartPosY = y,
+		.LineEndPosY = y + height,
+		.LineDrawEn = 1,
+		.VlineRightEn = (border_mask >> 1) & 1,
+		.VlineLeftEn = (border_mask >> 3) & 1,
+		.HlineBottomEn = (border_mask >> 2) & 1,
+		.HlineUpEn = border_mask & 1,
+		.LineWidthL = line_width & 0b111,
+		.LineWidthH = line_width >> 3,
+		.ValueCr = color & 0xff,
+		.ValueCb = (color >> 8) & 0xff,
+		.ValueY = (color >> 16) & 0xff,
+		.ValueAlpha = color >> 24
+	};
+	struct media_entity *pipe;
+	if (pipeline == ISP_F2K_PIPELINE) {
+		pipe = v4l_isp.f2k;
+	} else if (pipeline == ISP_R2K_PIPELINE) {
+		pipe = v4l_isp.r2k;
+	} else {
+		return -1;
+	}
+	int ret = v4l2_subdev_open(pipe);
+	if (ret < 0) {
+		return ret;
+	}
+	unsigned long req[2][3] = {
+		{VIDIOC_K510ISP_F2K_REMAP_MAIN_CFG, VIDIOC_K510ISP_F2K_REMAP_OUT0_CFG, VIDIOC_K510ISP_F2K_REMAP_OUT1_CFG},
+		{VIDIOC_K510ISP_R2K_REMAP_MAIN_CFG, VIDIOC_K510ISP_R2K_REMAP_OUT0_CFG, VIDIOC_K510ISP_R2K_REMAP_OUT1_CFG},
+	};
+	ret = ioctl(pipe->fd, req[pipeline - ISP_F2K_PIPELINE][layer], &cfg);
+	v4l2_subdev_close(pipe);
+	return ret;
+}
+
 
 int mediactl_set_ae_single(enum isp_pipeline_e pipeline)
 {

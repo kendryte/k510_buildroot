@@ -93,6 +93,7 @@ enum adaptive_enable_select_e
 int mediactl_init(char *video_cfg_file,struct video_info *dev_info);
 void mediactl_exit(void);
 void mediactl_disable_ae(enum isp_pipeline_e pipeline);
+int mediactl_rect(enum isp_pipeline_e pipeline, unsigned layer, unsigned area, unsigned x, unsigned y, unsigned width, unsigned height, unsigned line_width, unsigned color, unsigned border_mask);
 int mediactl_set_ae(enum isp_pipeline_e pipeline);
 int mediactl_set_ae_single(enum isp_pipeline_e pipeline);
 int mediactl_set_ae_sync(enum isp_pipeline_e pipeline);
