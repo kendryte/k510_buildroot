@@ -1,14 +1,14 @@
-From 91f87d78f2270921668043a4802c893559332ad9 Mon Sep 17 00:00:00 2001
+From 49eb6e08e831f4c4de77756e23207081dfe16197 Mon Sep 17 00:00:00 2001
 From: xubaikun <xubaikun@canaan-creative.com>
-Date: Mon, 26 Sep 2022 19:09:48 +0800
+Date: Tue, 27 Sep 2022 18:32:34 +0800
 Subject: [PATCH] extended gpio_keys driver to supports event operations
 
 ---
- drivers/input/keyboard/gpio_keys.c | 51 ++++++++++++++++++++++++------
- 1 file changed, 42 insertions(+), 9 deletions(-)
+ drivers/input/keyboard/gpio_keys.c | 99 ++++++++++++++++++++----------
+ 1 file changed, 67 insertions(+), 32 deletions(-)
 
 diff --git a/drivers/input/keyboard/gpio_keys.c b/drivers/input/keyboard/gpio_keys.c
-index 052e3767..f2898db5 100644
+index 052e3767..5de4580f 100644
 --- a/drivers/input/keyboard/gpio_keys.c
 +++ b/drivers/input/keyboard/gpio_keys.c
 @@ -543,15 +543,16 @@ static int gpio_keys_setup_key(struct platform_device *pdev,
@@ -51,7 +51,65 @@ index 052e3767..f2898db5 100644
  		}
  	} else {
  		if (!button->irq) {
-@@ -688,6 +696,30 @@ static void gpio_keys_close(struct input_dev *input)
+@@ -619,32 +627,34 @@ static int gpio_keys_setup_key(struct platform_device *pdev,
+ 	*bdata->code = button->code;
+ 	input_set_capability(input, button->type ?: EV_KEY, *bdata->code);
+ 
+-	/*
+-	 * Install custom action to cancel release timer and
+-	 * workqueue item.
+-	 */
+-	error = devm_add_action(dev, gpio_keys_quiesce_key, bdata);
+-	if (error) {
+-		dev_err(dev, "failed to register quiesce action, error: %d\n",
+-			error);
+-		return error;
+-	}
++	if (button->type == EV_KEY)
++	{
++		/*
++		* Install custom action to cancel release timer and
++		* workqueue item.
++		*/
++		error = devm_add_action(dev, gpio_keys_quiesce_key, bdata);
++		if (error) {
++			dev_err(dev, "failed to register quiesce action, error: %d\n",
++				error);
++			return error;
++		}
+ 
+-	/*
+-	 * If platform has specified that the button can be disabled,
+-	 * we don't want it to share the interrupt line.
+-	 */
+-	if (!button->can_disable)
+-		irqflags |= IRQF_SHARED;
++		/*
++		 * If platform has specified that the button can be disabled,
++		 * we don't want it to share the interrupt line.
++		 */
++		if (!button->can_disable)
++			irqflags |= IRQF_SHARED;
+ 
+-	error = devm_request_any_context_irq(dev, bdata->irq, isr, irqflags,
+-					     desc, bdata);
+-	if (error < 0) {
+-		dev_err(dev, "Unable to claim irq %d; error %d\n",
+-			bdata->irq, error);
+-		return error;
++		error = devm_request_any_context_irq(dev, bdata->irq, isr, irqflags,
++						     desc, bdata);
++		if (error < 0) {
++			dev_err(dev, "Unable to claim irq %d; error %d\n",
++				bdata->irq, error);
++			return error;
++		}
+ 	}
+-
+ 	return 0;
+ }
+ 
+@@ -688,6 +698,30 @@ static void gpio_keys_close(struct input_dev *input)
  		pdata->disable(input->dev.parent);
  }
  
@@ -82,7 +140,7 @@ index 052e3767..f2898db5 100644
  /*
   * Handlers for alternative sources of platform_data
   */
-@@ -816,6 +848,7 @@ static int gpio_keys_probe(struct platform_device *pdev)
+@@ -816,6 +850,7 @@ static int gpio_keys_probe(struct platform_device *pdev)
  	input->dev.parent = dev;
  	input->open = gpio_keys_open;
  	input->close = gpio_keys_close;
