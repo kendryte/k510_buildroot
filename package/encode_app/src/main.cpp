@@ -712,7 +712,7 @@ static void *encode_ch(void *arg)
 
     if(input.data)
     {
-      unsigned long int time;
+      unsigned long int time, time1, time2;
 
       time = get_time();
 
@@ -807,12 +807,14 @@ static void *encode_ch(void *arg)
 
       VideoEncoder_GetStream(pCtx->hEnc[channel], &output);
 
+      time1 = get_time();
       if (1 == pCtx->enable_rtsp[channel])
       {
          if (NULL != pCtx->pRtspServer[channel])
          {
            pCtx->pRtspServer[channel]->PushVideoData(output.bufAddr, output.bufSize,0);
          }
+         time2 = get_time();
       }
 	
       // printf("%s>bufAddr %p, bufSize %d\n", __FUNCTION__, output.bufAddr, output.bufSize);
@@ -822,7 +824,7 @@ static void *encode_ch(void *arg)
       {
         if((get_time()-time)/1000000.0 >= (1000.0/pCtx->Cfg[channel].FrameRate))
         {
-          printf("warning: channel[%d]-encode one frame %.4f ms\n", channel, (get_time()-time)/1000000.0);
+          printf("warning: channel[%d]-encode one frame %.4f ms, rtsp time %.4f ms\n", channel, (time1-time)/1000000.0, (time2-time1)/1000000.0);
         }
 
         if(pCtx->enable_isp[channel] == 1)
@@ -2472,7 +2474,64 @@ int main(int argc, char *argv[])
     }
   }
 
-  
+  FILE *fp=NULL;
+
+  fp = fopen("/proc/cmdline", "rb");
+	if (fp == NULL)
+	{
+		printf("can not find /proc/cmdline\n");
+	}
+	else
+	{
+	  char ch;
+	  int isolcpus=0;
+	  int index=0;
+	  char name[10];
+
+	  sprintf(name, "isolcpus=1");
+	  while(1)
+  	{  
+  	  ch = fgetc(fp);
+  	  if(ch == EOF || ch == 0xff)
+  	    break;
+  	  
+  	  if(ch == name[index])
+  	  {
+  	    index++;
+  	    if(index >= 10)
+  	    {
+  	      isolcpus = 1;
+  	      break;
+  	    }
+  	  }
+  	  else
+  	  {
+  	    if(index > 0)
+  	      index--;
+  	  }
+  	}
+	  fclose(fp);
+
+	  printf("isolcpus = %d\n", isolcpus);
+	
+    if(isolcpus == 1)
+    {   
+      cpu_set_t cpuset;
+      int ret;
+      pthread_t tid;
+
+      CPU_ZERO(&cpuset);
+      CPU_SET(1, &cpuset);
+
+      pCtx->pRtspServer[pCtx->ch_cnt-1]->GetThreadId(&tid);
+
+      ret = pthread_setaffinity_np(tid, sizeof(cpu_set_t), &cpuset);
+      if (ret != 0)
+        printf("rtsp:pthread_setaffinity_np: fail\n");
+      else
+        printf("rtsp:pthread_setaffinity_np: ok\n");  
+    }
+  }
   
   pCtx->fd_share_memory = open(SHARE_MEMORY_DEV,O_RDWR | O_SYNC);
   if(pCtx->fd_share_memory < 0)
