@@ -824,7 +824,7 @@ static void *encode_ch(void *arg)
       {
         if((get_time()-time)/1000000.0 >= (1000.0/pCtx->Cfg[channel].FrameRate))
         {
-          printf("warning: channel[%d]-encode one frame %.4f ms, rtsp time %.4f ms\n", channel, (time1-time)/1000000.0, (time2-time1)/1000000.0);
+          printf("warning: channel[%d]-encode one frame %.4f ms\n", channel, (get_time()-time)/1000000.0);
         }
 
         if(pCtx->enable_isp[channel] == 1)
@@ -1014,7 +1014,7 @@ int free_context(void *arg)
   free(pCtx->drop_en         );
   free(pCtx->out_framerate   );
   free(pCtx->ae_disable      );
-  free(pCtx->overflow      );
+  free(pCtx->overflow        );
 
   return 0;
 }
@@ -2514,7 +2514,7 @@ int main(int argc, char *argv[])
 
 	  printf("isolcpus = %d\n", isolcpus);
 	
-    if(isolcpus == 1)
+    if(isolcpus == 1 && pCtx->enable_rtsp[pCtx->ch_cnt-1] == 1)
     {   
       cpu_set_t cpuset;
       int ret;
