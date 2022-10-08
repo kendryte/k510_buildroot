@@ -2027,7 +2027,6 @@ int parse_cmd(int argc, char *argv[])
       }
       pCtx->ch_en[cur_ch] = 1;
       printf("-ch%d: %d\n", cur_ch, pCtx->ch_en[cur_ch]);
-      memset(&pCtx->Cfg[cur_ch],0,sizeof(EncSettings));
     }
     else if(strcmp(argv[i], "-i") == 0)
     {      
