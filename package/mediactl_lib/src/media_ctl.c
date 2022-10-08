@@ -40,7 +40,6 @@
 #include <sys/select.h>
 #include <sys/time.h>
 #include <stdbool.h>
-
 #include <linux/media.h>
 #include <linux/types.h>
 #include <linux/v4l2-mediabus.h>
@@ -105,7 +104,12 @@ extern bool Sensor1_Sync;
 extern int AESmoothSteps;	//将AE收敛分为9步完成,可设置, >=7
 extern int ETDelayFrameNumber[2];		//Sensor ET设置生效所需帧数
 extern struct ISP_AE_Parameters AE_Para_Inf[2];
-
+int anti_flicker_count = 0;
+AE_CTL_AE_STAT_T ae_ctl_callback[2];
+AE_CTL_AE_STAT_T ae_ctl_callback_back[2];
+ADAPTIVE_ATTR_STAT_FLAG_U attr_page_flag_u[2];
+int ae_attr_set_et_count[2] = {0, 0};
+int ae_attr_set_gain_count[2] = {0, 0};
 /* adaptive */
 bool adaptive_enable_scl = TRUE;
 
@@ -162,7 +166,7 @@ struct v4l_isp_device v4l_isp;
  */
 static int isp_entity_init(struct v4l_isp_device *isp)
 {
-	struct media_entity *entity;
+	// struct media_entity *entity;
 	unsigned int i;
 	/*
 	 * Start by locating the three entities. The output video node is
@@ -847,6 +851,101 @@ static void isp_share_memory_free(void)
 	close(fd_share_memory);
 }
 
+static ADAPTIVE_ATTRIBUTE_PAGE_T adap_attr_page[] =
+{
+	// f2k
+	{
+		.nAdaptiveUserAttrEnable = 1, // 0: disable, 1: enable
+		.nAdaptiveUserAeMode = 0, // 0: sw, 1: hw
+		.nWritten = 2,
+		.nAeSync = 0,
+		.tUserAttrIspCtl = {
+			.nAeEnable = 1,
+			.nAeEnhMode = 0,
+			.nAwbEnable = 1,
+			.nLdcEnable = 0, // 0: disable, 1: enable
+			.nLscEnable = 1, // 0: disable, 1: enable
+			.nFlip = 0,      // 0: normal, 1: hflip, 2: vflip, 3: hvflip
+			.nAntiflickerScl = 1, // only sw ae use, 0: normal, 1: 50Hz auto, 2: 50Hz force, 3: 60Hz auto, 4: 60Hz force
+			.nDefogEn = 0, // 0: disable, 1 & 2: reserved, 3: enable
+			.nWdrEnable = 0,
+		},
+		.tUserAttrLimit = {
+			.nCtScl = 0, // 0: A, 1: U30, 2: U35, 3: TL84, 4: D50, 5: D65
+			.nEtRange = {1, 30000}, // [0]: min, [1]: max
+			.nGainRange = {2, 16}, // [0]: min do not modify, [1]: max
+		},
+		.tUserAttrWeight = {
+			.n2dnrLevelCoeff = 5, // level 0:10, default 5
+			.nBrightnessCoeff = 50, // level: 0 - 100, default 50
+			.nContrastCoeff = 50, // level: 0 - 100, default 50
+			.nSaturationCoeff = 50, // level: 0 - 100, default 50
+			.nSharpnessCoeff = 50, // level: 0 - 100, default 50
+			.nAeBacklightCoeff = 0,
+			.nAeStronglightCoeff = 0,
+		},
+		.tUserMenu3A = {
+			.nCurExpTime = 30000,
+			.nCurGain = 2,
+			.nCurWbRGain = 202,
+			.nCurWbGGain = 256,
+			.nCurWbBGain = 356,
+		}
+	},
+
+	// r2k
+	{
+		.nAdaptiveUserAttrEnable = 1, // 0: disable, 1: enable
+		.nAdaptiveUserAeMode = 0, // 0: sw, 1: hw
+		.nWritten = 2,
+		.nAeSync = 0,
+		.tUserAttrIspCtl = {
+			.nAeEnable = 1,
+			.nAeEnhMode = 0,
+			.nAwbEnable = 1,
+			.nLdcEnable = 0, // 0: disable, 1: enable
+			.nLscEnable = 1, // 0: disable, 1: enable
+			.nFlip = 0,      // 0: normal, 1: hflip, 2: vflip, 3: hvflip
+			.nAntiflickerScl = 1, // only sw ae use, 0: normal, 1: 50Hz auto, 2: 50Hz force, 3: 60Hz auto, 4: 60Hz force
+			.nDefogEn = 0, // 0: disable, 1 & 2: reserved, 3: enable
+			.nWdrEnable = 0,
+		},
+		.tUserAttrLimit = {
+			.nCtScl = 0, // 0: A, 1: U30, 2: U35, 3: TL84, 4: D50, 5: D65
+			.nEtRange = {1, 30000}, // [0]: min, [1]: max
+			.nGainRange = {2, 16}, // [0]: min do not modify, [1]: max
+		},
+		.tUserAttrWeight = {
+			.n2dnrLevelCoeff = 5, // level 0:10, default 5
+			.nBrightnessCoeff = 50, // level: 0 - 100, default 50
+			.nContrastCoeff = 50, // level: 0 - 100, default 50
+			.nSaturationCoeff = 50, // level: 0 - 100, default 50
+			.nSharpnessCoeff = 50, // level: 0 - 100, default 50
+			.nAeBacklightCoeff = 0,
+			.nAeStronglightCoeff = 0,
+		},
+		.tUserMenu3A = {
+			.nCurExpTime = 30000,
+			.nCurGain = 2,
+			.nCurWbRGain = 202,
+			.nCurWbGGain = 256,
+			.nCurWbBGain = 356,
+		}
+	},
+};
+
+int attr_page_params_setting(enum isp_pipeline_e pipeline, void * attr_page)
+{
+	ADAPTIVE_ATTRIBUTE_PAGE_T * attr_rec = (ADAPTIVE_ATTRIBUTE_PAGE_T *)attr_page;
+	adap_attr_page[pipeline] = *attr_rec;
+	return 0;
+}
+
+int attr_page_get_written_stat(enum isp_pipeline_e pipeline)
+{
+	return adap_attr_page[pipeline].nWritten;
+}
+
 #if 0
 int mediactl_all_set_ae(enum isp_pipeline_e pipeline)
 {
@@ -990,6 +1089,20 @@ int mediactl_hw_set_ae(enum isp_pipeline_e pipeline)
 		}
 		//printf("%s:ae_wren(%d),ae_expl(%d),ae_agco(%d)\n",__func__,ae_stats.ae_wren,ae_stats.ae_expl,ae_stats.ae_agco);
 		v4l2_subdev_close(pipe);
+		if(adap_attr_page[pipeline].nWritten == 2)
+		{
+			adaptive_user_attr_page_parse(pipeline, &adap_attr_page[pipeline]);
+
+			// ae manual set
+			if(adap_attr_page[pipeline].nAdaptiveUserAttrEnable)
+			{
+				if(!adap_attr_page[pipeline].tUserAttrIspCtl.nAeEnable)
+				{
+					ae_stats.ae_expl = (unsigned int)et_line_time_convert(pipeline, adap_attr_page[pipeline].tUserMenu3A.nCurExpTime);
+					ae_stats.ae_agco = (unsigned int)adap_attr_page[pipeline].tUserMenu3A.nCurGain * 256;
+				}
+			}
+		}
 
 		adaptive_get_3a_stat(pipeline, pipe);
 		// no change
@@ -1042,6 +1155,7 @@ int mediactl_hw_set_ae(enum isp_pipeline_e pipeline)
 			adaptive_setting_ctl(pipeline);
 			adaptive_param_apply(pipeline, pipe);
 		}
+		adap_attr_page[pipeline].nWritten = 3;
 	}
 
 	if(ISP_R2K_PIPELINE == pipeline)
@@ -1066,9 +1180,29 @@ int mediactl_hw_set_ae(enum isp_pipeline_e pipeline)
 		}
 		//printf("%s:ae_wren(%d),ae_expl(%d),ae_agco(%d)\n",__func__,ae_stats.ae_wren,ae_stats.ae_expl,ae_stats.ae_agco);
 		v4l2_subdev_close(pipe);
-
+		if(adap_attr_page[pipeline].nWritten == 2)
+		{
+			adaptive_user_attr_page_parse(pipeline, &adap_attr_page[pipeline]);
+			// ae manual set
+			if(adap_attr_page[pipeline].nAdaptiveUserAttrEnable)
+			{
+				if(!adap_attr_page[pipeline].tUserAttrIspCtl.nAeEnable)
+				{
+					ae_stats.ae_expl = (unsigned int)et_line_time_convert(pipeline, adap_attr_page[pipeline].tUserMenu3A.nCurExpTime);
+					ae_stats.ae_agco = (unsigned int)adap_attr_page[pipeline].tUserMenu3A.nCurGain * 256;
+				}
+			}
+		}
+		adaptive_get_3a_stat(pipeline, pipe);
 		static int expl_1 = 0, agco_1 = 0;
 		if (expl_1 == ae_stats.ae_expl && agco_1 == ae_stats.ae_agco) {
+			if(adaptive_ex_gt_update_flag(pipeline) == 1)
+			{
+        		adaptive_ex_st_ae_apply(pipeline, ae_stats.y_av, expl_1, agco_1);
+				adaptive_param_flag_init(pipeline);
+				adaptive_setting_ctl(pipeline);
+				adaptive_param_apply(pipeline, pipe);
+			}
 			return ret;
 		} else {
 			expl_1 = ae_stats.ae_expl;
@@ -1109,7 +1243,103 @@ int mediactl_hw_set_ae(enum isp_pipeline_e pipeline)
 			adaptive_setting_ctl(pipeline);
 			adaptive_param_apply(pipeline, pipe);
 		}
+		adap_attr_page[pipeline].nWritten = 3;
 	}
+	return 0;
+}
+
+/* sw ae */
+int sw_ae_value_set(enum isp_pipeline_e pipeline, struct media_entity *pipe)
+{
+	int ret = 0;
+	static int y_everage_temp = 0;
+	struct k510isp_ae_stats ae_stats;
+	struct media_entity *sensor_n = NULL;
+	ret = v4l2_subdev_open(pipe);
+	if (ret < 0)
+		return ret;
+	if(ISP_F2K_PIPELINE == pipeline)
+	{
+		ioctl(pipe->fd,VIDIOC_K510ISP_F2K_AE_STAT_REQ, &ae_stats);
+		v4l2_subdev_close(pipe);
+		y_everage_temp = ae_stats.y_av;
+		sensor_n = v4l_isp.sensor0;
+	}
+	else if(ISP_R2K_PIPELINE == pipeline)
+	{
+		if(Sensor1_Sync == FALSE)
+		{
+			ioctl(pipe->fd,VIDIOC_K510ISP_R2K_AE_STAT_REQ, &ae_stats);
+			v4l2_subdev_close(pipe);
+		}
+		else{
+			ae_stats.y_av = y_everage_temp;
+		}
+		sensor_n = v4l_isp.sensor1;
+	}
+
+	// keep current ev when switch to manual ae
+
+	if(adap_attr_page[pipeline].nWritten == 2)
+	{
+		if(!adap_attr_page[pipeline].tUserAttrIspCtl.nAeEnable && attr_page_flag_u[pipeline].bits.ae_en_flag)
+		{
+			ae_ctl_callback_back[pipeline].nExpTimeLines = ae_ctl_callback[pipeline].nExpTimeLines;
+			ae_ctl_callback_back[pipeline].nGain = ae_ctl_callback[pipeline].nGain;
+		}
+
+		if(adap_attr_page[pipeline].nAdaptiveUserAttrEnable == 1 && adap_attr_page[pipeline].tUserAttrIspCtl.nAeEnable == 0)
+		{
+			if(1)
+			{
+				int temp_ae_ctl_exp = et_line_time_convert(pipeline, adap_attr_page[pipeline].tUserMenu3A.nCurExpTime) + 1;
+				// if(attr_page_flag_u[pipeline].bits.cur_exp_flag)
+				{
+					if(ae_attr_set_et_count[pipeline] == 0)
+					{
+						ae_ctl_manual_set(AE_CTL_MANUAL_SET_EXP_MODE, NULL, pipeline, ae_ctl_callback_back[pipeline].nExpTimeLines > 0 ? ae_ctl_callback_back[pipeline].nExpTimeLines:temp_ae_ctl_exp, &ae_ctl_callback_back[pipeline]);
+						adap_attr_page[pipeline].tUserMenu3A.nCurExpTime = line_time_et_convert(pipeline, ae_ctl_callback[pipeline].nExpTimeLines);
+						ae_attr_set_et_count[pipeline]++;
+						ae_ctl_callback[pipeline].nExpTimeLines =  ae_ctl_callback_back[pipeline].nExpTimeLines > 0 ? ae_ctl_callback_back[pipeline].nExpTimeLines:temp_ae_ctl_exp, &ae_ctl_callback_back[pipeline];
+					}
+					else
+					{
+						ae_ctl_manual_set(AE_CTL_MANUAL_SET_EXP_MODE, NULL, pipeline, temp_ae_ctl_exp, &ae_ctl_callback[pipeline]);
+						ae_ctl_callback[pipeline].nExpTimeLines =  temp_ae_ctl_exp;
+					}
+				}
+				// if(attr_page_flag_u[pipeline].bits.cur_gain_flag)
+				{
+					if(ae_attr_set_gain_count[pipeline] == 0)
+					{
+						ae_ctl_manual_set(AE_CTL_MANUAL_SET_GAIN_MODE, NULL, pipeline, ae_ctl_callback_back[pipeline].nGain > 0 ? ae_ctl_callback_back[pipeline].nGain:adap_attr_page[pipeline].tUserMenu3A.nCurGain * 256, &ae_ctl_callback_back[pipeline]);
+						adap_attr_page[pipeline].tUserMenu3A.nCurGain = ae_ctl_callback[pipeline].nGain / 256;
+						ae_attr_set_gain_count[pipeline]++;
+						ae_ctl_callback[pipeline].nGain =  ae_ctl_callback_back[pipeline].nGain > 0 ? ae_ctl_callback_back[pipeline].nGain:adap_attr_page[pipeline].tUserMenu3A.nCurGain * 256;
+					}
+					else
+					{
+						ae_ctl_manual_set(AE_CTL_MANUAL_SET_GAIN_MODE, NULL, pipeline, adap_attr_page[pipeline].tUserMenu3A.nCurGain * 256, &ae_ctl_callback[pipeline]);
+						ae_ctl_callback[pipeline].nGain =  12; //adap_attr_page[pipeline].tUserMenu3A.nCurGain * 256;
+					}
+				}
+			}
+		}
+
+		if(attr_page_flag_u[pipeline].bits.anti_flicker_flag + attr_page_flag_u[pipeline].bits.gain_min + attr_page_flag_u[pipeline].bits.et_min_flag + attr_page_flag_u[pipeline].bits.et_max_flag + attr_page_flag_u[pipeline].bits.gain_max + attr_page_flag_u[pipeline].bits.ae_en_flag + attr_page_flag_u[pipeline].bits.attr_en_flag)
+		{
+			ae_ctl_reinit(pipeline);
+		}
+	}
+
+	if(!adap_attr_page[pipeline].nAdaptiveUserAttrEnable || \
+		(adap_attr_page[pipeline].nAdaptiveUserAttrEnable && adap_attr_page[pipeline].tUserAttrIspCtl.nAeEnable))
+	{
+		ae_ctl_calc(pipeline, ae_stats, sensor_n, &ae_ctl_callback[pipeline]);
+	}
+	// send ae param to adaptive func
+	adaptive_ex_st_ae_apply(pipeline, ae_stats.y_av, ae_ctl_callback[pipeline].nExpTimeLines, ae_ctl_callback[pipeline].nGain);
+
 	return 0;
 }
 
@@ -1120,7 +1350,44 @@ int mediactl_hw_set_ae(enum isp_pipeline_e pipeline)
 int mediactl_sw_set_ae(enum isp_pipeline_e pipeline)
 {
 	int ret;
-	struct media_entity *pipe;
+	struct media_entity *pipe = NULL;
+	if(adap_attr_page[pipeline].nWritten == 2)
+	{
+		attr_page_flag_u[pipeline].u32 = adaptive_user_attr_page_compare(pipeline, &adap_attr_page[pipeline]);
+		ae_ctl_attr_page_stat_set_v2(pipeline, attr_page_flag_u[pipeline].u32);
+		AE_CTL_ATTR_PARAM ae_attr_page_param;
+		ae_attr_page_param.nAeModeSwitch = adap_attr_page[pipeline].tUserAttrIspCtl.nAeEnable;
+		ae_attr_page_param.nAttePageEn = adap_attr_page[pipeline].nAdaptiveUserAttrEnable;
+		ae_ctl_attr_page_param_set(pipeline, ae_attr_page_param);
+
+		if(adap_attr_page[pipeline].nAdaptiveUserAttrEnable)
+		{
+			if(attr_page_flag_u[pipeline].bits.ae_sync_flag)
+			{
+				if(pipeline == ISP_R2K_PIPELINE)
+				{
+					ae_ctl_sync_setting(pipeline, adap_attr_page[pipeline].nAeSync);
+				}
+			}
+
+			if(attr_page_flag_u[pipeline].bits.anti_flicker_flag)
+			{
+				anti_flicker_switch(pipeline, adap_attr_page[pipeline].tUserAttrIspCtl.nAntiflickerScl);
+			}
+		}
+
+		if(attr_page_flag_u[pipeline].bits.attr_en_flag || \
+			(adap_attr_page[pipeline].nAdaptiveUserAttrEnable && adap_attr_page[pipeline].tUserAttrIspCtl.nAeEnable && attr_page_flag_u[pipeline].bits.ae_en_flag))
+		{
+			adap_attr_page[pipeline].tUserAttrLimit.nEtRange[0] = 1;
+			adap_attr_page[pipeline].tUserAttrLimit.nEtRange[1] = 30000;
+			adap_attr_page[pipeline].tUserAttrLimit.nGainRange[1] = 16;
+		}
+
+		ae_ctl_limit_range(pipeline, adap_attr_page[pipeline].tUserAttrLimit.nEtRange[0], adap_attr_page[pipeline].tUserAttrLimit.nEtRange[1], adap_attr_page[pipeline].tUserAttrLimit.nGainRange[1]);
+
+	}
+
 	if(pipeline == ISP_F2K_PIPELINE)
 	{
 		pipe = v4l_isp.f2k;
@@ -1134,6 +1401,10 @@ int mediactl_sw_set_ae(enum isp_pipeline_e pipeline)
 	{
 		// adaptive will not apply
 		return 0;
+	}
+	if(adap_attr_page[pipeline].nWritten == 2)
+	{
+		adaptive_user_attr_page_parse(pipeline, &adap_attr_page[pipeline]);
 	}
 
 	int total_frame_num = AESmoothSteps + ETDelayFrameNumber[pipeline];
@@ -1166,44 +1437,12 @@ int mediactl_sw_set_ae(enum isp_pipeline_e pipeline)
 		}
 		adaptive_ex_st_ev_apply_flag(pipeline, 1);
 	}
-	return ret;
-}
 
-/* sw ae */
-int sw_ae_value_set(enum isp_pipeline_e pipeline, struct media_entity *pipe)
-{
-	int ret,i,j;
-	static int y_everage_temp = 0;
-	struct k510isp_ae_stats ae_stats;
-	AE_CTL_AE_STAT_T ae_ctl_callback;
-	struct media_entity *sensor_n;
-	ret = v4l2_subdev_open(pipe);
-	if (ret < 0)
-		return ret;
-	if(ISP_F2K_PIPELINE == pipeline)
-	{
-		ioctl(pipe->fd,VIDIOC_K510ISP_F2K_AE_STAT_REQ, &ae_stats);
-		v4l2_subdev_close(pipe);
-		sensor_n = v4l_isp.sensor0;
-	}
-	else if(ISP_R2K_PIPELINE == pipeline)
-	{
-		if(Sensor1_Sync == FALSE)
-		{
-			ioctl(pipe->fd,VIDIOC_K510ISP_R2K_AE_STAT_REQ, &ae_stats);
-			v4l2_subdev_close(pipe);
-		}
-		else
-		{
-			ae_stats.y_av = y_everage_temp;
-		}
-		sensor_n = v4l_isp.sensor1;
-	}
-	// sw ae apply
-	ae_ctl_calc(pipeline, ae_stats, sensor_n, &ae_ctl_callback);
-	// send ae param to adaptive func
-	adaptive_ex_st_ae_apply(pipeline, ae_stats.y_av, ae_ctl_callback.nExpTimeLines, ae_ctl_callback.nGain);
-	return 0;
+	ae_ctl_manual_set(AE_CTL_MANUAL_SET_TARGET_MODE, NULL, pipeline, adaptive_ex_gt_target_stat(pipeline), NULL);
+	ae_ctl_manual_set(AE_CTL_MANUAL_SET_TARGET_RANGE_MODE, NULL, pipeline, adaptive_ex_gt_target_range_stat(pipeline), NULL);
+	attr_page_flag_u[pipeline].u32 = 0;
+	adap_attr_page[pipeline].nWritten = 3;
+	return ret;
 }
 
 #endif
@@ -1353,6 +1592,7 @@ void run_all_ae_video(void *info)
 int anti_flicker_init(int scl)
 {
 	anti_flicker_scl(scl);
+	anti_flicker_count += 1;
 	return 0;
 }
 
@@ -1372,6 +1612,7 @@ int ae_select_init(int scl)
 		mediactl_all_set_ae = mediactl_sw_set_ae;
 		break;
 	}
+	return 0;
 }
 
 int adaptive_enable(int scl)
@@ -1387,6 +1628,7 @@ int adaptive_enable(int scl)
 		adaptive_enable_scl = TRUE;
 		break;
 	}
+	return 0;
 }
 
 int ae_enable_set(enum isp_pipeline_e pipeline, struct media_entity * pipe)
@@ -1409,12 +1651,12 @@ int ae_enable_set(enum isp_pipeline_e pipeline, struct media_entity * pipe)
 	}
 	for(int i = 0; i < size; i++)
 	{
-		if(pipeline == ADAP_ISP_F2K_PIPELINE)
+		if(pipeline == ISP_F2K_PIPELINE)
 		{
 			ret = ioctl(pipe->fd,VIDIOC_K510ISP_F2K_CORE_REG_SET, &ae_set_reg[i]);
 			ae_hw_set_f2k = FALSE;
 		}
-		else if(pipeline = ADAP_ISP_R2K_PIPELINE)
+		else if(pipeline == ISP_R2K_PIPELINE)
 		{
 			ret = ioctl(pipe->fd,VIDIOC_K510ISP_R2K_CORE_REG_SET, &ae_set_reg[i]);
 			ae_hw_set_r2k = FALSE;
@@ -1427,13 +1669,14 @@ int ae_enable_set(enum isp_pipeline_e pipeline, struct media_entity * pipe)
 		}
 	}
 	v4l2_subdev_close(pipe);
+	return 0;
 }
 
 pthread_t isp_f2k_ae, isp_r2k_ae, isp_all_ae;
 
 int mediactl_init(char *video_cfg_file,struct video_info *dev_info)
 {
-	int ret;
+	int ret = 0;
 	struct isp_csi2_info mipi_csi2;
 	struct vi_cfg_info vi_cfg;
 	memset(&v4l_isp, 0, sizeof v4l_isp);
@@ -1442,6 +1685,12 @@ int mediactl_init(char *video_cfg_file,struct video_info *dev_info)
 	struct sensor_info sensor1;
 	char *f2k_cfg_file = NULL;//f2k_cfg_file[50];
 	char *r2k_cfg_file = NULL;//r2k_cfg_file[50];
+
+	// will init here, if antiflicker scl not init once before
+	if(anti_flicker_count < 1)
+	{
+		anti_flicker_scl(ANTI_FLICKER_ALL2K_ENABLE);
+	}
 
 	if( video_cfg_file != NULL)
 	{
@@ -1497,15 +1746,6 @@ int mediactl_init(char *video_cfg_file,struct video_info *dev_info)
 			//print_isp_info(&f2k_isp_cfg);
 			/* ae ctl */
 			ae_ctl_init(ISP_F2K_PIPELINE, sensor0.isp_cfg.isp_core_cfg);
-			// adap img timing init
-			// ADAPTIVE_IMG_TIMING_CFG_T adaptive_img_timing;
-			// adaptive_img_timing.nItcTtlV = AE_Para_Inf[ISP_F2K].FrameLines;
-			// adaptive_img_timing.nMaxExpLine = AE_Para_Inf[ISP_F2K].maxET;
-			// adaptive_img_timing.nMinExpLine = AE_Para_Inf[ISP_F2K].minET;
-			// adaptive_img_timing.nMaxGain = AE_Para_Inf[ISP_F2K].maxGain;
-			// adaptive_img_timing.nMinGain = AE_Para_Inf[ISP_F2K].minGain;
-			// adaptive_img_timing.nDefaultSaturation = sensor0.isp_cfg.isp_core_cfg.postInfo.satu_ad_intensity;
-			// adaptive_calc_feture_init(ISP_F2K, adaptive_img_timing);
 		}
 
 		if(r2k_cfg_file != NULL)
@@ -1530,15 +1770,6 @@ int mediactl_init(char *video_cfg_file,struct video_info *dev_info)
 			sprintf(&isp_pipeline->video_entity_info[3].video_entity_name[0],"%s","CANAAN K510 ISP R2K_DS2 output");
 			/* ae ctl */
 			ae_ctl_init(ISP_R2K, sensor1.isp_cfg.isp_core_cfg);
-			// adap img timing init
-			// ADAPTIVE_IMG_TIMING_CFG_T adaptive_img_timing;
-			// adaptive_img_timing.nItcTtlV = AE_Para_Inf[ISP_R2K].FrameLines;
-			// adaptive_img_timing.nMaxExpLine = AE_Para_Inf[ISP_R2K].maxET;
-			// adaptive_img_timing.nMinExpLine = AE_Para_Inf[ISP_R2K].minET;
-			// adaptive_img_timing.nMaxGain = AE_Para_Inf[ISP_R2K].maxGain;
-			// adaptive_img_timing.nMinGain = AE_Para_Inf[ISP_R2K].minGain;
-			// adaptive_img_timing.nDefaultSaturation = sensor1.isp_cfg.isp_core_cfg.postInfo.satu_ad_intensity;
-			// adaptive_calc_feture_init(ISP_R2K, adaptive_img_timing);
 		}
 	}
 	else
@@ -1658,6 +1889,11 @@ int mediactl_init(char *video_cfg_file,struct video_info *dev_info)
 		return -1;
 	}
 
+	// adaptive_sensor_init(ISP_F2K, v4l_isp.sensor0);
+	// adaptive_sensor_init(ISP_R2K, v4l_isp.sensor1);
+	adaptive_device_init(4, v4l_isp.f2k, v4l_isp.r2k, v4l_isp.sensor0, v4l_isp.sensor1);
+	ae_ctl_device_init(4, v4l_isp.f2k, v4l_isp.r2k, v4l_isp.sensor0, v4l_isp.sensor1);
+
 #if 0
 	if((v4l_isp.isp_pipeline[ISP_F2K].pipeline_en == 1) && ( v4l_isp.isp_pipeline[ISP_R2K].pipeline_en == 1 ))
 	{
@@ -1673,7 +1909,6 @@ int mediactl_init(char *video_cfg_file,struct video_info *dev_info)
 	}
 #else
 	pthread_create(&isp_all_ae, NULL, run_all_ae_video, NULL);
-
 #endif
 	return 0;
 }
@@ -1683,7 +1918,7 @@ int mediactl_init(char *video_cfg_file,struct video_info *dev_info)
  */
  int mediactl_set_ae(enum isp_pipeline_e pipeline)
 {
-	int ret;
+	int ret = 0;
 #if 0
 	if(Sensor1_Sync == FALSE)
 	{
@@ -1760,7 +1995,7 @@ int mediactl_rect(enum isp_pipeline_e pipeline, unsigned layer, unsigned area, u
 
 int mediactl_set_ae_single(enum isp_pipeline_e pipeline)
 {
-	int ret, i;
+	int ret;
 	struct k510isp_ae_stats ae_stats;
 	struct media_entity *pipe;
 	static unsigned int ET_sensor0 = 0;
@@ -2055,7 +2290,7 @@ unsigned int ISPRegRead(unsigned int addr)
 unsigned int ISPRegWrite(unsigned int addr, unsigned int value)
 {
     char cmd[64] = {0};
-    unsigned ret;
+    // unsigned ret = 0;
     FILE *fp = NULL;
 
     sprintf(cmd, "devmem 0x%08X 32 0x%08X\n", addr, value);
@@ -2066,4 +2301,47 @@ unsigned int ISPRegWrite(unsigned int addr, unsigned int value)
     }
     pclose(fp);
     return 1;
+}
+
+int ae_hist_mode_scl(enum isp_pipeline_e pipeline, enum ae_hist_mode_e ae_hist_mode, AE_HIST_WINDOW_T * hist_window)
+{
+	int ret = 0;
+	ADAPTIVE_ISP_AE_CTL_U ae_ctl_u;
+	struct k510isp_reg_val ae_ctl_reg[5] =
+	{
+		{ISP_CORE_AE_CTL,         0x0}, // ae ctl 0x450
+		{ISP_CORE_AE_WIN_H_START, 0x0}, // hist mode h start 0x0454
+		{ISP_CORE_AE_WIN_V_START, 0x0}, // hist mode v start 0x0458
+		{ISP_CORE_AE_WIN_H_END,   0x0}, // hist mode h end 0x045c
+		{ISP_CORE_AE_WIN_V_END,   0x0}, // hist mode v end 0x0460
+	};
+
+	switch (ae_hist_mode)
+	{
+	case AE_HIST_MODE_WHOLE_PICTURE:
+	case AE_HIST_MODE_CENTRAL_AERA:
+		ret = adaptive_select_moudel_get(pipeline, pipeline == ISP_F2K_PIPELINE ? v4l_isp.f2k : v4l_isp.r2k, 1, ae_hist_mode == AE_HIST_MODE_WHOLE_PICTURE ? 1 : 5, ae_ctl_reg);
+		if(ret != 0)
+		{
+			return -2;
+		}
+		ae_ctl_u.u32 = ae_ctl_reg[0].reg_value;
+		ae_ctl_u.bits.ae_win_sl = ae_hist_mode;
+		ae_ctl_reg[0].reg_value = ae_ctl_u.u32;
+		ae_ctl_reg[1].reg_value = hist_window == NULL ? 0 : hist_window->nHStart;
+		ae_ctl_reg[2].reg_value = hist_window == NULL ? 0 : hist_window->nVStart;
+		ae_ctl_reg[3].reg_value = hist_window == NULL ? 0 : hist_window->nHEnd;
+		ae_ctl_reg[4].reg_value = hist_window == NULL ? 0 : hist_window->nVEnd;
+
+		ret = adaptive_select_moudel_apply(pipeline, pipeline == ISP_F2K_PIPELINE ? v4l_isp.f2k : v4l_isp.r2k, 1, ae_hist_mode == AE_HIST_MODE_WHOLE_PICTURE ? 1 : 5, ae_ctl_reg);
+		if(ret)
+		{
+			printf("%s, ae hist mode set failed!\n", __func__);
+		}
+		break;
+	default:
+		printf("%s, unknown ae hist mode %d, set failed!\n", __func__, ae_hist_mode);
+		return -1;
+	}
+	return 0;
 }

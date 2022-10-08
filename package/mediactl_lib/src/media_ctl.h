@@ -90,6 +90,20 @@ enum adaptive_enable_select_e
 	ADAPTIVE_SELECT_ENABLE,
 };
 
+enum ae_hist_mode_e
+{
+	AE_HIST_MODE_WHOLE_PICTURE,
+	AE_HIST_MODE_CENTRAL_AERA,
+};
+
+typedef struct __AE_HIST_WINDOW_T
+{
+	int nHStart;
+	int nVStart;
+	int nHEnd;
+	int nVEnd;
+} AE_HIST_WINDOW_T;
+
 int mediactl_init(char *video_cfg_file,struct video_info *dev_info);
 void mediactl_exit(void);
 void mediactl_disable_ae(enum isp_pipeline_e pipeline);
@@ -105,7 +119,11 @@ int adaptive_enable(int scl);
 int ae_select_init(int scl);
 int anti_flicker_init(int scl);
 int ae_enable_set(enum isp_pipeline_e pipeline, struct media_entity * pipe);
-
+/* AE HIST MODE API */
+int ae_hist_mode_scl(enum isp_pipeline_e pipeline, enum ae_hist_mode_e ae_hist_mode, AE_HIST_WINDOW_T * hist_window);
+/* attr page API */
+int attr_page_params_setting(enum isp_pipeline_e pipeline, void * attr_page);
+int attr_page_get_written_stat(enum isp_pipeline_e pipeline);
 unsigned int mediactl_get_isp_modules(enum isp_pipeline_e pipeline,enum isp_modules module);
 #ifdef __cplusplus
 }

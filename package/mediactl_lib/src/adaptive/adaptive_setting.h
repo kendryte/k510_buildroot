@@ -26,7 +26,7 @@
 #ifndef __ADAPTIVE_SETTING_H__
 #define __ADAPTIVE_SETTING_H__
 
-#define ADAPTIVE_WEIGHT_THRESHOLD 0.0
+#define ADAPTIVE_WEIGHT_THRESHOLD 0 // 0 - 255
 #define ADAPTIVE_GAMMA_DAY 0
 #define ADAPTIVE_GAMMA_NIGHT 1
 #define ADAPTIVE_COLOR_TO_GREY 0
@@ -47,12 +47,21 @@
 #define ADAPTIVE_CORRECT_GAIN_OFFSET 384
 #define ADAPTIVE_GAIN_MAX_CORRECT_OFFSET 8 // 256 * 0.03
 #define ADAPTIVE_3A_SYNC_FOLLOW_SELECT 1 // need f2k & r2k sync stat is 1, 0: nothing 1 : follow f2k, 2 : follow r2k(can not work normaly, need fix ae_wren = 1)
+#define ADAPTIVE_AE_EHN_MODE_NORMAL 0
+#define ADAPTIVE_AE_EHN_MODE_BACKLIGHT 1
+#define ADAPTIVE_AE_EHN_MODE_STRONG_LIGHT_SUPPRESSION 2
 
+/* struct define */
 typedef struct _ADAPTIVE_USER_ATTR_ISP_CTL_T {
-	int nBlcEnable; // 0: disable, 1: enable
 	int nLscEnable; // 0: disable, 1: enable
-	int nAeEnable; // 0: all disable, 1: exp enable, 2: gain enable, 3: exp & gain enable, ... 16183: all enable
+	int nLdcEnable; // 0: disable, 1: enable
+	int nAeEnable; // 0: manual ae, 1: auto ae
+	int nAeEnhMode; // 0: normal, 1: ae back light compensation, 2: strong light suppression
+	int nWdrEnable; // 0: normal, 1: linner-wdr enable
 	int nAwbEnable; // 0: all disbale, 1: d65 gain enable, 2: ccm enable, ... 527:
+	int nFlip; // 0: normal, 1: hflip, 2: vflip, 3: hvflip
+	int nAntiflickerScl; // 0: disable, 1: 50Hz auto, 2: 50Hz force 3: 60Hz auto, 4: 60Hz force
+	int nDefogEn; // 0: disable, 1: enable, will use isp ada and disable adaptive-ADA
 } ADAPTIVE_USER_ATTR_ISP_CTL_T;
 
 typedef struct _ADAPTIVE_USER_ATTR_LIMIT_T {
@@ -67,15 +76,70 @@ typedef struct _ADAPTIVE_USER_ATTR_WEIGHT_T {
 	int nContrastCoeff; // contrast gain user coeff step: 0 - 100, default 50
 	int nSharpnessCoeff; // sharpness gain user coeff step: 0 - 100, default 50, final val = 50 * adap_sharp
 	int n2dnrLevelCoeff; // 2dnr user coeff: step: 0 - 10, default 5
+	/* ae param */
+	int nAeBacklightCoeff;
+	int nAeStronglightCoeff;
+	int nWdrCoeff;
 } ADAPTIVE_USER_ATTR_WEIGHT_T;
+
+typedef struct _ADAPTIVE_USER_MENU_3A_T {
+	int nCurGain; // current gain: 1~15.9906x, default 2x, over range will use min or max value
+	int nCurExpTime; // current exposure time(us)
+	int nCurWbRGain; //
+	int nCurWbGGain; //
+	int nCurWbBGain; //
+} ADAPTIVE_USER_MENU_3A_T;
 
 typedef struct _ADAP_USER_ATTR_PAGE_T
 {
+	int nWritten;
 	int nAdaptiveUserAttrEnable;
+	int nAdaptiveUserAeMode; // only use to ae auto/handle switch 0: sw, 1: hw
+	int nAeSync; // only use for ae sync in dual camera & sw ae
 	ADAPTIVE_USER_ATTR_ISP_CTL_T tUserAttrIspCtl;
 	ADAPTIVE_USER_ATTR_LIMIT_T tUserAttrLimit;
 	ADAPTIVE_USER_ATTR_WEIGHT_T tUserAttrWeight;
+	ADAPTIVE_USER_MENU_3A_T tUserMenu3A;
 } ADAPTIVE_ATTRIBUTE_PAGE_T; // Root Permission for whole adaptive function
+
+typedef struct {
+    // attr page ctl
+	int nAttrPageEnFlag;
+	// isp ctl
+    int nAeEnhModeFlag;
+	int nWdrEnableFlag;
+	int nAeEnFlag;
+    int nAwbEnableFlag;
+    int nLdcEnableFlag;
+    int nLscEnableFlag;
+    int nFlipFlag;
+	int nAntiflickerFlag;
+	int nDefogFlag;
+    // isp limit
+    int nCtSclFlag;
+    int nEtFlag;
+    int nGainFlag;
+    // isp weight
+    int n2dnrFlag;
+    int nBrightnessFlag;
+    int nContrastFlag;
+    int nSaturationFlag;
+    int nSharpnessFlag;
+	int nBackLightFlag;
+	int nStrongLightFlag;
+	int nWdrLevelFlag;
+    // 3a manual
+    int nCurExpFlag;
+    int nCurGainFlag;
+    int nRGainFlag;
+    int nGGainFlag;
+    int nBGainFlag;
+
+	// sum
+	int nSum;
+} ADAPTIVE_ATTR_FLAG_T;
+
+/* enum define */
 
 enum weight_mode_e
 {
@@ -104,162 +168,6 @@ typedef struct
 
 } ADAPTIVE_INIT_PARAM_T;
 
-static struct k510isp_reg_val fixd_f2k_init_reg_list[6] = {
-	/* fix params */
-	{ISP_CORE_ITC_TTL_V, 0x0}, // itc ttl v
-	{ISP_CORE_AE_EX_VALUE_MAX, 0x0}, // max exp lines
-	{ISP_CORE_AE_EX_VALUE_MIN, 0x0}, // min exp lines
-	{ISP_CORE_AE_GAIN_MAX, 0x0}, // max gain
-	{ISP_CORE_AE_GAIN_MIN, 0x0}, // min gain
-	{ISP_CORE_SATU_GAIN, 0x0}, // min gain
-};
-
-static struct k510isp_reg_val fixd_r2k_init_reg_list[6] = {
-	/* fix params */
-	{ISP_CORE_ITC_TTL_V, 0x0}, // itc ttl v
-	{ISP_CORE_AE_EX_VALUE_MAX, 0x0}, // max exp lines
-	{ISP_CORE_AE_EX_VALUE_MIN, 0x0}, // min exp lines
-	{ISP_CORE_AE_GAIN_MAX, 0x0}, // max gain
-	{ISP_CORE_AE_GAIN_MIN, 0x0}, // min gain
-	{ISP_CORE_SATU_GAIN, 0x0}, // min gain
-};
-
-static struct k510isp_reg_val dynamic_f2k_reg_list[5] = {
-
-	/* dynamic param */
-	{ISP_CORE_AE_VALUE_READY, 0x0}, // ae ready to be writen to sensor
-	{ISP_CORE_AE_LONG_CUR_EX, 0x0}, // ae stat cur exposure time(lines)
-	{ISP_CORE_AE_CUR_DIGITAL_GAIN, 0x0}, // ae stat cur gain
-	{ISP_CORE_AWB_ORG_RED_VALUE, 0x0}, // awb stat red value
-	{ISP_CORE_AWB_ORG_BLUE_VALUE, 0x0}, // awb stat blue value
-};
-
-// static struct k510isp_reg_val dynamic_r2k_reg_list[5] = {
-
-// 	/* dynamic param */
-// 	{ISP_CORE_AE_VALUE_READY, 0x0}, // ae ready to be writen to sensor
-// 	{ISP_CORE_AE_LONG_CUR_EX, 0x0}, // ae stat cur exposure time(lines)
-// 	{ISP_CORE_AE_CUR_DIGITAL_GAIN, 0x0}, // ae stat cur gain
-// 	{ISP_CORE_AWB_RED_VALUE, 0x0}, // awb stat red value
-// 	{ISP_CORE_AWB_BLUE_VALUE, 0x0}, // awb stat blue value
-// };
-
-static struct k510isp_reg_val adaptive_apply_blc[] = {
-
-	/* follow ae gain */
-
-	{ISP_CORE_BLC_OFFSET, 0x0}, // blc offset
-};
-
-static struct k510isp_reg_val adaptive_apply_lsc[] = {
-
-	{ISP_CORE_LSC_R_RATIO, 0x0}, // lsc red ratio
-	{ISP_CORE_LSC_G_RATIO, 0x0}, // lsc green ratio
-	{ISP_CORE_LSC_B_RATIO, 0x0}, // lsc blue ratio
-};
-
-static struct k510isp_reg_val adaptive_apply_sharpness[] = {
-
-	{ISP_CORE_ENH_NR_TH, 0x0}, // sharpness core
-	{ISP_CORE_SHARP_GAIN, 0x0}, // sharpness gain
-	{ISP_CORE_ENH_TH1, 0x0}, // sharpness threshold 1
-	{ISP_CORE_ENH_TH2, 0x0}, // sharpness threshold 2
-};
-
-static struct k510isp_reg_val adaptive_apply_ltm[] = {
-
-	{ISP_CORE_LTM_GAIN, 0x0}, // ltm gain
-	{ISP_CORE_LTM_TH, 0x0}, // ltm threshold
-};
-
-static struct k510isp_reg_val adaptive_apply_2dnr[] = {
-
-	{ISP_CORE_2DNR_RAW_INTENSITY, 0x0}, // 2dnr Raw Domain Intensity
-	{ISP_CORE_2DNR_BAP_INTENSITY, 0x0}, // 2dnr Adjacent Pix Intensity
-	{ISP_CORE_2DNR_EDGE_INTENSITY, 0x0}, // 2dnr Edge Intensity
-	{ISP_CORE_2DNR_LUMA_INTENSITY, 0x0}, // 2dnr Luma Intensit
-	{ISP_CORE_2DNR_CHROMA_INTENSITY, 0x0}, // 2dnr Chroma Intensity
-};
-
-static struct k510isp_reg_val adaptive_apply_3dnr[] = {
-
-	{ISP_CORE_3DNR_PRE_LUMA_TH, 0x0}, // 3dnr Pre Luma Thres
-	{ISP_CORE_3DNR_PRE_LUMA_INTENSITY, 0x0}, // 3dnr Pre Luma Intensity
-	{ISP_CORE_3DNR_PRE_CHROMA_INTENSITY, 0x0}, // 3dnr Pre Chroma Intensity
-	{ISP_CORE_3DNR_MID_FILTER_TH, 0x0}, // 3dnr Main Middle Filter Thres
-	{ISP_CORE_3DNR_PRE_MID_FILTER_TH, 0x0}, // 3dnr Main Prev Frame Mid-Filter
-	{ISP_CORE_3DNR_CUR_FILTER_TH, 0x0}, // 3dnr Main Cur Frame Mid-Filter Thres
-	{ISP_CORE_3DNR_LOW_PASS_FILTER_TH, 0x0}, // 3dnr Main Low-Pass FilterVal
-	{ISP_CORE_3DNR_LUMA_TH, 0x0}, // 3dnr Main Luma Thres
-	{ISP_CORE_3DNR_MIN_VALUE, 0x0}, // 3dnr Main Minimum Val
-	{ISP_CORE_3DNR_LUMA_INTENSITY, 0x0}, // 3dnr Main Luma Intensity
-	{ISP_CORE_3DNR_CHROMA_INTENSITY, 0x0}, // 3dnr Main Chroma Intensity
-	{ISP_CORE_3DNR_POST_EDGE_TH, 0x0}, // 3dnr Post Edge Threshold
-	{ISP_CORE_3DNR_POST_LUMA_INTENSITY, 0x0}, // 3dnr Post Luma Intensity
-	{ISP_CORE_3DNR_POST_CHROMA_INTENSITY, 0x0}, // 3dnr Post Chroma Intensity
-};
-
-static struct k510isp_reg_val adaptive_apply_wdr[] = {
-
-	{ISP_CORE_WDR_OVER_EX_RATIO_TH1, 0x0}, // wdr LghtTh1
-	{ISP_CORE_WDR_OVER_EX_RATIO_TH2, 0x0}, // wdr LghtTh2
-	{ISP_CORE_WDR_FUSION_RATIO_TH, 0x0}, // Fs_Th
-	{ISP_CORE_WDR_FUSION_VALUE1, 0x0}, // Fs_K1
-	{ISP_CORE_WDR_FUSION_VALUE2, 0x0}, // Fs_K2
-};
-
-/* follow exposure value */
-
-static struct k510isp_reg_val adaptive_apply_ae_target[] = {
-
-	{ISP_CORE_AE_TAR_BR, 0x0}, // ae YTarget
-	{ISP_CORE_AE_TAR_BR_RANGE, 0x0}, // ae YTarget Range
-};
-
-static struct k510isp_reg_val adaptive_apply_awb_range[] = {
-
-	{ISP_CORE_AWB_RED_MIN_VALUE, 0x0}, // awb Rgain Min
-	{ISP_CORE_AWB_RED_MAX_VALUE, 0x0}, // awb Rgain Max
-	{ISP_CORE_AWB_BLUE_MIN_VALUE, 0x0}, // awb Bgain Min
-	{ISP_CORE_AWB_BLUE_MAX_VALUE, 0x0}, // awb Bgain Max
-};
-
-static struct k510isp_reg_val adaptive_apply_ccm[] = {
-
-	{ISP_CORE_CCM_RR_COFF, 0x0}, // ccm Rr
-	{ISP_CORE_CCM_RG_COFF, 0x0}, // ccm Rg
-	{ISP_CORE_CCM_RB_COFF, 0x0}, // ccm Rb
-	{ISP_CORE_CCM_GR_COFF, 0x0}, // ccm Gr
-	{ISP_CORE_CCM_GG_COFF, 0x0}, // ccm Gg
-	{ISP_CORE_CCM_GB_COFF, 0x0}, // ccm Gb
-	{ISP_CORE_CCM_BR_COFF, 0x0}, // ccm Br
-	{ISP_CORE_CCM_BG_COFF, 0x0}, // ccm Bg
-	{ISP_CORE_CCM_BB_COFF, 0x0}, // ccm Bb
-};
-
-static struct k510isp_reg_val adaptive_apply_ex_model[] = {
-
-	{ISP_CORE_CONT_GAIN, 0x0}, // contrast gain
-	{ISP_CORE_LUMA_GAIN, 0x0}, // luma gain
-};
-
-static struct k510isp_reg_val adaptive_apply_post_saturation[] = {
-	{ISP_CORE_SATU_GAIN, 0x0}, // post saturation
-};
-
-static struct k510isp_reg_val adaptive_apply_color2bw[] = {
-
-	/* color2grey use saturation mode */
-
-	{ISP_CORE_SATU_GAIN, 0x0}, // post saturation
-};
-
-static struct k510isp_reg_val adaptive_apply_ada[] = {
-
-	{ISP_CORE_ADA_STAT_MAX_VALUE, 0x0}, //
-	{ISP_CORE_ADA_AD_STREN_MAX_VALUE, 0x0}, //
-};
-
 enum adaptive_isp_pipeline_e
 {
 	ADAP_ISP_F2K_PIPELINE,
@@ -281,8 +189,140 @@ typedef struct {
  	ADAPTIVE_SENSOR_NAME_T *tAdaptiveSensorName;
 } ADAPTIVE_SENSOR_NAME_S_T;
 
-/* param check Range */
+typedef union
+{
+    struct
+    {
+        unsigned int            : 5   ; /* [0 ..4 ]      */
+        unsigned int mirror_ctl : 1   ; /* [5 ]      */
+        unsigned int            : 26  ; /* [32..7 ]  */
+    } bits;
+    unsigned int u32;
+} ADAPTIVE_ISP_ITC_CTL_U;
 
+typedef union
+{
+    struct
+    {
+        unsigned int            : 3   ; /* [0 1 2]      */
+        unsigned int awb_handle : 1   ; /* [3 ]      */
+        unsigned int            : 28  ; /* [4 .. 32]  */
+    } bits;
+    unsigned int u32;
+} ADAPTIVE_ISP_AWB_CTL_U;
+
+typedef union
+{
+    struct
+    {
+        unsigned int            : 5   ; /* [0 1 2 3 4]      */
+        unsigned int chroma_en  : 1   ; /* [5 ]      */
+        unsigned int            : 26  ; /* [6 .. 31]  */
+    } bits;
+    unsigned int u32;
+} ADAPTIVE_ISP_2DNR_CTL_U;
+
+typedef union
+{
+    struct
+    {
+        unsigned int auto_exp_en  : 1   ; /* [0]      */
+        unsigned int auto_gain_en : 1   ; /* [1]      */
+        unsigned int              : 6   ; /* [2 .. 7]      */
+        unsigned int ae_win_sl    : 2   ; /* [8 9]      */
+        unsigned int ae_md_sl     : 2   ; /* [10 11]      */
+        unsigned int              : 20   ; /* [12 31 ]      */
+    } bits;
+    unsigned int u32;
+} ADAPTIVE_ISP_AE_CTL_U;
+
+typedef union
+{
+    struct
+    {
+        unsigned int              : 5   ; /* [0 ... 4]  */
+        unsigned int ada_adp_en   : 1   ; /* [5]     */
+        unsigned int              : 3   ; /* [6 7 8]     */
+        unsigned int ada_md_sl    : 2   ; /* [9 10]     */
+        unsigned int              : 21  ; /* [11 31]    */
+    } bits;
+    unsigned int u32;
+} ADAPTIVE_ISP_DEFOG_CTL_U;
+
+typedef union
+{
+	struct
+	{
+		unsigned int hflip : 1;
+		unsigned int vflip : 1;
+		unsigned int :30;
+	} bits;
+	unsigned int u32;
+} FLIP_VAL_U;
+
+typedef union
+{
+    struct
+    {
+        unsigned int attr_en_flag      : 1   ; /* [ 0  ] */
+        unsigned int ae_sync_flag      : 1   ; /* [ 1  ] */
+        unsigned int ehn_mode_flag     : 1   ; /* [ 2  ] */
+        unsigned int ae_en_flag        : 1   ; /* [ 3  ] */
+        unsigned int awb_en_flag       : 1   ; /* [ 4  ] */
+        unsigned int lsc_en_flag       : 1   ; /* [ 5  ] */
+        unsigned int ldc_en_flag       : 1   ; /* [ 6  ] */
+        unsigned int flip_flag         : 1   ; /* [ 7  ] */
+        unsigned int anti_flicker_flag : 1   ; /* [ 8  ] */
+        unsigned int defog_en_flag     : 1   ; /* [ 9  ] */
+        unsigned int wdr_en_flag       : 1   ; /* [ 10 ] */
+        unsigned int ct_flag           : 1   ; /* [ 11 ] */
+        unsigned int et_min_flag       : 1   ; /* [ 12 ] */
+        unsigned int et_max_flag       : 1   ; /* [ 13 ] */
+        unsigned int gain_min          : 1   ; /* [ 14 ] */
+        unsigned int gain_max          : 1   ; /* [ 15 ] */
+        unsigned int nr2d_flag         : 1   ; /* [ 16 ] */
+        unsigned int bright_flag       : 1   ; /* [ 17 ] */
+        unsigned int contrast_flag     : 1   ; /* [ 18 ] */
+        unsigned int saturation_flag   : 1   ; /* [ 19 ] */
+		unsigned int sharpness_flag    : 1   ; /* [ 20 ] */
+		unsigned int backlight_flag    : 1   ; /* [ 21 ] */
+		unsigned int stronglight_flag  : 1   ; /* [ 22 ] */
+        unsigned int wdr_level_flag    : 1   ; /* [ 23 ] */
+        unsigned int cur_exp_flag      : 1   ; /* [ 24 ] */
+        unsigned int cur_gain_flag     : 1   ; /* [ 25 ] */
+        unsigned int cur_r_gain_flag   : 1   ; /* [ 26 ] */
+        unsigned int cur_g_gain_flag   : 1   ; /* [ 27 ] */
+        unsigned int cur_b_gain_flag   : 1   ; /* [ 28 ] */
+        unsigned int reserved          : 3   ; /* [29 .. 31] */
+    } bits;
+    unsigned int u32;
+} ADAPTIVE_ATTR_STAT_FLAG_U;
+
+typedef union
+{
+    struct
+    {
+        unsigned int gain_weight_0_flag      : 1   ; /* [ 0  ] */
+        unsigned int gain_weight_1_flag      : 1   ; /* [ 1  ] */
+        unsigned int ae_ev_weight_0_flag     : 1   ; /* [ 2  ] */
+        unsigned int ae_ev_weight_1_flag     : 1   ; /* [ 3  ] */
+        unsigned int saturation_weight_flag  : 1   ; /* [ 4  ] */
+        unsigned int gain_range_0_flag       : 1   ; /* [ 5  ] */
+        unsigned int gain_range_1_flag       : 1   ; /* [ 6  ] */
+        unsigned int gamma_curve_flag        : 1   ; /* [ 7  ] */
+        unsigned int color_grey_flag         : 1   ; /* [ 8  ] */
+        unsigned int ct_flag                 : 1   ; /* [ 9  ] */
+        unsigned int ae_ev_range_0_flag      : 1   ; /* [ 10 ] */
+        unsigned int ae_ev_range_1_flag      : 1   ; /* [ 11 ] */
+        unsigned int ir_cut_flag             : 1   ; /* [ 12 ] */
+        unsigned int ada_flag                : 1   ; /* [ 13 ] */
+        unsigned int reserved                : 18  ; /* [14 .. 31] */
+    } bits;
+    unsigned int u32;
+} ADAPTIVE_ISP_WEIGHT_FLAG_U;
+
+/* param check Range */
+#define ADAPTIVE_PARAM_CHECK_AE_Y_TARGET 255
 #define ADAPTIVE_PARAM_CHECK_BLC 4095
 #define ADAPTIVE_PARAM_CHECK_LSC 511
 #define ADAPTIVE_PARAM_CHECK_SHARPNESS_CORE_GAIN 255
@@ -293,6 +333,7 @@ typedef struct {
 #define ADAPTIVE_PARAM_CHECK_2DNR_EGK 1023
 #define ADAPTIVE_PARAM_CHECK_2DNR_YK 255
 #define ADAPTIVE_PARAM_CHECK_2DNR_CK 255
+#define ADAPTIVE_PARAM_CHECK_2DNR_CK_ENABLE_GAIN 768 // 3 * 256
 #define ADAPTIVE_PARAM_CHECK_3DNR_DP_THY 255
 #define ADAPTIVE_PARAM_CHECK_3DNR_DP_THYP 255
 #define ADAPTIVE_PARAM_CHECK_3DNR_DP_THCP 255
@@ -325,12 +366,24 @@ int adaptiet_convert_init(enum adaptive_isp_pipeline_e isp_pipeline, ADAPTIVE_IM
 int adaptive_calc_feture_init_from_reg(enum adaptive_isp_pipeline_e pipeline, struct media_entity * pipe);
 int adaptive_param_flag_init(enum adaptive_isp_pipeline_e pipeline);
 int adaptive_param_format_init(enum adaptive_isp_pipeline_e pipeline);
+int adaptive_pipe_init(enum adaptive_isp_pipeline_e isp_pipeline, struct media_entity * pipe);
+
+/* n: number of devices, ...  &(struct media_entity) f2k r2k sensor0 sensor1 */
+int adaptive_device_init(int n, ...);
 
 /* main functions */
 int adaptive_user_attr_page_init(enum adaptive_isp_pipeline_e pipeline);
-int adaptive_et_line_time_convert(enum adaptive_isp_pipeline_e isp_pipeline, int itc_ttl_v, float adap_exp_time);
+// int adaptive_user_attr_page_init(enum adaptive_isp_pipeline_e pipeline, struct isp_core_cfg_info * isp_core_cfg);
+int adaptive_et_line_time_convert(enum adaptive_isp_pipeline_e isp_pipeline, int itc_ttl_v, int adap_exp_time);
 int adaptive_select_moudel_apply(enum adaptive_isp_pipeline_e pipeline, struct media_entity * pipe, int adap_en, int size, struct k510isp_reg_val adap_param[]);
+int adaptive_select_moudel_get(enum adaptive_isp_pipeline_e pipeline, struct media_entity * pipe, int adap_en, int size, struct k510isp_reg_val adap_param[]);
 int adaptive_select_gamma_apply(enum adaptive_isp_pipeline_e pipeline, struct media_entity * pipe, int adap_en);
 int adaptive_ex_param_apply(enum adaptive_isp_pipeline_e pipeline, struct media_entity * pipe);
+int adaptive_attr_page_isp_moudel_apply(enum adaptive_isp_pipeline_e pipeline);
+// int adaptive_mirror_flip_apply(enum adaptive_isp_pipeline_e pipeline, int adap_en, struct media_entity * pipe);
+int adaptive_param_campare(enum adaptive_isp_pipeline_e pipeline, ADAPTIVE_ISP_WEIGHT_PARAM_T * cur_isp_weight);
+
+/* flip_level 0:normal, 1:hflip, 2:vflip, 3: hvflip */
+int adaptive_mirror_flip_apply(enum adaptive_isp_pipeline_e pipeline, int flip_level);
 
 #endif

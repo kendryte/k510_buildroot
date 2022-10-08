@@ -348,10 +348,10 @@ typedef struct {
 } _PARAM_APPLY_FLAG_T;
 
 typedef struct {
-    float fAeGainWeight0; // weight of left interval
-    float fAeGainWeight1; // weight of right interval
-    float fAeEvWeight0; // exposure time * gain weight
-    float fAeEvWeight1; // exposure time * gain weight
+    int nAeGainWeight0; // weight of left interval(need 256 == 1.0)
+    int nAeGainWeight1; // weight of right interval
+    int nAeEvWeight0; // exposure time * gain weight
+    int nAeEvWeight1; // exposure time * gain weight
     int nSaturationWeight;
     int nAeGainRange0;  // range of left interval
     int nAeGainRange1; // range of right interval
