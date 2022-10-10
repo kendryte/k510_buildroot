@@ -34,6 +34,7 @@
 #include <getopt.h>             /* getopt_long() */
 
 #include <fcntl.h>              /* low-level i/o */
+#include <strings.h>
 #include <sys/select.h>
 #include <time.h>
 #include <unistd.h>
@@ -494,17 +495,19 @@ static void usage(FILE *fp, int argc, char **argv)
          "-a | --anti-clicker-enable (0: all disable | 1: f 2k enable | 2: r 2k enable | 3: f&r 2k enable)\n"
          "-x | --ae-select sw/hw select (default 0: sw ae | 1: hw ae)\n"
          "-l | --adaptive enable (0: disable | 1: enable, default: enable)\n"
+         "-r | --rect x,y,width,height,line_width,color,border_master\n"
          "",
          argv[0], video_cfg_file);
 }
 
-static const char short_options[] = "f:e:hvs::d::s:a:x:l:t:";// 短选项 ：表示带参数
+static const char short_options[] = "f:e:hvs::d::s:a:x:l:t:r:";// 短选项 ：表示带参数
 
 static const struct option //长选项
 long_options[] = {
     { "device_cfg name", required_argument, NULL, 'f' },
     { "ae config", required_argument, NULL, 'e' },
     { "tuning isp", required_argument, NULL, 't' },
+    { "rect", required_argument, NULL, 'r' },
     { "help",   no_argument,       NULL, 'h' },
     { "verbose", no_argument,      NULL, 'v' },
     { "single", optional_argument,      NULL, 's' },
@@ -850,6 +853,9 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
     uint32_t sensor_index = 0;
     int parse_count;
     unsigned tuning_isp = 0;
+    unsigned rect_enable = 0, rect_ptr = 0;
+    unsigned rects[32][7];
+    bzero(rects, sizeof(rects));
 
     for (;;) {
         int idx;
@@ -874,6 +880,22 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
                 fprintf(stderr, "tuning argument must be 0 or 1 or 2\n");
                 exit(EXIT_FAILURE);
             }
+            break;
+
+        case 'r':
+            rect_enable = 1;
+            sscanf(
+                optarg,
+                "%u,%u,%u,%u,%u,%u,%u",
+                &rects[rect_ptr][0],
+                &rects[rect_ptr][1],
+                &rects[rect_ptr][2],
+                &rects[rect_ptr][3],
+                &rects[rect_ptr][4],
+                &rects[rect_ptr][5],
+                &rects[rect_ptr][6]
+            );
+            rect_ptr++;
             break;
 
         case 'f':
@@ -989,6 +1011,11 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
                 camera[0].size.height = dev_info[0].video_height[i];
                 camera[0].buffer_start = 0;
                 camera_num++;
+
+                // rect
+                for (unsigned j = 0; j < rect_ptr; j++) {
+                    mediactl_rect(ISP_F2K_PIPELINE, i, j, rects[j][0], rects[j][1], rects[j][2], rects[j][3], rects[j][4], rects[j][5], rects[j][6]);
+                }
             }
         }
     }
@@ -1005,6 +1032,11 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
                 camera[1].size.height = dev_info[1].video_height[i];
                 camera[1].buffer_start = BUFFERS_COUNT;
                 camera_num++;
+
+                // rect
+                for (unsigned j = 0; j < rect_ptr; j++) {
+                    mediactl_rect(ISP_F2K_PIPELINE, i, j, rects[j][0], rects[j][1], rects[j][2], rects[j][3], rects[j][4], rects[j][5], rects[j][6]);
+                }
             }
         }
     }
