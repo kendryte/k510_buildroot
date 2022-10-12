@@ -647,7 +647,7 @@ static int drm_allocate_dumb_argb(struct drm_buffer *buf)
 
 	/* create dumb buffer */
 	memset(&creq, 0, sizeof(creq));
-	creq.width = (drm_dev.width+15)/16*16;
+	creq.width = (drm_dev.width+7)/8*8;
 	creq.height = drm_dev.height;  //* 4;
 	creq.bpp = 32;  //8
 
