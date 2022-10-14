@@ -127,14 +127,14 @@ struct video_entity_info_s{
 };
 
 struct isp_pipeline_s{
-	unsigned int pipeline_en;
-	char sensor_name[20];
-	struct image_size_s total_size;
+    unsigned int pipeline_en;
+    char sensor_name[32];
+    struct image_size_s total_size;
     struct image_size_s sensor_size;
-	struct v4l2_mbus_framefmt format_in;
-	struct v4l2_mbus_framefmt format_crop;
-	struct v4l2_mbus_framefmt format_out;
-	struct video_entity_info_s video_entity_info[4];
+    struct v4l2_mbus_framefmt format_in;
+    struct v4l2_mbus_framefmt format_crop;
+    struct v4l2_mbus_framefmt format_out;
+    struct video_entity_info_s video_entity_info[4];
 };
 
 struct v4l_isp_device {
