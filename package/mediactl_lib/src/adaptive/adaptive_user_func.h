@@ -41,7 +41,7 @@ int adaptive_setting_ctl(enum adaptive_isp_pipeline_e pipeline);
 int adaptive_param_apply(enum adaptive_isp_pipeline_e pipeline, struct media_entity * pipe);
 
 // can setting gamma, if gamma_table = NULL, will use linner-wdr-gamma
-int adaptive_gamma_setting(enum adaptive_isp_pipeline_e pipeline, unsigned int * gamma_table);
+int adaptive_gamma_setting(enum adaptive_isp_pipeline_e pipeline, unsigned short * gamma_table);
 
 /* user ex opeartion */
 int adaptive_ex_gt_update_flag(enum adaptive_isp_pipeline_e pipeline);

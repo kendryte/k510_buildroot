@@ -1,7 +1,7 @@
 #ifndef __ADAP_ATTR_LINNER_WDR_GAMMA_TABLE_H__
 #define __ADAP_ATTR_LINNER_WDR_GAMMA_TABLE_H__
 
-static unsigned int adap_attr_linner_wdr_gamma[][256] =
+static unsigned short adap_attr_linner_wdr_gamma[][256] =
 {
     {
         0x000, 0x519, 0xD21, 0x128, 0x22D, 0x931, 0x735, 0x039, 0x43C, 0x53F, 0x242, 0xD44, 0x647, 0xD49, 0x24C, 0x54E,

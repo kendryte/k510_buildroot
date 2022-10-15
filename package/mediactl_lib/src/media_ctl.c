@@ -1631,9 +1631,10 @@ int adaptive_enable(int scl)
 	return 0;
 }
 
-int ae_enable_set(enum isp_pipeline_e pipeline, struct media_entity * pipe)
+int ae_enable_set(enum isp_pipeline_e pipeline, void * pipe)
 {
 	// enable normal ae will use
+	struct media_entity * temp_pipe = (struct media_entity *)pipe;
 	int ret;
 	static struct k510isp_reg_val ae_set_reg[] = {
 		{0x0050, 3}, // ae enable
@@ -1644,7 +1645,7 @@ int ae_enable_set(enum isp_pipeline_e pipeline, struct media_entity * pipe)
 	int reg_val_size = sizeof(struct k510isp_reg_val);
 	int size = sizeof(ae_set_reg) / reg_val_size;
 	/* f2k */
-	ret = v4l2_subdev_open(pipe);
+	ret = v4l2_subdev_open(temp_pipe);
 	if (ret < 0)
 	{
 		return ret;
@@ -1653,22 +1654,22 @@ int ae_enable_set(enum isp_pipeline_e pipeline, struct media_entity * pipe)
 	{
 		if(pipeline == ISP_F2K_PIPELINE)
 		{
-			ret = ioctl(pipe->fd,VIDIOC_K510ISP_F2K_CORE_REG_SET, &ae_set_reg[i]);
+			ret = ioctl(temp_pipe->fd,VIDIOC_K510ISP_F2K_CORE_REG_SET, &ae_set_reg[i]);
 			ae_hw_set_f2k = FALSE;
 		}
 		else if(pipeline == ISP_R2K_PIPELINE)
 		{
-			ret = ioctl(pipe->fd,VIDIOC_K510ISP_R2K_CORE_REG_SET, &ae_set_reg[i]);
+			ret = ioctl(temp_pipe->fd,VIDIOC_K510ISP_R2K_CORE_REG_SET, &ae_set_reg[i]);
 			ae_hw_set_r2k = FALSE;
 		}
 		if (ret < 0)
 		{
 			printf("%s: ioctl(VIDIOC_K510ISP_[F2K or R2K]_CORE_REG_SET) failed ret(%d) with %d\n", __func__,ret, i);
-			v4l2_subdev_close(pipe);
+			v4l2_subdev_close(temp_pipe);
 			return ret;
 		}
 	}
-	v4l2_subdev_close(pipe);
+	v4l2_subdev_close(temp_pipe);
 	return 0;
 }
 

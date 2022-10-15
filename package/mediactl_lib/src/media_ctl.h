@@ -118,7 +118,7 @@ int mediactl_hw_set_ae(enum isp_pipeline_e pipeline);
 int adaptive_enable(int scl);
 int ae_select_init(int scl);
 int anti_flicker_init(int scl);
-int ae_enable_set(enum isp_pipeline_e pipeline, struct media_entity * pipe);
+int ae_enable_set(enum isp_pipeline_e pipeline, void * pipe);
 /* AE HIST MODE API */
 int ae_hist_mode_scl(enum isp_pipeline_e pipeline, enum ae_hist_mode_e ae_hist_mode, AE_HIST_WINDOW_T * hist_window);
 /* attr page API */
