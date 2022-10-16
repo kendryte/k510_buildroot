@@ -744,6 +744,9 @@ int main(int argc, char *argv[])
     thread_ds2.join();
     // thread_key.join();
     thread_key.detach();
+    memset(drm_dev.drm_bufs_argb[0].map, 0xff, screen_width * screen_height * 4);
+    usleep(100000);
+    drm_dmabuf_set_plane(&drm_dev.drm_bufs[0], &drm_dev.drm_bufs_argb[0]);
     /****fixed operation for drm deinit****/
     for(uint32_t i = 0; i < DRM_BUFFERS_COUNT; i++) 
     {
