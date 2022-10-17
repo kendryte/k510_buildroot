@@ -115,6 +115,7 @@ typedef struct
   int *isp_wp;
   long (*isp_addr)[ISP_ADDR_BUFFER_CNT];
   int *isp_pic_cnt;
+  int *overflow;
   V4L2_BUF **v4l2_buf;
   V4L2_REV **v4l2_rev;
   sem_t *    pSemGetData;
@@ -479,15 +480,36 @@ static void *v4l2_output(void *arg)
   	iRet = poll(tFds, 1, /*-1*/3000);//3000ms
   	if (iRet <= 0)
     {
-      printf("ch %d: poll error!\n", channel);
-
       if(received_sigterm == 1)
       {
         sem_post(&pCtx->pSemGetData[channel]);
         break;
       }
       else
+      {        
+        int fullness;
+        if(pCtx->v4l2_wp[channel] > pCtx->v4l2_rp[channel])
+        {
+          fullness = pCtx->v4l2_wp[channel] - pCtx->v4l2_rp[channel];
+        }
+        else
+        {
+          fullness = ISP_ADDR_BUFFER_CNT - (pCtx->v4l2_rp[channel] - pCtx->v4l2_wp[channel]);
+        }
+        printf("ch %d, out_pic %d, fullness %d\n", channel,pCtx->out_pic[channel], fullness);
+
+        for(int i=0; i<ISP_ADDR_BUFFER_CNT; i++)
+        {
+          if(pCtx->v4l2_rev[channel][i].addr != V4L2_INVALID_INDEX)
+          {
+            enqueue_buf(pCtx->v4l2_rev[channel][i].addr, channel);
+            pCtx->v4l2_rev[channel][i].addr = V4L2_INVALID_INDEX;
+          }
+        }
+        pCtx->v4l2_wp[channel] = 0;
+        pCtx->v4l2_rp[channel] = 0;  //fixme: need mutex
         continue;
+      }
     }
   
     struct v4l2_buffer buf;
@@ -518,8 +540,10 @@ static void *v4l2_output(void *arg)
       
       if(pCtx->v4l2_rev[channel][pCtx->v4l2_wp[channel]].addr != V4L2_INVALID_INDEX)
       {
-          printf("ch %d: v4l2 buffer overflow\n", channel);
+        pCtx->overflow[channel]++;
           enqueue_buf(buf.index, channel);
+        if(pCtx->overflow[channel] % 100 == 1)
+          printf("ch %d: v4l2 buffer overflow\n", channel);         
       }
       else if(time - start_time < 1000000000)
       {
@@ -688,7 +712,7 @@ static void *encode_ch(void *arg)
 
     if(input.data)
     {
-      unsigned long int time;
+      unsigned long int time, time1, time2;
 
       time = get_time();
 
@@ -783,12 +807,14 @@ static void *encode_ch(void *arg)
 
       VideoEncoder_GetStream(pCtx->hEnc[channel], &output);
 
+      time1 = get_time();
       if (1 == pCtx->enable_rtsp[channel])
       {
          if (NULL != pCtx->pRtspServer[channel])
          {
            pCtx->pRtspServer[channel]->PushVideoData(output.bufAddr, output.bufSize,0);
          }
+         time2 = get_time();
       }
 	
       // printf("%s>bufAddr %p, bufSize %d\n", __FUNCTION__, output.bufAddr, output.bufSize);
@@ -988,6 +1014,7 @@ int free_context(void *arg)
   free(pCtx->drop_en         );
   free(pCtx->out_framerate   );
   free(pCtx->ae_disable      );
+  free(pCtx->overflow        );
 
   return 0;
 }
@@ -1925,6 +1952,7 @@ int alloc_context(void *arg)
   pCtx->framerate_mod   = (uint32_t*)malloc(sizeof(uint32_t) * pCtx->ch_cnt);
   pCtx->ae_disable      = (uint32_t*)malloc(sizeof(uint32_t) * pCtx->ch_cnt);
   pCtx->out_framerate   = (unsigned char*)malloc(sizeof(unsigned char) * pCtx->ch_cnt);
+  pCtx->overflow        = (int*)malloc(sizeof(int) * pCtx->ch_cnt);
 
   memset(pCtx->Cfg, 0, sizeof(EncSettings)*pCtx->ch_cnt);
 
@@ -1999,7 +2027,6 @@ int parse_cmd(int argc, char *argv[])
       }
       pCtx->ch_en[cur_ch] = 1;
       printf("-ch%d: %d\n", cur_ch, pCtx->ch_en[cur_ch]);
-      memset(&pCtx->Cfg[cur_ch],0,sizeof(EncSettings));
     }
     else if(strcmp(argv[i], "-i") == 0)
     {      
@@ -2446,7 +2473,64 @@ int main(int argc, char *argv[])
     }
   }
 
-  
+  FILE *fp=NULL;
+
+  fp = fopen("/proc/cmdline", "rb");
+	if (fp == NULL)
+	{
+		printf("can not find /proc/cmdline\n");
+	}
+	else
+	{
+	  char ch;
+	  int isolcpus=0;
+	  int index=0;
+	  char name[10];
+
+	  sprintf(name, "isolcpus=1");
+	  while(1)
+  	{  
+  	  ch = fgetc(fp);
+  	  if(ch == EOF || ch == 0xff)
+  	    break;
+  	  
+  	  if(ch == name[index])
+  	  {
+  	    index++;
+  	    if(index >= 10)
+  	    {
+  	      isolcpus = 1;
+  	      break;
+  	    }
+  	  }
+  	  else
+  	  {
+  	    if(index > 0)
+  	      index--;
+  	  }
+  	}
+	  fclose(fp);
+
+	  printf("isolcpus = %d\n", isolcpus);
+	
+    if(isolcpus == 1 && pCtx->enable_rtsp[pCtx->ch_cnt-1] == 1)
+    {   
+      cpu_set_t cpuset;
+      int ret;
+      pthread_t tid;
+
+      CPU_ZERO(&cpuset);
+      CPU_SET(1, &cpuset);
+
+      pCtx->pRtspServer[pCtx->ch_cnt-1]->GetThreadId(&tid);
+
+      ret = pthread_setaffinity_np(tid, sizeof(cpu_set_t), &cpuset);
+      if (ret != 0)
+        printf("rtsp:pthread_setaffinity_np: fail\n");
+      else
+        printf("rtsp:pthread_setaffinity_np: ok\n");  
+    }
+  }
   
   pCtx->fd_share_memory = open(SHARE_MEMORY_DEV,O_RDWR | O_SYNC);
   if(pCtx->fd_share_memory < 0)

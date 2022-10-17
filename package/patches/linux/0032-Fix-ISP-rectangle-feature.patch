@@ -1,0 +1,390 @@
+From 70b54b9172c3b7cc874202be4e9913f7df007f53 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=E9=BB=84=E5=AD=90=E6=87=BF?=
+ <huangziyi@canaan-creative.com>
+Date: Thu, 29 Sep 2022 15:45:40 +0800
+Subject: [PATCH] Fix ISP rectangle feature
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Signed-off-by: 黄子懿 <huangziyi@canaan-creative.com>
+---
+ .../platform/canaan-isp/isp_2k/isp_f2k.c      | 71 ++++++++++++++---
+ .../platform/canaan-isp/isp_2k/isp_r2k.c      | 76 +++++++++++++++----
+ .../isp_2k/remap/isp_f2k_remap_drv.c          | 18 ++---
+ .../isp_2k/remap/isp_r2k_remap_drv.c          | 18 ++---
+ 4 files changed, 138 insertions(+), 45 deletions(-)
+
+diff --git a/drivers/media/platform/canaan-isp/isp_2k/isp_f2k.c b/drivers/media/platform/canaan-isp/isp_2k/isp_f2k.c
+index 2c42fc64..1b3fc56a 100755
+--- a/drivers/media/platform/canaan-isp/isp_2k/isp_f2k.c
++++ b/drivers/media/platform/canaan-isp/isp_2k/isp_f2k.c
+@@ -2498,9 +2498,26 @@ static void isp_3dnr_mfbd_print_status(struct isp_f2k_device *f2k)
+ static int isp_f2k_remap_main_config(struct isp_f2k_device *f2k,struct isp_remap_cfg_info *isp_remap_cfg)
+ {
+ 	struct k510_isp_device *isp = to_isp_device(f2k);
+-
+-	ISP_DRV_LINE_DRAW_U DrawAreaNum;
+-	ISP_REMAP_ATTR_S  stRemapCtl;
++	ISP_DRV_LINE_DRAW_U DrawAreaNum = isp_remap_cfg->DrawAreaNum;
++	ISP_REMAP_ATTR_S  stRemapCtl = {
++		.LineCtlSet = isp_remap_cfg->LineCtlSet,
++		.LineDataSet = isp_remap_cfg->LineDataSet,
++		.LineEndPosX = isp_remap_cfg->LineEndPosX,
++		.LineDrawEn = isp_remap_cfg->LineDrawEn,
++		.VlineRightEn = isp_remap_cfg->VlineRightEn,
++		.VlineLeftEn  = isp_remap_cfg->VlineLeftEn,
++		.LineStartPosX = isp_remap_cfg->LineStartPosX,
++		.HlineBottomEn = isp_remap_cfg->HlineBottomEn,
++		.HlineUpEn  = isp_remap_cfg->HlineUpEn,
++		.LineEndPosY = isp_remap_cfg->LineEndPosY,
++		.LineWidthL = isp_remap_cfg->LineWidthL,
++		.LineStartPosY = isp_remap_cfg->LineStartPosY,
++		.LineWidthH = isp_remap_cfg->LineWidthH,
++		.ValueCr = isp_remap_cfg->ValueCr,
++		.ValueCb  = isp_remap_cfg->ValueCb,
++		.ValueY = isp_remap_cfg->ValueY,
++		.ValueAlpha = isp_remap_cfg->ValueAlpha,
++	};
+ 	Isp_Drv_F2k_Remap_SetMainLine(isp,DrawAreaNum,&stRemapCtl);
+ 	return 0;
+ }
+@@ -2508,22 +2525,54 @@ static int isp_f2k_remap_main_config(struct isp_f2k_device *f2k,struct isp_remap
+ static int isp_f2k_remap_out0_config(struct isp_f2k_device *f2k,struct isp_remap_cfg_info *isp_remap_cfg)
+ {
+ 	struct k510_isp_device *isp = to_isp_device(f2k);
+-
+-	ISP_DRV_LINE_DRAW_U DrawAreaNum;
+-	ISP_REMAP_ATTR_S  stRemapCtl;
++	ISP_DRV_LINE_DRAW_U DrawAreaNum = isp_remap_cfg->DrawAreaNum;
++	ISP_REMAP_ATTR_S  stRemapCtl = {
++		.LineCtlSet = isp_remap_cfg->LineCtlSet,
++		.LineDataSet = isp_remap_cfg->LineDataSet,
++		.LineEndPosX = isp_remap_cfg->LineEndPosX,
++		.LineDrawEn = isp_remap_cfg->LineDrawEn,
++		.VlineRightEn = isp_remap_cfg->VlineRightEn,
++		.VlineLeftEn  = isp_remap_cfg->VlineLeftEn ,
++		.LineStartPosX = isp_remap_cfg->LineStartPosX,
++		.HlineBottomEn = isp_remap_cfg->HlineBottomEn,
++		.HlineUpEn  = isp_remap_cfg->HlineUpEn ,
++		.LineEndPosY = isp_remap_cfg->LineEndPosY,
++		.LineWidthL = isp_remap_cfg->LineWidthL,
++		.LineStartPosY = isp_remap_cfg->LineStartPosY,
++		.LineWidthH = isp_remap_cfg->LineWidthH,
++		.ValueCr = isp_remap_cfg->ValueCr,
++		.ValueCb  = isp_remap_cfg->ValueCb ,
++		.ValueY = isp_remap_cfg->ValueY,
++		.ValueAlpha = isp_remap_cfg->ValueAlpha,
++	};
+ 	Isp_Drv_F2k_Remap_SetOut0Line(isp,DrawAreaNum,&stRemapCtl);
+-
+ 	return 0;
+ }
+ 
+ static int isp_f2k_remap_out1_config(struct isp_f2k_device *f2k,struct isp_remap_cfg_info *isp_remap_cfg)
+ {
+ 	struct k510_isp_device *isp = to_isp_device(f2k);
+-
+-	ISP_DRV_LINE_DRAW_U DrawAreaNum;
+-	ISP_REMAP_ATTR_S  stRemapCtl;
++	ISP_DRV_LINE_DRAW_U DrawAreaNum = isp_remap_cfg->DrawAreaNum;
++	ISP_REMAP_ATTR_S  stRemapCtl = {
++		.LineCtlSet = isp_remap_cfg->LineCtlSet,
++		.LineDataSet = isp_remap_cfg->LineDataSet,
++		.LineEndPosX = isp_remap_cfg->LineEndPosX,
++		.LineDrawEn = isp_remap_cfg->LineDrawEn,
++		.VlineRightEn = isp_remap_cfg->VlineRightEn,
++		.VlineLeftEn  = isp_remap_cfg->VlineLeftEn ,
++		.LineStartPosX = isp_remap_cfg->LineStartPosX,
++		.HlineBottomEn = isp_remap_cfg->HlineBottomEn,
++		.HlineUpEn  = isp_remap_cfg->HlineUpEn ,
++		.LineEndPosY = isp_remap_cfg->LineEndPosY,
++		.LineWidthL = isp_remap_cfg->LineWidthL,
++		.LineStartPosY = isp_remap_cfg->LineStartPosY,
++		.LineWidthH = isp_remap_cfg->LineWidthH,
++		.ValueCr = isp_remap_cfg->ValueCr,
++		.ValueCb  = isp_remap_cfg->ValueCb ,
++		.ValueY = isp_remap_cfg->ValueY,
++		.ValueAlpha = isp_remap_cfg->ValueAlpha,
++	};
+ 	Isp_Drv_F2k_Remap_SetOut1Line(isp,DrawAreaNum,&stRemapCtl);
+-
+ 	return 0;
+ }
+ 
+diff --git a/drivers/media/platform/canaan-isp/isp_2k/isp_r2k.c b/drivers/media/platform/canaan-isp/isp_2k/isp_r2k.c
+index 601d4577..d59117a7 100755
+--- a/drivers/media/platform/canaan-isp/isp_2k/isp_r2k.c
++++ b/drivers/media/platform/canaan-isp/isp_2k/isp_r2k.c
+@@ -2107,38 +2107,82 @@ static void isp_r2k_ds_print_status(struct isp_r2k_device *r2k)
+ --------------------------------------------------------------------------*/
+ static int isp_r2k_remap_main_config(struct isp_r2k_device *r2k,struct isp_remap_cfg_info *isp_remap_cfg)
+ {
+-
+ 	struct k510_isp_device *isp = to_isp_device(r2k);
+-
+-	ISP_DRV_LINE_DRAW_U DrawAreaNum;
+-	ISP_REMAP_ATTR_S  stRemapCtl;
++	ISP_DRV_LINE_DRAW_U DrawAreaNum = isp_remap_cfg->DrawAreaNum;
++	ISP_REMAP_ATTR_S  stRemapCtl = {
++		.LineCtlSet = isp_remap_cfg->LineCtlSet,
++		.LineDataSet = isp_remap_cfg->LineDataSet,
++		.LineEndPosX = isp_remap_cfg->LineEndPosX,
++		.LineDrawEn = isp_remap_cfg->LineDrawEn,
++		.VlineRightEn = isp_remap_cfg->VlineRightEn,
++		.VlineLeftEn  = isp_remap_cfg->VlineLeftEn,
++		.LineStartPosX = isp_remap_cfg->LineStartPosX,
++		.HlineBottomEn = isp_remap_cfg->HlineBottomEn,
++		.HlineUpEn  = isp_remap_cfg->HlineUpEn,
++		.LineEndPosY = isp_remap_cfg->LineEndPosY,
++		.LineWidthL = isp_remap_cfg->LineWidthL,
++		.LineStartPosY = isp_remap_cfg->LineStartPosY,
++		.LineWidthH = isp_remap_cfg->LineWidthH,
++		.ValueCr = isp_remap_cfg->ValueCr,
++		.ValueCb  = isp_remap_cfg->ValueCb,
++		.ValueY = isp_remap_cfg->ValueY,
++		.ValueAlpha = isp_remap_cfg->ValueAlpha,
++	};
+ 	Isp_Drv_R2k_Remap_SetMainLine(isp,DrawAreaNum,&stRemapCtl);
+-
+ 	return 0;
+ }
+ 
+ static int isp_r2k_remap_out0_config(struct isp_r2k_device *r2k,struct isp_remap_cfg_info *isp_remap_cfg)
+ {
+-
+ 	struct k510_isp_device *isp = to_isp_device(r2k);
+-
+-	ISP_DRV_LINE_DRAW_U DrawAreaNum;
+-	ISP_REMAP_ATTR_S  stRemapCtl;
+-
++	ISP_DRV_LINE_DRAW_U DrawAreaNum = isp_remap_cfg->DrawAreaNum;
++	ISP_REMAP_ATTR_S  stRemapCtl = {
++		.LineCtlSet = isp_remap_cfg->LineCtlSet,
++		.LineDataSet = isp_remap_cfg->LineDataSet,
++		.LineEndPosX = isp_remap_cfg->LineEndPosX,
++		.LineDrawEn = isp_remap_cfg->LineDrawEn,
++		.VlineRightEn = isp_remap_cfg->VlineRightEn,
++		.VlineLeftEn  = isp_remap_cfg->VlineLeftEn,
++		.LineStartPosX = isp_remap_cfg->LineStartPosX,
++		.HlineBottomEn = isp_remap_cfg->HlineBottomEn,
++		.HlineUpEn  = isp_remap_cfg->HlineUpEn,
++		.LineEndPosY = isp_remap_cfg->LineEndPosY,
++		.LineWidthL = isp_remap_cfg->LineWidthL,
++		.LineStartPosY = isp_remap_cfg->LineStartPosY,
++		.LineWidthH = isp_remap_cfg->LineWidthH,
++		.ValueCr = isp_remap_cfg->ValueCr,
++		.ValueCb  = isp_remap_cfg->ValueCb,
++		.ValueY = isp_remap_cfg->ValueY,
++		.ValueAlpha = isp_remap_cfg->ValueAlpha,
++	};
+ 	Isp_Drv_R2k_Remap_SetOut0Line(isp,DrawAreaNum,&stRemapCtl);
+-
+ 	return 0;
+ }
+ 
+ static int isp_r2k_remap_out1_config(struct isp_r2k_device *r2k,struct isp_remap_cfg_info *isp_remap_cfg)
+ {
+-
+ 	struct k510_isp_device *isp = to_isp_device(r2k);
+-
+-	ISP_DRV_LINE_DRAW_U DrawAreaNum;
+-	ISP_REMAP_ATTR_S  stRemapCtl;
++	ISP_DRV_LINE_DRAW_U DrawAreaNum = isp_remap_cfg->DrawAreaNum;
++	ISP_REMAP_ATTR_S  stRemapCtl = {
++		.LineCtlSet = isp_remap_cfg->LineCtlSet,
++		.LineDataSet = isp_remap_cfg->LineDataSet,
++		.LineEndPosX = isp_remap_cfg->LineEndPosX,
++		.LineDrawEn = isp_remap_cfg->LineDrawEn,
++		.VlineRightEn = isp_remap_cfg->VlineRightEn,
++		.VlineLeftEn  = isp_remap_cfg->VlineLeftEn,
++		.LineStartPosX = isp_remap_cfg->LineStartPosX,
++		.HlineBottomEn = isp_remap_cfg->HlineBottomEn,
++		.HlineUpEn  = isp_remap_cfg->HlineUpEn,
++		.LineEndPosY = isp_remap_cfg->LineEndPosY,
++		.LineWidthL = isp_remap_cfg->LineWidthL,
++		.LineStartPosY = isp_remap_cfg->LineStartPosY,
++		.LineWidthH = isp_remap_cfg->LineWidthH,
++		.ValueCr = isp_remap_cfg->ValueCr,
++		.ValueCb  = isp_remap_cfg->ValueCb,
++		.ValueY = isp_remap_cfg->ValueY,
++		.ValueAlpha = isp_remap_cfg->ValueAlpha,
++	};
+ 	Isp_Drv_R2k_Remap_SetOut1Line(isp,DrawAreaNum,&stRemapCtl);
+-
+ 	return 0;
+ }
+ 
+diff --git a/drivers/media/platform/canaan-isp/isp_2k/remap/isp_f2k_remap_drv.c b/drivers/media/platform/canaan-isp/isp_2k/remap/isp_f2k_remap_drv.c
+index c6f19f53..f25ba765 100755
+--- a/drivers/media/platform/canaan-isp/isp_2k/remap/isp_f2k_remap_drv.c
++++ b/drivers/media/platform/canaan-isp/isp_2k/remap/isp_f2k_remap_drv.c
+@@ -63,7 +63,7 @@ int Isp_Drv_F2k_Remap_SetMainLine(struct k510_isp_device *isp,ISP_DRV_LINE_DRAW_
+     stIspFillData0.bits.fill_value_cr = stRemapCtl->ValueCr;
+     stIspFillData0.bits.fill_value_y = stRemapCtl->ValueY;
+     stIspFillData0.bits.Fill_alpha = stRemapCtl->ValueAlpha;
+-    isp_reg_writel(isp, stIspFillData0.u32,ISP_IOMEM_F2K_MAIN_REMAP,remap_f2k_addr_map[DrawAreaNum][FILLINFO_0]);
++    isp_reg_writel(isp, stIspFillData0.u32,ISP_IOMEM_F2K_MAIN_REMAP,remap_f2k_addr_map[DrawAreaNum][FILLDATA_0]);
+  
+     union U_ISP_FILL_INFO_AREA_0_CTRL     stIspFillInfo0;
+     stIspFillInfo0.u32 = 0;
+@@ -74,7 +74,7 @@ int Isp_Drv_F2k_Remap_SetMainLine(struct k510_isp_device *isp,ISP_DRV_LINE_DRAW_
+     stIspFillInfo0.bits.v_line_r_en = stRemapCtl->VlineRightEn;
+     stIspFillInfo0.bits.line_start_pos_x = stRemapCtl->LineStartPosX;
+     stIspFillInfo0.bits.line_end_pos_x = stRemapCtl->LineEndPosX;
+-    isp_reg_writel(isp, stIspFillInfo0.u32,ISP_IOMEM_F2K_MAIN_REMAP,remap_f2k_addr_map[DrawAreaNum][FILLINFO_1]);
++    isp_reg_writel(isp, stIspFillInfo0.u32,ISP_IOMEM_F2K_MAIN_REMAP,remap_f2k_addr_map[DrawAreaNum][FILLINFO_0]);
+ 
+     union U_ISP_FILL_INFO_AREA_1_CTRL     stIspFillInfo1;
+     stIspFillInfo1.u32 = 0;
+@@ -82,7 +82,7 @@ int Isp_Drv_F2k_Remap_SetMainLine(struct k510_isp_device *isp,ISP_DRV_LINE_DRAW_
+     stIspFillInfo1.bits.line_end_pos_y = stRemapCtl->LineEndPosY;
+     stIspFillInfo1.bits.line_width_h = stRemapCtl->LineWidthH;
+     stIspFillInfo1.bits.line_width_l = stRemapCtl->LineWidthL;
+-    isp_reg_writel(isp, stIspFillInfo1.u32,ISP_IOMEM_F2K_MAIN_REMAP,remap_f2k_addr_map[DrawAreaNum][FILLDATA_0]);
++    isp_reg_writel(isp, stIspFillInfo1.u32,ISP_IOMEM_F2K_MAIN_REMAP,remap_f2k_addr_map[DrawAreaNum][FILLINFO_1]);
+         
+     return ErrCode;
+ }
+@@ -103,7 +103,7 @@ int  Isp_Drv_F2k_Remap_SetOut0Line(struct k510_isp_device *isp,ISP_DRV_LINE_DRAW
+     stIspFillData0.bits.fill_value_cr = stRemapCtl->ValueCr;
+     stIspFillData0.bits.fill_value_y = stRemapCtl->ValueY;
+     stIspFillData0.bits.Fill_alpha = stRemapCtl->ValueAlpha;
+-    isp_reg_writel(isp, stIspFillData0.u32,ISP_IOMEM_F2K_OUT0_REMAP,remap_f2k_addr_map[DrawAreaNum][FILLINFO_0]);
++    isp_reg_writel(isp, stIspFillData0.u32,ISP_IOMEM_F2K_OUT0_REMAP,remap_f2k_addr_map[DrawAreaNum][FILLDATA_0]);
+ 
+     
+     union U_ISP_FILL_INFO_AREA_0_CTRL     stIspFillInfo0;
+@@ -115,7 +115,7 @@ int  Isp_Drv_F2k_Remap_SetOut0Line(struct k510_isp_device *isp,ISP_DRV_LINE_DRAW
+     stIspFillInfo0.bits.v_line_r_en = stRemapCtl->VlineRightEn;
+     stIspFillInfo0.bits.line_start_pos_x = stRemapCtl->LineStartPosX;
+     stIspFillInfo0.bits.line_end_pos_x = stRemapCtl->LineEndPosX;
+-    isp_reg_writel(isp, stIspFillInfo0.u32,ISP_IOMEM_F2K_OUT0_REMAP,remap_f2k_addr_map[DrawAreaNum][FILLINFO_1]);
++    isp_reg_writel(isp, stIspFillInfo0.u32,ISP_IOMEM_F2K_OUT0_REMAP,remap_f2k_addr_map[DrawAreaNum][FILLINFO_0]);
+ 
+     union U_ISP_FILL_INFO_AREA_1_CTRL     stIspFillInfo1;
+     stIspFillInfo1.u32 = 0;
+@@ -123,7 +123,7 @@ int  Isp_Drv_F2k_Remap_SetOut0Line(struct k510_isp_device *isp,ISP_DRV_LINE_DRAW
+     stIspFillInfo1.bits.line_end_pos_y = stRemapCtl->LineEndPosY;
+     stIspFillInfo1.bits.line_width_h = stRemapCtl->LineWidthH;
+     stIspFillInfo1.bits.line_width_l = stRemapCtl->LineWidthL;
+-    isp_reg_writel(isp, stIspFillInfo1.u32,ISP_IOMEM_F2K_OUT0_REMAP,remap_f2k_addr_map[DrawAreaNum][FILLDATA_0]);
++    isp_reg_writel(isp, stIspFillInfo1.u32,ISP_IOMEM_F2K_OUT0_REMAP,remap_f2k_addr_map[DrawAreaNum][FILLINFO_1]);
+        
+     return ErrCode;
+ }
+@@ -144,7 +144,7 @@ int  Isp_Drv_F2k_Remap_SetOut1Line(struct k510_isp_device *isp,ISP_DRV_LINE_DRAW
+     stIspFillData0.bits.fill_value_cr = stRemapCtl->ValueCr;
+     stIspFillData0.bits.fill_value_y = stRemapCtl->ValueY;
+     stIspFillData0.bits.Fill_alpha = stRemapCtl->ValueAlpha;
+-    isp_reg_writel(isp, stIspFillData0.u32,ISP_IOMEM_F2K_OUT1_REMAP,remap_f2k_addr_map[DrawAreaNum][FILLINFO_0]);
++    isp_reg_writel(isp, stIspFillData0.u32,ISP_IOMEM_F2K_OUT1_REMAP,remap_f2k_addr_map[DrawAreaNum][FILLDATA_0]);
+        
+     union U_ISP_FILL_INFO_AREA_0_CTRL     stIspFillInfo0;
+     stIspFillInfo0.u32 = 0;
+@@ -155,7 +155,7 @@ int  Isp_Drv_F2k_Remap_SetOut1Line(struct k510_isp_device *isp,ISP_DRV_LINE_DRAW
+     stIspFillInfo0.bits.v_line_r_en = stRemapCtl->VlineRightEn;
+     stIspFillInfo0.bits.line_start_pos_x = stRemapCtl->LineStartPosX;
+     stIspFillInfo0.bits.line_end_pos_x = stRemapCtl->LineEndPosX;
+-    isp_reg_writel(isp, stIspFillInfo0.u32,ISP_IOMEM_F2K_OUT1_REMAP,remap_f2k_addr_map[DrawAreaNum][FILLINFO_1]);
++    isp_reg_writel(isp, stIspFillInfo0.u32,ISP_IOMEM_F2K_OUT1_REMAP,remap_f2k_addr_map[DrawAreaNum][FILLINFO_0]);
+ 
+     union U_ISP_FILL_INFO_AREA_1_CTRL     stIspFillInfo1;
+     stIspFillInfo1.u32 = 0;
+@@ -163,7 +163,7 @@ int  Isp_Drv_F2k_Remap_SetOut1Line(struct k510_isp_device *isp,ISP_DRV_LINE_DRAW
+     stIspFillInfo1.bits.line_end_pos_y = stRemapCtl->LineEndPosY;
+     stIspFillInfo1.bits.line_width_h = stRemapCtl->LineWidthH;
+     stIspFillInfo1.bits.line_width_l = stRemapCtl->LineWidthL;
+-    isp_reg_writel(isp, stIspFillInfo1.u32,ISP_IOMEM_F2K_OUT1_REMAP,remap_f2k_addr_map[DrawAreaNum][FILLDATA_0]);
++    isp_reg_writel(isp, stIspFillInfo1.u32,ISP_IOMEM_F2K_OUT1_REMAP,remap_f2k_addr_map[DrawAreaNum][FILLINFO_1]);
+             
+     return ErrCode;
+ }
+diff --git a/drivers/media/platform/canaan-isp/isp_2k/remap/isp_r2k_remap_drv.c b/drivers/media/platform/canaan-isp/isp_2k/remap/isp_r2k_remap_drv.c
+index 89a78d84..a9798c08 100755
+--- a/drivers/media/platform/canaan-isp/isp_2k/remap/isp_r2k_remap_drv.c
++++ b/drivers/media/platform/canaan-isp/isp_2k/remap/isp_r2k_remap_drv.c
+@@ -63,7 +63,7 @@ int Isp_Drv_R2k_Remap_SetMainLine(struct k510_isp_device *isp,ISP_DRV_LINE_DRAW_
+     stIspFillData0.bits.fill_value_cr = stRemapCtl->ValueCr;
+     stIspFillData0.bits.fill_value_y = stRemapCtl->ValueY;
+     stIspFillData0.bits.Fill_alpha = stRemapCtl->ValueAlpha;
+-    isp_reg_writel(isp, stIspFillData0.u32,ISP_IOMEM_R2K_MAIN_REMAP,remap_r2k_addr_map[DrawAreaNum][FILLINFO_0]);
++    isp_reg_writel(isp, stIspFillData0.u32,ISP_IOMEM_R2K_MAIN_REMAP,remap_r2k_addr_map[DrawAreaNum][FILLDATA_0]);
+  
+     union U_ISP_FILL_INFO_AREA_0_CTRL     stIspFillInfo0;
+     stIspFillInfo0.u32 = 0;
+@@ -74,7 +74,7 @@ int Isp_Drv_R2k_Remap_SetMainLine(struct k510_isp_device *isp,ISP_DRV_LINE_DRAW_
+     stIspFillInfo0.bits.v_line_r_en = stRemapCtl->VlineRightEn;
+     stIspFillInfo0.bits.line_start_pos_x = stRemapCtl->LineStartPosX;
+     stIspFillInfo0.bits.line_end_pos_x = stRemapCtl->LineEndPosX;
+-    isp_reg_writel(isp, stIspFillInfo0.u32,ISP_IOMEM_R2K_MAIN_REMAP,remap_r2k_addr_map[DrawAreaNum][FILLINFO_1]);
++    isp_reg_writel(isp, stIspFillInfo0.u32,ISP_IOMEM_R2K_MAIN_REMAP,remap_r2k_addr_map[DrawAreaNum][FILLINFO_0]);
+ 
+     union U_ISP_FILL_INFO_AREA_1_CTRL     stIspFillInfo1;
+     stIspFillInfo1.u32 = 0;
+@@ -82,7 +82,7 @@ int Isp_Drv_R2k_Remap_SetMainLine(struct k510_isp_device *isp,ISP_DRV_LINE_DRAW_
+     stIspFillInfo1.bits.line_end_pos_y = stRemapCtl->LineEndPosY;
+     stIspFillInfo1.bits.line_width_h = stRemapCtl->LineWidthH;
+     stIspFillInfo1.bits.line_width_l = stRemapCtl->LineWidthL;
+-    isp_reg_writel(isp, stIspFillInfo1.u32,ISP_IOMEM_R2K_MAIN_REMAP,remap_r2k_addr_map[DrawAreaNum][FILLDATA_0]);
++    isp_reg_writel(isp, stIspFillInfo1.u32,ISP_IOMEM_R2K_MAIN_REMAP,remap_r2k_addr_map[DrawAreaNum][FILLINFO_1]);
+         
+     return ErrCode;
+ }
+@@ -103,7 +103,7 @@ int  Isp_Drv_R2k_Remap_SetOut0Line(struct k510_isp_device *isp,ISP_DRV_LINE_DRAW
+     stIspFillData0.bits.fill_value_cr = stRemapCtl->ValueCr;
+     stIspFillData0.bits.fill_value_y = stRemapCtl->ValueY;
+     stIspFillData0.bits.Fill_alpha = stRemapCtl->ValueAlpha;
+-    isp_reg_writel(isp, stIspFillData0.u32,ISP_IOMEM_R2K_OUT0_REMAP,remap_r2k_addr_map[DrawAreaNum][FILLINFO_0]);
++    isp_reg_writel(isp, stIspFillData0.u32,ISP_IOMEM_R2K_OUT0_REMAP,remap_r2k_addr_map[DrawAreaNum][FILLDATA_0]);
+ 
+     
+     union U_ISP_FILL_INFO_AREA_0_CTRL     stIspFillInfo0;
+@@ -115,7 +115,7 @@ int  Isp_Drv_R2k_Remap_SetOut0Line(struct k510_isp_device *isp,ISP_DRV_LINE_DRAW
+     stIspFillInfo0.bits.v_line_r_en = stRemapCtl->VlineRightEn;
+     stIspFillInfo0.bits.line_start_pos_x = stRemapCtl->LineStartPosX;
+     stIspFillInfo0.bits.line_end_pos_x = stRemapCtl->LineEndPosX;
+-    isp_reg_writel(isp, stIspFillInfo0.u32,ISP_IOMEM_R2K_OUT0_REMAP,remap_r2k_addr_map[DrawAreaNum][FILLINFO_1]);
++    isp_reg_writel(isp, stIspFillInfo0.u32,ISP_IOMEM_R2K_OUT0_REMAP,remap_r2k_addr_map[DrawAreaNum][FILLINFO_0]);
+ 
+     union U_ISP_FILL_INFO_AREA_1_CTRL     stIspFillInfo1;
+     stIspFillInfo1.u32 = 0;
+@@ -123,7 +123,7 @@ int  Isp_Drv_R2k_Remap_SetOut0Line(struct k510_isp_device *isp,ISP_DRV_LINE_DRAW
+     stIspFillInfo1.bits.line_end_pos_y = stRemapCtl->LineEndPosY;
+     stIspFillInfo1.bits.line_width_h = stRemapCtl->LineWidthH;
+     stIspFillInfo1.bits.line_width_l = stRemapCtl->LineWidthL;
+-    isp_reg_writel(isp, stIspFillInfo1.u32,ISP_IOMEM_R2K_OUT0_REMAP,remap_r2k_addr_map[DrawAreaNum][FILLDATA_0]);
++    isp_reg_writel(isp, stIspFillInfo1.u32,ISP_IOMEM_R2K_OUT0_REMAP,remap_r2k_addr_map[DrawAreaNum][FILLINFO_1]);
+        
+     return ErrCode;
+ }
+@@ -144,7 +144,7 @@ int  Isp_Drv_R2k_Remap_SetOut1Line(struct k510_isp_device *isp,ISP_DRV_LINE_DRAW
+     stIspFillData0.bits.fill_value_cr = stRemapCtl->ValueCr;
+     stIspFillData0.bits.fill_value_y = stRemapCtl->ValueY;
+     stIspFillData0.bits.Fill_alpha = stRemapCtl->ValueAlpha;
+-    isp_reg_writel(isp, stIspFillData0.u32,ISP_IOMEM_R2K_OUT1_REMAP,remap_r2k_addr_map[DrawAreaNum][FILLINFO_0]);
++    isp_reg_writel(isp, stIspFillData0.u32,ISP_IOMEM_R2K_OUT1_REMAP,remap_r2k_addr_map[DrawAreaNum][FILLDATA_0]);
+        
+     union U_ISP_FILL_INFO_AREA_0_CTRL     stIspFillInfo0;
+     stIspFillInfo0.u32 = 0;
+@@ -155,7 +155,7 @@ int  Isp_Drv_R2k_Remap_SetOut1Line(struct k510_isp_device *isp,ISP_DRV_LINE_DRAW
+     stIspFillInfo0.bits.v_line_r_en = stRemapCtl->VlineRightEn;
+     stIspFillInfo0.bits.line_start_pos_x = stRemapCtl->LineStartPosX;
+     stIspFillInfo0.bits.line_end_pos_x = stRemapCtl->LineEndPosX;
+-    isp_reg_writel(isp, stIspFillInfo0.u32,ISP_IOMEM_R2K_OUT1_REMAP,remap_r2k_addr_map[DrawAreaNum][FILLINFO_1]);
++    isp_reg_writel(isp, stIspFillInfo0.u32,ISP_IOMEM_R2K_OUT1_REMAP,remap_r2k_addr_map[DrawAreaNum][FILLINFO_0]);
+ 
+     union U_ISP_FILL_INFO_AREA_1_CTRL     stIspFillInfo1;
+     stIspFillInfo1.u32 = 0;
+@@ -163,7 +163,7 @@ int  Isp_Drv_R2k_Remap_SetOut1Line(struct k510_isp_device *isp,ISP_DRV_LINE_DRAW
+     stIspFillInfo1.bits.line_end_pos_y = stRemapCtl->LineEndPosY;
+     stIspFillInfo1.bits.line_width_h = stRemapCtl->LineWidthH;
+     stIspFillInfo1.bits.line_width_l = stRemapCtl->LineWidthL;
+-    isp_reg_writel(isp, stIspFillInfo1.u32,ISP_IOMEM_R2K_OUT1_REMAP,remap_r2k_addr_map[DrawAreaNum][FILLDATA_0]);
++    isp_reg_writel(isp, stIspFillInfo1.u32,ISP_IOMEM_R2K_OUT1_REMAP,remap_r2k_addr_map[DrawAreaNum][FILLINFO_1]);
+             
+     return ErrCode;
+ }
+-- 
+2.36.1
+

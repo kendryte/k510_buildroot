@@ -441,9 +441,9 @@ void exec_cmd(void) {
       uint8_t *pic_nv12_buffer = pic_write_buffer[pic_write_buffer_select ^ 1]->buffer;
       memcpy(mem_yuv_logic_addr, pic_nv12_buffer, pic_yuv_size);
       EncInputFrame frame = {
-        .width = pic_yuv_width,
+        .width = active_yuv_width,
         .height = pic_yuv_height,
-        .stride = (pic_yuv_width + 0x1F) & (~0x1F),
+        .stride = pic_yuv_width,
         .data = (unsigned char *)(uint64_t)mem_yuv_phy_addr
       };
       // FIXME: async
@@ -461,9 +461,9 @@ void exec_cmd(void) {
       uint8_t *pic_nv12_buffer = pic_write_buffer[pic_write_buffer_select ^ 1]->buffer;
       memcpy(mem_yuv_logic_addr, pic_nv12_buffer, pic_yuv_size);
       EncInputFrame frame = {
-        .width = pic_yuv_width,
+        .width = active_yuv_width,
         .height = pic_yuv_height,
-        .stride = (pic_yuv_width + 0x1F) & (~0x1F),
+        .stride = pic_yuv_width,
         .data = (unsigned char *)(uint64_t)mem_yuv_phy_addr
       };
       // FIXME: async
@@ -748,7 +748,7 @@ int main(int argc, char *argv[]) {
     // open encoder
     EncSettings encoder_settings = {
         .channel = 0,
-        .width = pic_yuv_width,
+        .width = active_yuv_width,
         .height = pic_yuv_height,
         .FrameRate = 30,
         .BitRate = 4000000,
@@ -770,7 +770,7 @@ int main(int argc, char *argv[]) {
     henc = VideoEncoder_Create(&encoder_settings);
     EncSettings encoder_settings_h264 = {
         .channel = 1,
-        .width = pic_yuv_width,
+        .width = active_yuv_width,
         .height = pic_yuv_height,
         .FrameRate = 30,
         .BitRate = 4000000,
