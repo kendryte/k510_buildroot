@@ -1,0 +1,28 @@
+From 0907fc2d32fb63ab4231137bac68288a8d3906fe Mon Sep 17 00:00:00 2001
+From: "Chenggen.Wang" <wangchenggen@canaan-creative.com>
+Date: Mon, 17 Oct 2022 10:31:44 +0800
+Subject: [PATCH] dsi: remove soc reset after dsi init error.
+
+Signed-off-by: Chenggen.Wang <wangchenggen@canaan-creative.com>
+---
+ board/Canaan/dsi_logo/test/log/main.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/board/Canaan/dsi_logo/test/log/main.c b/board/Canaan/dsi_logo/test/log/main.c
+index e96b5262..cfb94891 100755
+--- a/board/Canaan/dsi_logo/test/log/main.c
++++ b/board/Canaan/dsi_logo/test/log/main.c
+@@ -196,8 +196,8 @@ int main_logo(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
+ 
+ 	ret = read_display_status();
+ 	if (ret < 0) {
+-		printf("display init error reset!!!!!!!!\n");
+-		sysctl_boot_reset_soc();
++		printf("display init error !!!!!!!!\n");
++		//sysctl_boot_reset_soc();
+ 	}
+     return 0;
+ }
+-- 
+2.25.1
+
