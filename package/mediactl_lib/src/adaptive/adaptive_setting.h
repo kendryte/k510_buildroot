@@ -366,7 +366,6 @@ int adaptiet_convert_init(enum adaptive_isp_pipeline_e isp_pipeline, ADAPTIVE_IM
 int adaptive_calc_feture_init_from_reg(enum adaptive_isp_pipeline_e pipeline, struct media_entity * pipe);
 int adaptive_param_flag_init(enum adaptive_isp_pipeline_e pipeline);
 int adaptive_param_format_init(enum adaptive_isp_pipeline_e pipeline);
-int adaptive_pipe_init(enum adaptive_isp_pipeline_e isp_pipeline, struct media_entity * pipe);
 
 /* n: number of devices, ...  &(struct media_entity) f2k r2k sensor0 sensor1 */
 int adaptive_device_init(int n, ...);

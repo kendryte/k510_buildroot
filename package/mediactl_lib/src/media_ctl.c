@@ -333,7 +333,7 @@ static int isp_r2k_video_init(struct v4l_isp_device *isp)
  */
 static int isp_setup_link(struct v4l_isp_device *isp)
 {
-	int ret;
+	int ret = 0;
 	/* Enable the Sensor->vi->f2k -> memory links. */
 
 	//	printf("isp->csi2->pads[CSI2_PAD_SOURCE0] =0x%x,&isp->vi->pads[VI_PAD_SINK_CSI0] =0x%x\n\n",&isp->csi2->pads[CSI2_PAD_SOURCE1],&isp->vi->pads[VI_PAD_SINK_CSI1]);
@@ -1635,7 +1635,7 @@ int ae_enable_set(enum isp_pipeline_e pipeline, void * pipe)
 {
 	// enable normal ae will use
 	struct media_entity * temp_pipe = (struct media_entity *)pipe;
-	int ret;
+	int ret = 0;
 	static struct k510isp_reg_val ae_set_reg[] = {
 		{0x0050, 3}, // ae enable
 		{0x007c, 1}, // ae adjust
@@ -1746,7 +1746,7 @@ int mediactl_init(char *video_cfg_file,struct video_info *dev_info)
 			//print_vi_info(&vi_cfg);
 			//print_isp_info(&f2k_isp_cfg);
 			/* ae ctl */
-			ae_ctl_init(ISP_F2K_PIPELINE, sensor0.isp_cfg.isp_core_cfg);
+			ae_ctl_init(ISP_F2K_PIPELINE, &sensor0.isp_cfg.isp_core_cfg);
 		}
 
 		if(r2k_cfg_file != NULL)
@@ -1770,7 +1770,7 @@ int mediactl_init(char *video_cfg_file,struct video_info *dev_info)
 			sprintf(&isp_pipeline->video_entity_info[2].video_entity_name[0],"%s","CANAAN K510 ISP R2K_DS1 output");
 			sprintf(&isp_pipeline->video_entity_info[3].video_entity_name[0],"%s","CANAAN K510 ISP R2K_DS2 output");
 			/* ae ctl */
-			ae_ctl_init(ISP_R2K, sensor1.isp_cfg.isp_core_cfg);
+			ae_ctl_init(ISP_R2K_PIPELINE, &sensor1.isp_cfg.isp_core_cfg);
 		}
 	}
 	else
@@ -1865,7 +1865,7 @@ int mediactl_init(char *video_cfg_file,struct video_info *dev_info)
 	adaptive_img_timing.nMinGain = AE_Para_Inf[ISP_F2K].minGain;
 	adaptive_img_timing.nDefaultSaturation = sensor0.isp_cfg.isp_core_cfg.postInfo.satu_ad_intensity;
 	adaptive_calc_feture_init(ISP_F2K, adaptive_img_timing);
-	adaptive_param_init(ISP_F2K_PIPELINE, adaptive_sensor_name_s, sensor0.sensor_name);
+	adaptive_param_init(ISP_F2K_PIPELINE, &adaptive_sensor_name_s, sensor0.sensor_name);
 
 	adaptive_img_timing.nItcTtlV = AE_Para_Inf[ISP_R2K].FrameLines;
 	adaptive_img_timing.nMaxExpLine = AE_Para_Inf[ISP_R2K].maxET;
@@ -1874,7 +1874,7 @@ int mediactl_init(char *video_cfg_file,struct video_info *dev_info)
 	adaptive_img_timing.nMinGain = AE_Para_Inf[ISP_R2K].minGain;
 	adaptive_img_timing.nDefaultSaturation = sensor1.isp_cfg.isp_core_cfg.postInfo.satu_ad_intensity;
 	adaptive_calc_feture_init(ISP_R2K, adaptive_img_timing);
-	adaptive_param_init(ISP_R2K_PIPELINE, adaptive_sensor_name_s, sensor1.sensor_name);
+	adaptive_param_init(ISP_R2K_PIPELINE, &adaptive_sensor_name_s, sensor1.sensor_name);
 	//
 	printf("%s:total_size.width(0x%x),total_size.height(0x%x)\n",__func__,vi_cfg.vi_pipe_cfg[0].total_size.width,vi_cfg.vi_pipe_cfg[0].total_size.height);
 	//

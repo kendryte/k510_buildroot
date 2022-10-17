@@ -123,6 +123,19 @@ typedef struct {
 	int nAeModeSwitch;
 } AE_CTL_ATTR_PARAM;
 
+typedef struct {
+	int nAeTarBright;
+	int nAeTarBrightRange;
+	int nAeExValueMax;
+	int nAeGainValueMax;
+	int nAeExValueMin;
+	int nAeGainValueMin;
+	int nAeEnterLsSel;
+	int nAeLExTime;
+	int nAeAgc;
+	int nTotalHeight;
+} AE_CTL_ISP_INIT_PARAM;
+
 extern bool Sensor1_Sync;
 extern int AESmoothSteps;	//将AE收敛分为9步完成,可设置, >=7
 extern int ETDelayFrameNumber[2];		//Sensor ET设置生效所需帧数
@@ -140,7 +153,7 @@ int anti_flicker_scl(int scl);
 
 /* user init */
 int ae_ctl_cfg_init(int pipeline_en_f2k, int pipeline_en_r2k, AE_CTL_SENSOR_NAME_S_T ae_ctl_sensor_name_s, char * sensor0_name, char * sensor1_name);
-int ae_ctl_init(enum ae_ctl_isp_pipeline_e pipeline, struct isp_core_cfg_info isp_core_cfg);
+int ae_ctl_init(enum ae_ctl_isp_pipeline_e pipeline, struct isp_core_cfg_info * isp_core_cfg);
 // re init when param change online
 int ae_ctl_reinit(enum ae_ctl_isp_pipeline_e pipeline);
 // n: number of devices, ...  &(struct media_entity) f2k r2k sensor0 sensor1

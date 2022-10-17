@@ -340,8 +340,6 @@ typedef struct {
 } ADAPTIVE_ISP_PIPELINE_PARAM_T;
 
 typedef struct {
-    int nAeExpApplyFlag;
-    int nAeGainApplyFlag;
     int nAeEvApplyFlag; // will ctl follow ae model
     int nAwbStatApplyFlag; // will ctl follow awb model
     int nUpdateFlag; // will ctl all model

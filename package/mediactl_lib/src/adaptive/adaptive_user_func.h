@@ -32,7 +32,7 @@
 
 /* user init */
 int adaptive_calc_feture_init(enum adaptive_isp_pipeline_e pipeline, ADAPTIVE_IMG_TIMING_CFG_T image_timing_cfg);
-int adaptive_param_init(enum adaptive_isp_pipeline_e pipeline, ADAPTIVE_SENSOR_NAME_S_T adaptive_sensor_name_s, char * sensor_name);
+int adaptive_param_init(enum adaptive_isp_pipeline_e pipeline, ADAPTIVE_SENSOR_NAME_S_T * adaptive_sensor_name_s, char * sensor_name);
 int adaptive_user_attr_page_init(enum adaptive_isp_pipeline_e pipeline);
 
 /* user functions */
