@@ -52,8 +52,8 @@ ADAPTIVE_SENSOR_NAME_T adaptive_sensor_name[] =
     },
     // imx385
     {
-        .cSensor0Name = "m00_f_imx385_0 0-0010",
-        .cSensor1Name = "m00_f_imx385_0 3-0010",
+        .cSensor0Name = "m00_f_IMX385 0-001a",
+        .cSensor1Name = "m00_f_imx385 3-001a",
         .tAdapIspParamF2k = &adap_imx385_f2k,
         .tAdapIspParamR2k = &adap_imx385_r2k,
     },
