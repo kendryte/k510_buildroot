@@ -2370,8 +2370,6 @@ int main(int argc, char *argv[])
       pCtx->Cfg[i].entropyMode                                     = ENTROPY_MODE_CABAC;
       pCtx->Cfg[i].sliceSplitCfg.bSplitEnable                      = false;
 
-      if(pCtx->Cfg[i].width <= pCtx->Cfg[i].height)
-        pCtx->Cfg[i].AspectRatio = ASPECT_RATIO_NONE;
     }
 
     for(int i =0;i < pCtx->ch_cnt; i++)
