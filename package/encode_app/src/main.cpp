@@ -57,7 +57,7 @@ using namespace std;
 #include "G711Codec.h"
 
 //#define ISP_OUTPUT_DUMP 1
-#define TEST_ISP        0
+#define TEST_ISP        1
 
 #define ISP_ADDR_BUFFER_CNT  22
 #define V4L2_INVALID_INDEX 0xffff
@@ -1876,7 +1876,7 @@ int parse_conf()
         item = cJSON_GetObjectItem(video, video_used_name);
         cJSON_SetIntValue(item, 1);
         item = cJSON_GetObjectItem(video, video_width_name);
-        cJSON_SetIntValue(item, pCtx->stride[i]);
+        cJSON_SetIntValue(item, pCtx->width[i]);
 
         item = cJSON_GetObjectItem(video, video_height_name);
         cJSON_SetIntValue(item, pCtx->height[i]);
