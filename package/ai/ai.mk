@@ -8,7 +8,8 @@ AI_SITE = $(AI_LOCAL_PATH)
 AI_SOURCE = code.tar
 
 AI_SITE_METHOD = file
-AI_KMODEL_DATA_SITE = https://github.com/kendryte/k510_buildroot/releases/download/v1.7/ai_kmodel_data.tar.xz
+AI_KMODEL_DATA_VERSION = v1.0.0
+AI_KMODEL_DATA_SITE = https://kendryte-download.canaan-creative.com/k510/package/ai_kmodel_data-$(AI_KMODEL_DATA_VERSION).tar.xz
 AI_EXTRA_DOWNLOADS = $(call qstrip,$(AI_KMODEL_DATA_SITE))
 MODEL=$(AI_DIR)/ai_kmodel_data/kmodel_release
 
@@ -22,7 +23,7 @@ AI_POST_EXTRACT_HOOKS = AI_POST_EXTRACT_HOOKS_KMODEL_DATA
 define AI_POST_EXTRACT_HOOKS_KMODEL_DATA
 	rm -rf $(AI_DL_DIR)/$(AI_SOURCE);
 	rm -rf $(AI_LOCAL_PATH)/code.tar;
-	tar -xf $(AI_DL_DIR)/ai_kmodel_data.tar.xz -C $(AI_DIR)
+	tar -xf $(AI_DL_DIR)/ai_kmodel_data-$(AI_KMODEL_DATA_VERSION).tar.xz -C $(AI_DIR)
 endef
 AI_CXXFLAGS = $(TARGET_CXXFLAGS)
 AI_CFLAGS = $(TARGET_CFLAGS)
