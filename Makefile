@@ -106,9 +106,9 @@ clean:
 
 dl:
 	rm -rf pkg-download/dl.tar.gz;
-	wget -c  https://kendryte-download.canaan-creative.com/k510/package/dl-v1.0.0.tar.gz  -O pkg-download/dl.tar.gz;
+	wget -c  https://kendryte-download.canaan-creative.com/k510/package/dl/v1.0.0/dl.tar.gz  -O pkg-download/dl.tar.gz;
 	tar -zxf pkg-download/dl.tar.gz;
-	mkdir -p  dl/ai/; wget -c https://kendryte-download.canaan-creative.com/k510/package/ai_kmodel_data-v1.0.0.tar.xz  -O dl/ai/ai_kmodel_data-v1.0.0.tar.xz;
+	mkdir -p  dl/ai/; wget -c https://kendryte-download.canaan-creative.com/k510/package/ai/v1.0.0/ai_kmodel_data.tar.xz  -O dl/ai/ai_kmodel_data.tar.xz;
 	(set -xe;   NNCASE_VER=v1.7.1 ;\
 		NNCASE_SITE=https://kendryte-download.canaan-creative.com/k510/nncase/release;\
 		NNCASE_PIP_VD=1.7.1.20220701		; \
