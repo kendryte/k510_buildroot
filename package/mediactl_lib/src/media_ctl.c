@@ -857,7 +857,7 @@ static ADAPTIVE_ATTRIBUTE_PAGE_T adap_attr_page[] =
 	{
 		.nAdaptiveUserAttrEnable = 1, // 0: disable, 1: enable
 		.nAdaptiveUserAeMode = 0, // 0: sw, 1: hw
-		.nWritten = 2,
+		.nWritten = 3,
 		.nAeSync = 0,
 		.tUserAttrIspCtl = {
 			.nAeEnable = 1,
@@ -897,7 +897,7 @@ static ADAPTIVE_ATTRIBUTE_PAGE_T adap_attr_page[] =
 	{
 		.nAdaptiveUserAttrEnable = 1, // 0: disable, 1: enable
 		.nAdaptiveUserAeMode = 0, // 0: sw, 1: hw
-		.nWritten = 2,
+		.nWritten = 3,
 		.nAeSync = 0,
 		.tUserAttrIspCtl = {
 			.nAeEnable = 1,
