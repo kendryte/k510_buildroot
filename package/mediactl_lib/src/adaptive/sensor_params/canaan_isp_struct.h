@@ -194,7 +194,7 @@ typedef struct {
 */
 
 typedef struct {
-    unsigned short nCtCcm[3][3]; /* [0][0]: Rr [0][1]: Rg [0][2]: Rb; [1][0]: Gr [1][1]: Gg [1][2]: Gb; [2][0]: Br [2][0]: Bg [2][0]: Bb*/
+    int nCtCcm[3][3]; /* [0][0]: Rr [0][1]: Rg [0][2]: Rb; [1][0]: Gr [1][1]: Gg [1][2]: Gb; [2][0]: Br [2][0]: Bg [2][0]: Bb*/
 } _CCM_CTL_PARAM_T;
 
 typedef struct {
@@ -289,8 +289,8 @@ typedef struct {
 } _COLOR_GREY_CTL_PARAM;
 
 typedef struct {
-    unsigned short nExposureTime;
-    unsigned short nGain;
+    int nExposureTime;
+    int nGain;
     _COLOR_GREY_CTL_PARAM tColorGreyCsmCtlParam;
 } ISP_COLOR_GREY_SWITCH_PARAM_T;
 
