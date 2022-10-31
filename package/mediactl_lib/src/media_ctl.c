@@ -927,7 +927,7 @@ static ADAPTIVE_ATTRIBUTE_PAGE_T adap_attr_page[] =
 		.tUserMenu3A = {
 			.nCurExpTime = 30000,
 			.nCurGain = 2,
-			.nCurWbRGain = 203,
+			.nCurWbRGain = 202,
 			.nCurWbGGain = 256,
 			.nCurWbBGain = 356,
 		}
