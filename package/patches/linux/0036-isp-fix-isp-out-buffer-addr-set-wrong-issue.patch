@@ -1,0 +1,202 @@
+From eca55e9c71d3f288cfd63a17e28502d03bb2db96 Mon Sep 17 00:00:00 2001
+From: "Chenggen.Wang" <wangchenggen@canaan-creative.com>
+Date: Mon, 31 Oct 2022 10:41:50 +0800
+Subject: [PATCH] isp: fix isp out buffer addr set wrong issue.
+
+issue case: when run the AI demo,
+it will first set the ds0(1920x1080) outaddr,
+then set the ds2(320x240) outaddr,
+which may cause the output addr of the first frame of DS0 to be overwritten.
+which will cause the wrong memory access.
+
+Signed-off-by: Chenggen.Wang <wangchenggen@canaan-creative.com>
+---
+ .../platform/canaan-isp/isp_2k/isp_f2k.c      | 30 +++++++++++--------
+ .../platform/canaan-isp/isp_2k/isp_r2k.c      | 24 ++++++++-------
+ 2 files changed, 30 insertions(+), 24 deletions(-)
+
+diff --git a/drivers/media/platform/canaan-isp/isp_2k/isp_f2k.c b/drivers/media/platform/canaan-isp/isp_2k/isp_f2k.c
+index d041fd8a..bb3f4883 100644
+--- a/drivers/media/platform/canaan-isp/isp_2k/isp_f2k.c
++++ b/drivers/media/platform/canaan-isp/isp_2k/isp_f2k.c
+@@ -3190,7 +3190,7 @@ int k510isp_f2k_ds2_isr(struct isp_f2k_device *f2k,u32 events)
+ }
+ /* -----------------------------------------------------------------------------
+  * ISP F2K video device node
+- *-----------------------------------------------------------------------------/
++ *-----------------------------------------------------------------------------*/
+ /*
+  * f2k_video_queue - Queue video buffer.
+  * @video : Pointer to isp video structure
+@@ -3202,33 +3202,36 @@ static int f2k_video_queue(struct k510isp_video *video, struct k510isp_buffer *b
+ 	struct isp_f2k_device *f2k = &video->isp->isp_f2k;
+ 	unsigned long flags;
+ 	bool restart = false;
+-	dev_dbg(video->isp->dev,"%s:f2k->output(0x%x) start\n",__func__,f2k->output);
++	char *sd_name = video->video.name;
++
++	dev_dbg(video->isp->dev,"%s:%s dma(0x%llX), buf_size(%u), img_size(%u), queue start\n", \
++		__func__, video->video.name, buffer->dma, buffer->buf_size, buffer->image_size);
++
+ 	if (f2k->output == ISP_F2K_OUTPUT_NONE)
+ 	{
+ 		dev_err(video->isp->dev,"%s:no mem dev\n",__func__);
+ 		return -ENODEV;
+ 	}
+-	if (f2k->output & ISP_F2K_OUTPUT_FBC)
++	if ((f2k->output & ISP_F2K_OUTPUT_FBC) && strstr(sd_name, "F2K output"))
+ 	{
+ 		isp_f2k_set_fbc_outaddr(f2k, buffer->dma);
+ 	}
+-	if (f2k->output & ISP_F2K_OUTPUT_MAIN_MEM)
++	if ((f2k->output & ISP_F2K_OUTPUT_MAIN_MEM) && strstr(sd_name, "F2K output"))
+ 	{
+-		//dev_dbg(video->isp->dev,"%s:buffer->dma(0x%x)\n",__func__,buffer->dma);
+ 		f2k->pingpong[MAIN_VIDEO] = 0;
+ 		isp_f2k_set_main_outaddr(f2k, buffer->dma);
+ 	}
+-	if (f2k->output & ISP_F2K_OUTPUT_DS0_MEM)
++	if ((f2k->output & ISP_F2K_OUTPUT_DS0_MEM) && strstr(sd_name, "F2K_DS0"))
+ 	{
+ 		f2k->pingpong[DS0_VIDEO] = 0;
+ 		isp_f2k_set_out0_outaddr(f2k, buffer->dma);
+ 	}
+-	if (f2k->output & ISP_F2K_OUTPUT_DS1_MEM)
++	if ((f2k->output & ISP_F2K_OUTPUT_DS1_MEM) && strstr(sd_name, "F2K_DS1"))
+ 	{
+ 		f2k->pingpong[DS1_VIDEO] = 0;
+ 		isp_f2k_set_out1_outaddr(f2k, buffer->dma);
+ 	}
+-	if (f2k->output & ISP_F2K_OUTPUT_DS2_MEM)
++	if ((f2k->output & ISP_F2K_OUTPUT_DS2_MEM) && strstr(sd_name, "F2K_DS2"))
+ 	{
+ 		f2k->pingpong[DS2_VIDEO] = 0;
+ 		isp_f2k_set_out2_outaddr(f2k, buffer->dma);
+@@ -3236,23 +3239,23 @@ static int f2k_video_queue(struct k510isp_video *video, struct k510isp_buffer *b
+ 
+ #ifdef SET_DIFF_BUFF
+ 	buffer++;
+-	if (f2k->output & ISP_F2K_OUTPUT_FBC)
++	if ((f2k->output & ISP_F2K_OUTPUT_FBC) && strstr(sd_name, "F2K output"))
+ 	{
+ 		isp_f2k_set_fbc_outaddr(f2k, buffer->dma);
+ 	}
+-	if (f2k->output & ISP_F2K_OUTPUT_MAIN_MEM)
++	if ((f2k->output & ISP_F2K_OUTPUT_MAIN_MEM) && strstr(sd_name, "F2K output"))
+ 	{
+ 		isp_f2k_set_main_outaddr(f2k, buffer->dma);
+ 	}
+-	if (f2k->output & ISP_F2K_OUTPUT_DS0_MEM)
++	if ((f2k->output & ISP_F2K_OUTPUT_DS0_MEM) && strstr(sd_name, "F2K_DS0"))
+ 	{
+ 		isp_f2k_set_out0_outaddr(f2k, buffer->dma);
+ 	}
+-	if (f2k->output & ISP_F2K_OUTPUT_DS1_MEM)
++	if ((f2k->output & ISP_F2K_OUTPUT_DS1_MEM) && strstr(sd_name, "F2K_DS1"))
+ 	{
+ 		isp_f2k_set_out1_outaddr(f2k, buffer->dma);
+ 	}
+-	if (f2k->output & ISP_F2K_OUTPUT_DS2_MEM)
++	if ((f2k->output & ISP_F2K_OUTPUT_DS2_MEM) && strstr(sd_name, "F2K_DS2"))
+ 	{
+ 		isp_f2k_set_out2_outaddr(f2k, buffer->dma);
+ 	}
+@@ -3273,6 +3276,7 @@ static int f2k_video_queue(struct k510isp_video *video, struct k510isp_buffer *b
+ 
+ 	if (restart)
+ 		isp_f2k_enable(f2k);
++	dev_dbg(video->isp->dev,"%s:%s queue end\n",__func__, video->video.name);
+ 
+ 	return 0;
+ }
+diff --git a/drivers/media/platform/canaan-isp/isp_2k/isp_r2k.c b/drivers/media/platform/canaan-isp/isp_2k/isp_r2k.c
+index 9d13bbe1..d7a8b731 100644
+--- a/drivers/media/platform/canaan-isp/isp_2k/isp_r2k.c
++++ b/drivers/media/platform/canaan-isp/isp_2k/isp_r2k.c
+@@ -2783,7 +2783,7 @@ int k510isp_r2k_ds2_isr(struct isp_r2k_device *r2k,u32 events)
+ }
+ /* -----------------------------------------------------------------------------
+  * ISP r2k video device node
+- *-----------------------------------------------------------------------------/
++ *-----------------------------------------------------------------------------*/
+ /*
+  * r2k_video_queue - Queue video buffer.
+  * @video : Pointer to isp video structure
+@@ -2795,33 +2795,35 @@ static int r2k_video_queue(struct k510isp_video *video, struct k510isp_buffer *b
+ 	struct isp_r2k_device *r2k = &video->isp->isp_r2k;
+ 	unsigned long flags;
+ 	bool restart = false;
++	char *sd_name = video->video.name;
++
+ 	dev_dbg(video->isp->dev,"%s:r2k->output(0x%x) start\n",__func__,r2k->output);
+ 	if (r2k->output == ISP_R2K_OUTPUT_NONE)
+ 	{
+ 		dev_err(video->isp->dev,"%s:no mem dev\n",__func__);
+ 		return -ENODEV;
+ 	}
+-	if (r2k->output & ISP_R2K_OUTPUT_FBC)
++	if ((r2k->output & ISP_R2K_OUTPUT_FBC) && strstr(sd_name, "R2K output"))
+ 	{
+ 		isp_r2k_set_fbc_outaddr(r2k, buffer->dma);
+ 	}
+-	if (r2k->output & ISP_R2K_OUTPUT_MAIN_MEM)
++	if ((r2k->output & ISP_R2K_OUTPUT_MAIN_MEM) && strstr(sd_name, "R2K output"))
+ 	{
+ 		dev_dbg(video->isp->dev,"%s:buffer->dma(0x%x)\n",__func__,buffer->dma);
+ 		r2k->pingpong[MAIN_VIDEO] = 0;
+ 		isp_r2k_set_main_outaddr(r2k, buffer->dma);
+ 	}
+-	if (r2k->output & ISP_R2K_OUTPUT_DS0_MEM)
++	if ((r2k->output & ISP_R2K_OUTPUT_DS0_MEM) && strstr(sd_name, "R2K_DS0"))
+ 	{
+ 		r2k->pingpong[DS0_VIDEO] = 0;
+ 		isp_r2k_set_out0_outaddr(r2k, buffer->dma);
+ 	}
+-	if (r2k->output & ISP_R2K_OUTPUT_DS1_MEM)
++	if ((r2k->output & ISP_R2K_OUTPUT_DS1_MEM) && strstr(sd_name, "R2K_DS1"))
+ 	{
+ 		r2k->pingpong[DS1_VIDEO] = 0;
+ 		isp_r2k_set_out1_outaddr(r2k, buffer->dma);
+ 	}
+-	if (r2k->output & ISP_R2K_OUTPUT_DS2_MEM)
++	if ((r2k->output & ISP_R2K_OUTPUT_DS2_MEM) && strstr(sd_name, "R2K_DS2"))
+ 	{
+ 		r2k->pingpong[DS2_VIDEO] = 0;
+ 		isp_r2k_set_out2_outaddr(r2k, buffer->dma);
+@@ -2829,28 +2831,28 @@ static int r2k_video_queue(struct k510isp_video *video, struct k510isp_buffer *b
+ 
+ #ifdef SET_DIFF_BUFF
+ 	buffer++;
+-	if (r2k->output & ISP_R2K_OUTPUT_FBC)
++	if ((r2k->output & ISP_R2K_OUTPUT_FBC) && strstr(sd_name, "R2K output"))
+ 	{
+ 		isp_r2k_set_fbc_outaddr(r2k, buffer->dma);
+ 	}
+-	if (r2k->output & ISP_R2K_OUTPUT_MAIN_MEM)
++	if ((r2k->output & ISP_R2K_OUTPUT_MAIN_MEM) && strstr(sd_name, "R2K output"))
+ 	{
+ 		dev_dbg(video->isp->dev,"%s:buffer->dma(0x%x)\n",__func__,buffer->dma);
+ 		r2k->pingpong[MAIN_VIDEO] = 0;
+ 		isp_r2k_set_main_outaddr(r2k, buffer->dma);
+ 	}
+ 
+-	if (r2k->output & ISP_R2K_OUTPUT_DS0_MEM)
++	if ((r2k->output & ISP_R2K_OUTPUT_DS0_MEM) && strstr(sd_name, "R2K_DS0"))
+ 	{
+ 		r2k->pingpong[DS0_VIDEO] = 0;
+ 		isp_r2k_set_out0_outaddr(r2k, buffer->dma);
+ 	}
+-	if (r2k->output & ISP_R2K_OUTPUT_DS1_MEM)
++	if ((r2k->output & ISP_R2K_OUTPUT_DS1_MEM) && strstr(sd_name, "R2K_DS1"))
+ 	{
+ 		r2k->pingpong[DS1_VIDEO] = 0;
+ 		isp_r2k_set_out1_outaddr(r2k, buffer->dma);
+ 	}
+-	if (r2k->output & ISP_R2K_OUTPUT_DS2_MEM)
++	if ((r2k->output & ISP_R2K_OUTPUT_DS2_MEM) && strstr(sd_name, "R2K_DS2"))
+ 	{
+ 		r2k->pingpong[DS2_VIDEO] = 0;
+ 		isp_r2k_set_out2_outaddr(r2k, buffer->dma);
+-- 
+2.25.1
+
