@@ -62,12 +62,15 @@ typedef struct _ADAPTIVE_USER_ATTR_ISP_CTL_T {
 	int nFlip; // 0: normal, 1: hflip, 2: vflip, 3: hvflip
 	int nAntiflickerScl; // 0: disable, 1: 50Hz auto, 2: 50Hz force 3: 60Hz auto, 4: 60Hz force
 	int nDefogEn; // 0: disable, 1: enable, will use isp ada and disable adaptive-ADA
+    int nIrCutEnable; // 0: disable, 1: enable
+    int nIrCutFilterType; // 0: day2night pcs, 1: night2day pcs
 } ADAPTIVE_USER_ATTR_ISP_CTL_T;
 
 typedef struct _ADAPTIVE_USER_ATTR_LIMIT_T {
 	int nGainRange[2]; // gain range [0]: min, [1]: max
 	int nEtRange[2]; // et range [0]: min, [1]: max
 	int nCtScl; // color temperature
+    int nIrCutSwMode; // 0: auto(default), 1: manual mode
 } ADAPTIVE_USER_ATTR_LIMIT_T;
 
 typedef struct _ADAPTIVE_USER_ATTR_WEIGHT_T {
@@ -173,6 +176,26 @@ enum adaptive_isp_pipeline_e
 	ADAP_ISP_F2K_PIPELINE,
 	ADAP_ISP_R2K_PIPELINE,
 	ADAP_ISP_TOF_PIPELINE
+};
+
+enum adap_callback_id
+{
+    ADAP_CALLBACK_ID_START = -1, // -1
+    ADAP_CALLBACK_ID_BLC, // 0
+    ADAP_CALLBACK_ID_LSC, // 1
+    ADAP_CALLBACK_ID_SHARPNESS, // 2
+    ADAP_CALLBACK_ID_LTM, // 3
+    ADAP_CALLBACK_ID_2DNR, // 4
+    ADAP_CALLBACK_ID_3DNR, // 5
+    ADAP_CALLBACK_ID_WDR, // 6
+    ADAP_CALLBACK_ID_CCM, // 7
+    ADAP_CALLBACK_ID_AWB, // 8
+    ADAP_CALLBACK_ID_GAMMA, // 9
+    ADAP_CALLBACK_ID_IRCUT, // 10
+    ADAP_CALLBACK_ID_SATURATION, // 11
+    ADAP_CALLBACK_ID_COLOR2BW, // 12
+    ADAP_CALLBACK_ID_ADA, // 13
+    ADAP_CALLBACK_ID_END, // 14
 };
 
 // static struct k510isp_reg_val adaptive_apply_rgb_gamma_table = {0x0400, 0x0};
@@ -293,7 +316,9 @@ typedef union
         unsigned int cur_r_gain_flag   : 1   ; /* [ 26 ] */
         unsigned int cur_g_gain_flag   : 1   ; /* [ 27 ] */
         unsigned int cur_b_gain_flag   : 1   ; /* [ 28 ] */
-        unsigned int reserved          : 3   ; /* [29 .. 31] */
+        unsigned int ir_cut_en_flag    : 1   ; /* [ 29 ] */
+        unsigned int ir_cut_ctl_flag   : 1   ; /* [ 30 ] */
+        unsigned int ir_cut_ft_type    : 1   ; /* [ 31 ] */
     } bits;
     unsigned int u32;
 } ADAPTIVE_ATTR_STAT_FLAG_U;
@@ -320,6 +345,23 @@ typedef union
     } bits;
     unsigned int u32;
 } ADAPTIVE_ISP_WEIGHT_FLAG_U;
+
+/* user callback function */
+typedef int (* __AdapCallBack)(void *);
+
+/* callback struct */
+typedef struct __ADAP_CB_T
+{
+    __AdapCallBack pAcbfunc; // callback function
+    int nSize; // such as sizeof(CB_IR_CUT_T), depth copy need
+    enum adap_callback_id nAcbId; // callback moudel id, adap need know which use it
+} ADAP_CB_T;
+
+typedef struct __CB_IR_CUT_T
+{
+    int nIrCutCtl; // 0:day2night, 1: night2day
+    int nSensor; // 0: sensor0, 1: sensor1
+} CB_IR_CUT_T;
 
 /* param check Range */
 #define ADAPTIVE_PARAM_CHECK_AE_Y_TARGET 255
@@ -357,8 +399,16 @@ typedef union
 #define ADAPTIVE_PARAM_CHECK_AWB 1023
 #define ADAPTIVE_PARAM_CHECK_IMX219_EXP_TIME 33333
 #define ADAPTIVE_PARAM_CHECK_IMX219_GAIN 4095
+
 /* param check error code */
-// TODO
+#define ADAPTIVE_CALLBACK_REG_SUCCESS (0)
+#define ADAPTIVE_CALLBACK_REG_FAIL (-1)
+#define ADAPTIVE_CALLBACK_FUNC_NULL (-2)
+#define ADAPTIVE_CALLBACK_ID_OVER_RANGE (-3)
+#define ADAPTIVE_CALLBACK_ID_NOT_MATCH (-4)
+
+/* callback reg function */
+int adaptive_cb_assign(ADAP_CB_T * acb);
 
 /* lots of init functions */
 int adaptive_setting_param_check(enum adaptive_isp_pipeline_e pipeline);
@@ -381,6 +431,8 @@ int adaptive_ex_param_apply(enum adaptive_isp_pipeline_e pipeline, struct media_
 int adaptive_attr_page_isp_moudel_apply(enum adaptive_isp_pipeline_e pipeline);
 // int adaptive_mirror_flip_apply(enum adaptive_isp_pipeline_e pipeline, int adap_en, struct media_entity * pipe);
 int adaptive_param_campare(enum adaptive_isp_pipeline_e pipeline, ADAPTIVE_ISP_WEIGHT_PARAM_T * cur_isp_weight);
+/* callback */
+int adaptive_callback_register(ADAP_CB_T * acb);
 
 /* flip_level 0:normal, 1:hflip, 2:vflip, 3: hvflip */
 int adaptive_mirror_flip_apply(enum adaptive_isp_pipeline_e pipeline, int flip_level);

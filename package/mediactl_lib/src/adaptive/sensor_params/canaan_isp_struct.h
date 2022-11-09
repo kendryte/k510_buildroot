@@ -246,6 +246,7 @@ typedef struct {
 /*
 * IR CUT
 * follow ae gain & exposure
+* callback from user
 */
 
 typedef struct {
@@ -257,6 +258,7 @@ typedef struct {
     unsigned short nExposureTime;
     unsigned short nGain;
     _IR_CUT_CTL_PARAM tIrCutCtlParam;
+    int nIrCutCtlMode; // ir cut auto/manual ctl mode 0 / 1
 } ISP_IR_CUT_PARAM_T;
 
 typedef struct {
@@ -358,7 +360,7 @@ typedef struct {
     unsigned short nGammaCurveSel; // gamma curve select
     unsigned short nColorGreySel; // color2grey or grey2color
     unsigned short nCtSel; // color temperature select
-    unsigned short nIrCutSwitchSel;
+    unsigned short nIrCutSwitchSel; // ir cut mode
     unsigned short nAdaSel; // ada param select
 } ADAPTIVE_ISP_WEIGHT_PARAM_T;
 
@@ -375,7 +377,7 @@ typedef struct {
     _AE_CTL_PARAM_T tAeCtlParam;
     _AWB_CTL_PARAM_T tAwbCtlParam;
     _COLOR_GREY_CTL_PARAM tColorGreyCtlParam;
-    _IR_CUT_CTL_PARAM tIrCutCtlParam; // TBD
+    _IR_CUT_CTL_PARAM tIrCutCtlParam;
     _ADA_CTL_PARAM tAdaCtlParam;
     _POST_SATURATION_CTL_PARAM_T tPostSatuartionCtlParam;
     ADAPTIVE_ISP_WEIGHT_PARAM_T isp_weight;

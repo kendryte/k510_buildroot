@@ -845,12 +845,12 @@ static ADAPTIVE_ISP_PIPELINE_PARAM_T adap_imx219_r2k =
                 /* nExposureTime */
                 30000,
                 /* nGain */
-                512,
+                2048,
                 /* tIrCutCtlParam */
                 {
                     /* nHoldTime */
-                    2,
-                    /* nIrCutMode TBD? */
+                    120,
+                    /* nIrCutMode */
                     1,
                 },
             },
@@ -859,11 +859,11 @@ static ADAPTIVE_ISP_PIPELINE_PARAM_T adap_imx219_r2k =
                 /* nExposureTime */
                 20000,
                 /* nGain */
-                256,
+                512,
                 /* tIrCutCtlParam */
                 {
                     /* nHoldTime */
-                    6,
+                    120,
                     /* nIrCutMode TBD? */
                     0,
                 },

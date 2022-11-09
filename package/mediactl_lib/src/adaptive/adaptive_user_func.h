@@ -34,11 +34,11 @@
 int adaptive_calc_feture_init(enum adaptive_isp_pipeline_e pipeline, ADAPTIVE_IMG_TIMING_CFG_T image_timing_cfg);
 int adaptive_param_init(enum adaptive_isp_pipeline_e pipeline, ADAPTIVE_SENSOR_NAME_S_T * adaptive_sensor_name_s, char * sensor_name);
 int adaptive_user_attr_page_init(enum adaptive_isp_pipeline_e pipeline);
-
 /* user functions */
 int adaptive_get_3a_stat(enum adaptive_isp_pipeline_e pipeline, struct media_entity * pipe);
 int adaptive_setting_ctl(enum adaptive_isp_pipeline_e pipeline);
 int adaptive_param_apply(enum adaptive_isp_pipeline_e pipeline, struct media_entity * pipe);
+int adaptive_callback_ctl_stat(enum adaptive_isp_pipeline_e pipeline, enum adap_callback_id cbid);
 
 // can setting gamma, if gamma_table = NULL, will use linner-wdr-gamma
 int adaptive_gamma_setting(enum adaptive_isp_pipeline_e pipeline, unsigned short * gamma_table);

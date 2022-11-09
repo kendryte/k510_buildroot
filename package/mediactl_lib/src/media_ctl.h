@@ -104,6 +104,37 @@ typedef struct __AE_HIST_WINDOW_T
 	int nVEnd;
 } AE_HIST_WINDOW_T;
 
+enum isp_callback_id
+{
+    ISP_CALLBACK_ID_START = -1, // -1
+    ISP_CALLBACK_ID_BLC, // 0
+    ISP_CALLBACK_ID_LSC, // 1
+    ISP_CALLBACK_ID_SHARPNESS, // 2
+    ISP_CALLBACK_ID_LTM, // 3
+    ISP_CALLBACK_ID_2DNR, // 4
+    ISP_CALLBACK_ID_3DNR, // 5
+    ISP_CALLBACK_ID_WDR, // 6
+    ISP_CALLBACK_ID_CCM, // 7
+    ISP_CALLBACK_ID_AWB, // 8
+    ISP_CALLBACK_ID_GAMMA, // 9
+    ISP_CALLBACK_ID_IRCUT, // 10
+    ISP_CALLBACK_ID_SATURATION, // 11
+    ISP_CALLBACK_ID_COLOR2BW, // 12
+    ISP_CALLBACK_ID_ADA, // 13
+    ISP_CALLBACK_ID_END, // 14
+};
+
+/* user callback function */
+typedef int (* __IspCallBack)(void *);
+
+/* callback struct */
+typedef struct __ISP_CB_T
+{
+    __IspCallBack pIspfunc; // callback function
+    int nSize; // such as sizeof(CB_IR_CUT_T), depth copy need
+    enum isp_callback_id nIcbId; // callback moudel id, adap need know which use it
+} ISP_CB_T;
+
 int mediactl_init(char *video_cfg_file,struct video_info *dev_info);
 void mediactl_exit(void);
 void mediactl_disable_ae(enum isp_pipeline_e pipeline);
@@ -124,7 +155,11 @@ int ae_hist_mode_scl(enum isp_pipeline_e pipeline, enum ae_hist_mode_e ae_hist_m
 /* attr page API */
 int attr_page_params_setting(enum isp_pipeline_e pipeline, void * attr_page);
 int attr_page_get_written_stat(enum isp_pipeline_e pipeline);
+int isp_module_callback_register(ISP_CB_T * icb);
+int isp_module_callback_ctl_stat(enum isp_pipeline_e pipeline, enum isp_callback_id cbid);
 unsigned int mediactl_get_isp_modules(enum isp_pipeline_e pipeline,enum isp_modules module);
+
+
 #ifdef __cplusplus
 }
 #endif

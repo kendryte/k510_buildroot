@@ -869,11 +869,14 @@ static ADAPTIVE_ATTRIBUTE_PAGE_T adap_attr_page[] =
 			.nAntiflickerScl = 1, // only sw ae use, 0: normal, 1: 50Hz auto, 2: 50Hz force, 3: 60Hz auto, 4: 60Hz force
 			.nDefogEn = 0, // 0: disable, 1 & 2: reserved, 3: enable
 			.nWdrEnable = 0,
+			.nIrCutEnable = 0, // 0: disable, 1: enable
+			.nIrCutFilterType = 1, // 0: day2night, // 1: night2day
 		},
 		.tUserAttrLimit = {
 			.nCtScl = 0, // 0: A, 1: U30, 2: U35, 3: TL84, 4: D50, 5: D65
 			.nEtRange = {1, 30000}, // [0]: min, [1]: max
 			.nGainRange = {2, 16}, // [0]: min do not modify, [1]: max
+			.nIrCutSwMode = 0, // 0: auto, 1: manual
 		},
 		.tUserAttrWeight = {
 			.n2dnrLevelCoeff = 5, // level 0:10, default 5
@@ -909,11 +912,14 @@ static ADAPTIVE_ATTRIBUTE_PAGE_T adap_attr_page[] =
 			.nAntiflickerScl = 1, // only sw ae use, 0: normal, 1: 50Hz auto, 2: 50Hz force, 3: 60Hz auto, 4: 60Hz force
 			.nDefogEn = 0, // 0: disable, 1 & 2: reserved, 3: enable
 			.nWdrEnable = 0,
+			.nIrCutEnable = 0, // 0: disable, 1: enable
+			.nIrCutFilterType = 1, // 0: day2night, 1: night2day
 		},
 		.tUserAttrLimit = {
 			.nCtScl = 0, // 0: A, 1: U30, 2: U35, 3: TL84, 4: D50, 5: D65
 			.nEtRange = {1, 30000}, // [0]: min, [1]: max
 			.nGainRange = {2, 16}, // [0]: min do not modify, [1]: max
+			.nIrCutSwMode = 0, // 0: auto, 1: manual
 		},
 		.tUserAttrWeight = {
 			.n2dnrLevelCoeff = 5, // level 0:10, default 5
@@ -1673,6 +1679,17 @@ int ae_enable_set(enum isp_pipeline_e pipeline, void * pipe)
 	return 0;
 }
 
+#ifdef CALLBACK_TEST
+int test_isp_callback_ircut(void * val)
+{
+	CB_IR_CUT_T * ir_cut_val = (CB_IR_CUT_T *)val;
+	printf("ptr : %p\n", val);
+	printf("ircut callback current ctl mode: %d\n",ir_cut_val->nIrCutCtl);
+	printf("ircut callback current sensor: %d\n",ir_cut_val->nSensor);
+	return 10012;
+}
+#endif
+
 pthread_t isp_f2k_ae, isp_r2k_ae, isp_all_ae;
 
 int mediactl_init(char *video_cfg_file,struct video_info *dev_info)
@@ -1894,7 +1911,14 @@ int mediactl_init(char *video_cfg_file,struct video_info *dev_info)
 	// adaptive_sensor_init(ISP_R2K, v4l_isp.sensor1);
 	adaptive_device_init(4, v4l_isp.f2k, v4l_isp.r2k, v4l_isp.sensor0, v4l_isp.sensor1);
 	ae_ctl_device_init(4, v4l_isp.f2k, v4l_isp.r2k, v4l_isp.sensor0, v4l_isp.sensor1);
-
+#ifdef CALLBACK_TEST
+	ISP_CB_T isp_cb = {
+		.nIcbId = ISP_CALLBACK_ID_IRCUT,
+		.nSize = sizeof(CB_IR_CUT_T) / sizeof(int),
+		.pIspfunc = test_isp_callback_ircut,
+	};
+	isp_module_callback_register(&isp_cb);
+#endif
 #if 0
 	if((v4l_isp.isp_pipeline[ISP_F2K].pipeline_en == 1) && ( v4l_isp.isp_pipeline[ISP_R2K].pipeline_en == 1 ))
 	{
@@ -2345,4 +2369,16 @@ int ae_hist_mode_scl(enum isp_pipeline_e pipeline, enum ae_hist_mode_e ae_hist_m
 		return -1;
 	}
 	return 0;
+}
+
+int isp_module_callback_register(ISP_CB_T * icb)
+{
+	int ret = 0;
+	ret = adaptive_callback_register((ADAP_CB_T *)icb);
+	return ret;
+}
+
+int isp_module_callback_ctl_stat(enum isp_pipeline_e pipeline, enum isp_callback_id cbid)
+{
+	return adaptive_callback_ctl_stat(pipeline, cbid);
 }
