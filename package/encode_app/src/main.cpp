@@ -703,6 +703,40 @@ static void *encode_ch(void *arg)
       input.stride = stride;
       index = pCtx->v4l2_rev[channel][pCtx->v4l2_rp[channel]].addr & V4L2_INVALID_INDEX;
       input.data = (unsigned char *)pCtx->v4l2_buf[channel][index].paddr;
+      
+#ifdef ISP_OUTPUT_DUMP      
+      static FILE *dump_file=NULL;      
+
+      if(dump_file == NULL)
+      {
+        unsigned char *pSrc;
+        unsigned int size;
+        int i;
+      
+        size = input.stride*input.height*3/2;
+        pSrc = (unsigned char * )mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, pCtx->fd_ddr, pCtx->v4l2_buf[channel][index].paddr);
+        
+        if((dump_file=fopen("isp_dump.yuv","w+b")) == NULL )
+        {
+          printf("Cannot open output file!\n");
+        }        
+        //write Y
+        for(i=0; i<input.height; i++)
+        {
+          fwrite(pSrc, 1, input.width, dump_file);
+          pSrc += input.stride;
+        }
+        //write UV
+        for(i=0; i<input.height/2; i++)
+        {
+          fwrite(pSrc, 1, input.width, dump_file);
+          pSrc += input.stride;
+        }
+        fclose(dump_file);
+        munmap(pSrc, size);
+        printf("dump input yuv\n");
+      }
+#endif    
     }
     else
     {
@@ -1841,7 +1875,6 @@ int parse_conf()
         }
         item = cJSON_GetObjectItem(video, video_used_name);
         cJSON_SetIntValue(item, 1);
-
         item = cJSON_GetObjectItem(video, video_width_name);
         cJSON_SetIntValue(item, pCtx->width[i]);
 
@@ -2337,7 +2370,6 @@ int main(int argc, char *argv[])
       pCtx->Cfg[i].entropyMode                                     = ENTROPY_MODE_CABAC;
       pCtx->Cfg[i].sliceSplitCfg.bSplitEnable                      = false;
 
-      
     }
 
     for(int i =0;i < pCtx->ch_cnt; i++)
