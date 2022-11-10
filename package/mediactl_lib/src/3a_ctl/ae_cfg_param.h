@@ -93,8 +93,8 @@ AE_CTL_SENSOR_NAME_T ae_ctl_sensor_name[] =
 
     // dual imx385
     {
-        .cSensor0Name = "m00_f_imx385_0 0-0010",
-        .cSensor1Name = "m00_f_imx385_0 3-0010",
+        .cSensor0Name = "m00_f_IMX385 0-001a",
+        .cSensor1Name = "m00_f_imx385 3-001a",
         .tAeCtlInitCfg = &ae_ctl_init_cfg_param_dual_imx385,
     },
 
