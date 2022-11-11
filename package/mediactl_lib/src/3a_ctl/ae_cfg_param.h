@@ -29,9 +29,9 @@
 static AE_CTL_INIT_CFG_T ae_ctl_init_cfg_param_dual_imx219 =
 {
 	/* can modify */
-	.bDualCameraSync           = 1,
+	.bDualCameraSync           = 0,
 	.nSingleSensorETDelayFrame = {1, 1}, // [0]: f2k, [1]: r2k
-	.nSingleSensorSetMode      = {0, 0}, // [0]: f2k, [1]: r2k
+	.nSingleSensorSetMode      = {1, 1}, // [0]: f2k, [1]: r2k
 	.nDualSensorETDelayFrame   = {1, 1}, // [0]: f2k, [1]: r2k
 	.nDualSensorSetMode        = {1, 1}, // [0]: f2k, [1]: r2k
 	.nFrameRate                = {30, 30}, // [0]: sensor0, [1]: sensor1
@@ -45,7 +45,7 @@ static AE_CTL_INIT_CFG_T ae_ctl_init_cfg_param_dual_imx385 =
 	.bDualCameraSync           = 0,
 	.nSingleSensorETDelayFrame = {1, 1}, // [0]: f2k, [1]: r2k
 	.nSingleSensorSetMode      = {0, 0}, // [0]: f2k, [1]: r2k
-	.nDualSensorETDelayFrame   = {1, 1}, // [0]: f2k, [1]: r2k
+	.nDualSensorETDelayFrame   = {0, 0}, // [0]: f2k, [1]: r2k
 	.nDualSensorSetMode        = {0, 0}, // [0]: f2k, [1]: r2k
 	.nFrameRate                = {30, 30}, // [0]: sensor0, [1]: sensor1
 
