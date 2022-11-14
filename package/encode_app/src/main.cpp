@@ -2218,15 +2218,20 @@ int parse_cmd(int argc, char *argv[])
     }
     else if(strcmp(argv[i], "-enableGDR") == 0)
     {
-      pCtx->Cfg[cur_ch].bEnableGDR = true;
-      pCtx->Cfg[cur_ch].FreqIDR = atoi(argv[i+1]);
-      if (pCtx->Cfg[cur_ch].FreqIDR <= 0)
+      int nFreqIDR = atoi(argv[i+1]);
+      if (nFreqIDR < 0)
       {
         printf("gdr fresh period error\n");
         return -1;
       }
+      else if (nFreqIDR > 0)
+      {
+        pCtx->Cfg[cur_ch].bEnableGDR = true;
+        pCtx->Cfg[cur_ch].FreqIDR = nFreqIDR;
 
-      printf("enable gdr and fresh peroid %d\n", pCtx->Cfg[cur_ch].FreqIDR);
+
+        printf("enable gdr and fresh peroid %d\n", nFreqIDR);
+      }
     }
     else if (strcmp(argv[i], "-GDRMode") == 0)
     {

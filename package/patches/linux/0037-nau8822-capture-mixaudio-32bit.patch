@@ -1,0 +1,99 @@
+From 85d4e88f86fe879f770127ff54e30954be01f906 Mon Sep 17 00:00:00 2001
+From: gh-sxp <sunxiaopeng@canaan-creative.com>
+Date: Sun, 6 Nov 2022 14:47:21 +0800
+Subject: [PATCH] nau8822-capture-mixaudio-32bit
+
+---
+ sound/core/pcm_lib.c | 63 ++++++++++++++++++++++++++++++++------------
+ 1 file changed, 46 insertions(+), 17 deletions(-)
+
+diff --git a/sound/core/pcm_lib.c b/sound/core/pcm_lib.c
+index 5f69b44..4b1b360 100644
+--- a/sound/core/pcm_lib.c
++++ b/sound/core/pcm_lib.c
+@@ -1969,36 +1969,65 @@ static int default_read_copy(struct snd_pcm_substream *substream,
+ 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+ 	int i =0;
+ 	void* pDmaPtr = NULL;
+-	short mixData = 0;
+-	short*pData   = NULL;
+-	static const int AUDIO_DATA_MAX = 32767;   // 2^15（short）
+-	static const int AUDIO_DATA_MIN = -32768;
++	int*p32Data   = NULL;
++	int mix32Data = 0;
++	
++	short*p16Data   = NULL;
++	short mix16Data = 0;
++	static const int AUDIO_DATA16_MAX = 32767;   // 2^15（short）
++	static const int AUDIO_DATA16_MIN = -32768;
++	static const int AUDIO_DATA32_MAX = 2147483647;   // 2^31（int）
++	static const int AUDIO_DATA32_MIN = -2147483648;
+ 	
+ 	//mix left and right channel
+ 	//only process audio codec is nau8822 and pcm capture
+ 	if (SNDRV_PCM_STREAM_CAPTURE == substream->stream && 1 == rtd->num_codecs && (0 == strcmp(rtd->codec_dai->name,"nau8822-hifi")))
+ 	{
+-	  // only process stereo channel and 16 bit
+-		if (2 == substream->runtime->channels &&  
+-			(substream->runtime->format >= SNDRV_PCM_FORMAT_S16_LE && substream->runtime->format <= SNDRV_PCM_FORMAT_U16_BE ))
++	  // only process stereo channel and 16/32 bit
++		if (2 == substream->runtime->channels)
+ 		{
++			
+ 			pDmaPtr = get_dma_ptr(substream->runtime, channel, hwoff);
+-			pData = (short*)pDmaPtr;
+-			for (i =0;i< bytes/4;i++)
++			if (substream->runtime->format >= SNDRV_PCM_FORMAT_S16_LE && substream->runtime->format <= SNDRV_PCM_FORMAT_U16_BE)
+ 			{
+-				mixData = *pData + *(pData+1);
+-				if (mixData > AUDIO_DATA_MAX)
++				p16Data = (short*)pDmaPtr;
++				for (i =0;i< bytes/4;i++)
+ 				{
+-					mixData = AUDIO_DATA_MAX;
++					mix16Data = *p16Data + *(p16Data+1);
++					if (mix16Data > AUDIO_DATA16_MAX)
++					{
++						mix16Data = AUDIO_DATA16_MAX;
++					}
++					else if (mix16Data < AUDIO_DATA16_MIN)
++					{
++						mix16Data = AUDIO_DATA16_MIN;
++					}
++					*p16Data = mix16Data;
++					*(p16Data+1) = mix16Data;
++					p16Data += 2;
+ 				}
+-				else if (mixData < AUDIO_DATA_MIN)
++			}
++			else if (substream->runtime->format >= SNDRV_PCM_FORMAT_S32_LE && substream->runtime->format <= SNDRV_PCM_FORMAT_U32_BE)
++			{
++				p32Data = (int*)pDmaPtr;
++				for (i =0;i< bytes/8;i++)
+ 				{
+-					mixData = AUDIO_DATA_MIN;
++					mix32Data = *p32Data + *(p32Data+1);
++					if (mix32Data > AUDIO_DATA32_MAX)
++					{
++						mix32Data = AUDIO_DATA32_MAX;
++					}
++					else if (mix32Data < AUDIO_DATA32_MIN)
++					{
++						mix32Data = AUDIO_DATA32_MIN;
++					}
++					*p32Data = mix32Data;
++					*(p32Data+1) = mix32Data;
++					p32Data += 2;
+ 				}
+-				*pData = mixData;
+-				*(pData+1) = mixData;
+-				pData += 2;
+ 			}
++			
++			
+ 			if (copy_to_user((void __user *)buf,
+ 			 pDmaPtr,
+ 			 bytes))
+-- 
+2.36.1
+
