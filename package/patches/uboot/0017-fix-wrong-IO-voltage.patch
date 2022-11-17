@@ -1,20 +1,23 @@
-From b70274a2da46a6ad94e7c29f5673934d0ce11dc0 Mon Sep 17 00:00:00 2001
+From df69c94f6c2165fc9247943bca739cf8ef830a19 Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?=E9=BB=84=E5=AD=90=E6=87=BF?=
  <huangziyi@canaan-creative.com>
-Date: Thu, 17 Nov 2022 11:17:37 +0800
-Subject: [PATCH] fix wrong IO voltagec
+Date: Thu, 17 Nov 2022 14:22:42 +0800
+Subject: [PATCH] fix wrong IO voltage
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit
 
 Signed-off-by: 黄子懿 <huangziyi@canaan-creative.com>
 ---
- arch/riscv/dts/k510_crb_lp3_v1_2.dts | 19 +++++++++++++------
- include/dt-bindings/pinctrl/k510.h   |  6 +++++-
- 2 files changed, 18 insertions(+), 7 deletions(-)
+ arch/riscv/dts/k510_crb_lp3_v1_2.dts | 47 ++++++++++++++++------------
+ include/dt-bindings/pinctrl/k510.h   |  6 +++-
+ 2 files changed, 32 insertions(+), 21 deletions(-)
+ mode change 100755 => 100644 arch/riscv/dts/k510_crb_lp3_v1_2.dts
 
 diff --git a/arch/riscv/dts/k510_crb_lp3_v1_2.dts b/arch/riscv/dts/k510_crb_lp3_v1_2.dts
-index 7a4404fc..76bb9f84 100755
+old mode 100755
+new mode 100644
+index 7a4404fc..6fcb6589
 --- a/arch/riscv/dts/k510_crb_lp3_v1_2.dts
 +++ b/arch/riscv/dts/k510_crb_lp3_v1_2.dts
 @@ -251,9 +251,9 @@
@@ -29,7 +32,38 @@ index 7a4404fc..76bb9f84 100755
              pinctrl-single,pins = <
                (112*4) (0x54<<16 | 0x3<<10 | 0x1<<7 | 0x1<<5 | 0x1<<3)    /* uart0_rxd */
                (113*4) (0x5a<<16 | 0x3<<10 | 0x1<<6 | 0x1<<5 | 0x1<<3 | 0x1)    /* uart0_txd */
-@@ -295,19 +295,20 @@
+@@ -278,36 +278,37 @@
+          //RGMII
+         emac_pins: iomux_emac_pins {
+             pinctrl-single,pins = <
+-              (IO_EMAC_MDC*4) (MUXPIN_OE_EN | MUXPIN_IO_MSC | MUXPIN_DRIVING_7<<MUXPIN_DRIVING_OFF)
+-              (IO_EMAC_MDIO*4) (MUXPIN_IE_EN |MUXPIN_OE_EN | MUXPIN_IO_MSC | MUXPIN_DRIVING_7<<MUXPIN_DRIVING_OFF)
+-              (IO_EMAC_TX_CLK_OUT*4) (MUXPIN_OE_EN | MUXPIN_IO_MSC | MUXPIN_DRIVING_7<<MUXPIN_DRIVING_OFF)
+-              (IO_EMAC_TX_CTL*4) (MUXPIN_OE_EN | MUXPIN_IO_MSC | MUXPIN_DRIVING_7<<MUXPIN_DRIVING_OFF)
+-              (IO_EMAC_TX_D0*4) (MUXPIN_OE_EN | MUXPIN_IO_MSC | MUXPIN_DRIVING_7<<MUXPIN_DRIVING_OFF)
+-              (IO_EMAC_TX_D1*4) (MUXPIN_OE_EN | MUXPIN_IO_MSC | MUXPIN_DRIVING_7<<MUXPIN_DRIVING_OFF)
+-              (IO_EMAC_TX_D2*4) (MUXPIN_OE_EN | MUXPIN_IO_MSC | MUXPIN_DRIVING_7<<MUXPIN_DRIVING_OFF)
+-              (IO_EMAC_TX_D3*4) (MUXPIN_OE_EN | MUXPIN_IO_MSC | MUXPIN_DRIVING_7<<MUXPIN_DRIVING_OFF)
+-              (IO_EMAC_RX_CLK_IN*4) (MUXPIN_IE_EN | MUXPIN_IO_MSC | MUXPIN_DRIVING_7<<MUXPIN_DRIVING_OFF)
+-              (IO_EMAC_RX_CTL*4) (MUXPIN_IE_EN | MUXPIN_IO_MSC | MUXPIN_DRIVING_7<<MUXPIN_DRIVING_OFF)
+-              (IO_EMAC_RX_D0*4) (MUXPIN_IE_EN | MUXPIN_IO_MSC |MUXOIN_PU | MUXPIN_DRIVING_7<<MUXPIN_DRIVING_OFF)
+-              (IO_EMAC_RX_D1*4) (MUXPIN_IE_EN | MUXPIN_IO_MSC |MUXOIN_PU | MUXPIN_DRIVING_7<<MUXPIN_DRIVING_OFF)
+-              (IO_EMAC_RX_D2*4) (MUXPIN_IE_EN | MUXPIN_IO_MSC | MUXPIN_DRIVING_7<<MUXPIN_DRIVING_OFF)
+-              (IO_EMAC_RX_D3*4) (MUXPIN_IE_EN | MUXPIN_IO_MSC | MUXPIN_DRIVING_7<<MUXPIN_DRIVING_OFF)
++              (IO_EMAC_MDC*4) (MUXPIN_OE_EN | MUXPIN_DRIVING_7<<MUXPIN_DRIVING_OFF)
++              (IO_EMAC_MDIO*4) (MUXPIN_IE_EN |MUXPIN_OE_EN | MUXPIN_DRIVING_7<<MUXPIN_DRIVING_OFF)
++              (IO_EMAC_TX_CLK_OUT*4) (MUXPIN_OE_EN | MUXPIN_DRIVING_7<<MUXPIN_DRIVING_OFF)
++              (IO_EMAC_TX_CTL*4) (MUXPIN_OE_EN | MUXPIN_DRIVING_7<<MUXPIN_DRIVING_OFF)
++              (IO_EMAC_TX_D0*4) (MUXPIN_OE_EN | MUXPIN_DRIVING_7<<MUXPIN_DRIVING_OFF)
++              (IO_EMAC_TX_D1*4) (MUXPIN_OE_EN | MUXPIN_DRIVING_7<<MUXPIN_DRIVING_OFF)
++              (IO_EMAC_TX_D2*4) (MUXPIN_OE_EN | MUXPIN_DRIVING_7<<MUXPIN_DRIVING_OFF)
++              (IO_EMAC_TX_D3*4) (MUXPIN_OE_EN | MUXPIN_DRIVING_7<<MUXPIN_DRIVING_OFF)
++              (IO_EMAC_RX_CLK_IN*4) (MUXPIN_IE_EN | MUXPIN_DRIVING_7<<MUXPIN_DRIVING_OFF)
++              (IO_EMAC_RX_CTL*4) (MUXPIN_IE_EN | MUXPIN_DRIVING_7<<MUXPIN_DRIVING_OFF)
++              (IO_EMAC_RX_D0*4) (MUXPIN_IE_EN |MUXOIN_PU | MUXPIN_DRIVING_7<<MUXPIN_DRIVING_OFF)
++              (IO_EMAC_RX_D1*4) (MUXPIN_IE_EN |MUXOIN_PU | MUXPIN_DRIVING_7<<MUXPIN_DRIVING_OFF)
++              (IO_EMAC_RX_D2*4) (MUXPIN_IE_EN | MUXPIN_DRIVING_7<<MUXPIN_DRIVING_OFF)
++              (IO_EMAC_RX_D3*4) (MUXPIN_IE_EN | MUXPIN_DRIVING_7<<MUXPIN_DRIVING_OFF)
              >;
          };
  
