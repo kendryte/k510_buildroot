@@ -1,0 +1,589 @@
+From 9b24e500bec429fe71a226ffed59262e17d66bd6 Mon Sep 17 00:00:00 2001
+From: "Chenggen.Wang" <wangchenggen@canaan-creative.com>
+Date: Wed, 28 Sep 2022 15:03:21 +0800
+Subject: [PATCH] display: reset the soc when the display init error.
+
+Signed-off-by: Chenggen.Wang <wangchenggen@canaan-creative.com>
+---
+ .../controler/video/mipi/dsi/cnds_dsi_test.c  |  11 ++
+ board/Canaan/dsi_logo/test/log/main.c         |  45 ++++---
+ board/Canaan/dsi_logo/test/log/vo/vo.h        | 115 +++++++++---------
+ board/Canaan/k510_crb_lp3/sysctl_clk.c        |  36 +++---
+ 4 files changed, 117 insertions(+), 90 deletions(-)
+ mode change 100644 => 100755 board/Canaan/dsi_logo/bsp/controler/video/mipi/dsi/cnds_dsi_test.c
+
+diff --git a/board/Canaan/dsi_logo/bsp/controler/video/mipi/dsi/cnds_dsi_test.c b/board/Canaan/dsi_logo/bsp/controler/video/mipi/dsi/cnds_dsi_test.c
+old mode 100644
+new mode 100755
+index b2510e4f..a1db253f
+--- a/board/Canaan/dsi_logo/bsp/controler/video/mipi/dsi/cnds_dsi_test.c
++++ b/board/Canaan/dsi_logo/bsp/controler/video/mipi/dsi/cnds_dsi_test.c
+@@ -2385,6 +2385,17 @@ int32_t get_lcd_id(void)
+ 	return lcd_id;
+ }
+ 
++int32_t read_display_status(void)
++{
++	int32_t status;
++	status = DsiRegRd(VID_MODE_STS_OFFSET);
++	if (status != 0x00000001) {
++		printf("######## display err, status:0x%08X ########\n", status);
++		return -1;
++	}
++	return 0;
++}
++
+ int32_t get_panel_id(void)
+ {
+ 	int32_t reg;
+diff --git a/board/Canaan/dsi_logo/test/log/main.c b/board/Canaan/dsi_logo/test/log/main.c
+index cff381ed..e96b5262 100755
+--- a/board/Canaan/dsi_logo/test/log/main.c
++++ b/board/Canaan/dsi_logo/test/log/main.c
+@@ -47,38 +47,38 @@ void SYSCTL_DRV_Init(void)
+     //a. enable clk
+     sysctl_clk_set_leaf_en(SYSCTL_CLK_CSI_0_PIXEL, TRUE);
+     sysctl_clk_set_leaf_en(SYSCTL_CLK_CSI_1_PIXEL, TRUE);
+-    
++
+     //b. set pix clk to 74.25M by default
+     sysctl_clk_set_leaf_div(SYSCTL_CLK_CSI_0_PIXEL,1, 8);
+     sysctl_clk_set_leaf_div(SYSCTL_CLK_CSI_1_PIXEL,1, 8);
+ 
+-    //2. init csi system clk    
++    //2. init csi system clk
+     //a. enable clk
+     sysctl_clk_set_leaf_en(SYSCTL_CLK_CSI_0_SYSTEM, TRUE);
+     sysctl_clk_set_leaf_en(SYSCTL_CLK_CSI_1_SYSTEM, TRUE);
+-    
++
+     //b. set system clk to 166M by default
+     sysctl_clk_set_leaf_div(SYSCTL_CLK_CSI_0_SYSTEM,1, 2);
+     sysctl_clk_set_leaf_div(SYSCTL_CLK_CSI_1_SYSTEM,1, 2);
+ 
+-    //3. init dsi pix clk    
++    //3. init dsi pix clk
+     //a. enable clk
+     sysctl_clk_set_leaf_en(SYSCTL_CLK_DISPLAY_PIXEL, TRUE);
+-    
++
+     //b. set pix clk to 74.25M by default
+-    sysctl_clk_set_leaf_div(SYSCTL_CLK_DISPLAY_PIXEL,1, 8);   /// p30 594 / 8   594 / 4 = 148.5 p60  
+-    
+-    //4. init dsi system clk    
++    sysctl_clk_set_leaf_div(SYSCTL_CLK_DISPLAY_PIXEL,1, 8);   /// p30 594 / 8   594 / 4 = 148.5 p60
++
++    //4. init dsi system clk
+     //a. enable clk
+     sysctl_clk_set_leaf_en(SYSCTL_CLK_DISP_SYS_AND_APB_CLK_DIV_DSI_SYSTEM, TRUE);
+-    
++
+     //b. set system clk to 166M by default, all display subsystem apb clk will be set to 166M together.
+     sysctl_clk_set_leaf_div(SYSCTL_CLK_DISP_SYS_AND_APB_CLK_DIV,1, 2);
+ 
+     //5. init tpg pix clk
+     //a. enable clk
+     sysctl_clk_set_leaf_en(SYSCTL_CLK_TPG_PIXEL, TRUE);
+-    
++
+     //b. set tpg pix clk to 594/5=118.8M by default
+     sysctl_clk_set_leaf_div(SYSCTL_CLK_TPG_PIXEL,1, 5);
+ 
+@@ -93,14 +93,14 @@ void SYSCTL_DRV_Init(void)
+     sysctl_clk_set_leaf_en(SYSCTL_CLK_NOC_CLK_1_TOF_APB, 1);
+     sysctl_clk_set_leaf_en(SYSCTL_CLK_NOC_CLK_1_MFBC_APB, 1);
+     sysctl_clk_set_leaf_en(SYSCTL_CLK_NOC_CLK_1_VI_APB, 1);
+-    
++
+ 
+     //enable video axi clk
+     sysctl_clk_set_leaf_en(SYSCTL_CLK_NOC_CLK_1_VI_AXI, 1);
+     sysctl_clk_set_leaf_en(SYSCTL_CLK_NOC_CLK_1_ISP_F2K_AXI, 1);
+     sysctl_clk_set_leaf_en(SYSCTL_CLK_NOC_CLK_1_ISP_R2K_AXI, 1);
+     sysctl_clk_set_leaf_en(SYSCTL_CLK_NOC_CLK_1_ISP_TOF_AXI, 1);
+-    sysctl_clk_set_leaf_en(SYSCTL_CLK_NOC_CLK_1_MFBC_AXI, 1); 
++    sysctl_clk_set_leaf_en(SYSCTL_CLK_NOC_CLK_1_MFBC_AXI, 1);
+ 
+     //7. enable display subsystem apb and axi clk
+     //enable display apb clk
+@@ -129,8 +129,8 @@ void fill_ddr(void)
+             *(volatile unsigned int *)(0x01000000 + cnt) = 0x33333333;
+             usleep(1);
+             *(volatile unsigned int *)(0x02000000 + cnt) = 0x33333333;
+-    
+-        }    
++
++        }
+ #endif
+ 
+ }
+@@ -146,12 +146,12 @@ int load_dsi_logo_to_ddr()
+ 	//fatload mmc 1:1 0x600000 bootm-bbl.img ;
+ 	char *pcmd = DSI_LOG_LOAD_CMD_EMMC;
+ 	sysctl_boot_mode_e boot_media = sysctl_boot_get_boot_mode();
+-	
+-		
++
++
+ 	if(  boot_media == SYSCTL_BOOT_SDCARD ){
+ 		pcmd = DSI_LOG_LOAD_CMD_SD;
+ 	}
+-		
++
+ 	run_command(pcmd, 0);
+ 
+ 	return 0;
+@@ -161,6 +161,7 @@ int main_logo(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
+ {
+ 	unsigned long time;
+ 	int panel_id;
++	int ret = 0;
+ 
+ 	*(uint32_t *)0x970E00FC = 0x0fffff00;// (0x2 << 8) | (0x2 << 12) | (0x2 << 16) | (0x2 << 20) | (0x2 << 24);
+ 	*(uint32_t *)0x970E0100 = 0x000000ff;// (0x3 << 4) | 0x3;
+@@ -174,7 +175,7 @@ int main_logo(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
+     display_gpio_init();
+ 
+     SYSCTL_DRV_Init();
+-    
++
+     mipi_rxdphy_init(RXDPHY_SPEED_MODE_1500M, RXDPHY_CHCFG_1X4);
+ 
+     mipi_txdphy_init();
+@@ -192,6 +193,12 @@ int main_logo(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
+ 
+ 	time = get_timer(time);
+ 	printf("dsi logo end use %lu msec\n", time);
++
++	ret = read_display_status();
++	if (ret < 0) {
++		printf("display init error reset!!!!!!!!\n");
++		sysctl_boot_reset_soc();
++	}
+     return 0;
+ }
+ 
+@@ -211,7 +218,7 @@ ulong board_get_usable_ram_top(ulong total_size)
+ 		return 0;
+ #endif
+ 	return gd->ram_top - 0x200000;
+-}                                                   
++}
+ 
+ #define WS2812_PIN 122
+ 
+diff --git a/board/Canaan/dsi_logo/test/log/vo/vo.h b/board/Canaan/dsi_logo/test/log/vo/vo.h
+index c0ace7aa..961203b6 100755
+--- a/board/Canaan/dsi_logo/test/log/vo/vo.h
++++ b/board/Canaan/dsi_logo/test/log/vo/vo.h
+@@ -81,7 +81,7 @@
+ #define OSD_LAYER2_H_SIZE        256
+ #define OSD_LAYER2_V_SIZE        200
+ #define OSD_LAYER2_RD_STRIDE     2048
+-       
++
+ #define LAYER0_Y_BASEAddr0       0x20000000 //  # y base: 0x800000
+ #define LAYER0_Y_BASEAddr1       0x20000000 //  # uv base: 0x900000
+ #define LAYER0_UV_BASEaddr0      0x20280000 //  # y base: 0x800000
+@@ -91,22 +91,22 @@
+ #define LAYER1_Y_BASEAddr1       0x20600000 // # uv base: 0x900000
+ #define LAYER1_UV_BASEaddr0      0x20880000 //  # y base: 0x800000
+ #define LAYER1_UV_BASEaddr1      0x20880000 // # uv base: 0x900000
+-          
++
+ #define LAYER2_Y_BASEAddr0       0x20A00000 //  # y base: 0x800000
+ #define LAYER2_Y_BASEAddr1       0x20A00000 // # uv base: 0x900000
+ #define LAYER2_UV_BASEaddr0      0x20C80000 //  # y base: 0x800000
+ #define LAYER2_UV_BASEaddr1      0x20C80000 // # uv base: 0x900000
+-     
++
+ #define LAYER3_Y_BASEAddr0       0x20A00000 //  # y base: 0x800000
+ #define LAYER3_Y_BASEAddr1       0x20A00000 // # uv base: 0x900000
+ #define LAYER3_UV_BASEaddr0      0x20C80000 //  # y base: 0x800000
+ #define LAYER3_UV_BASEaddr1      0x20C80000 // # uv base: 0x900000
+-     
++
+ #define OSD0_VLU_ADDR0           0x20E00000//  # y base: 0x800000  --argb mode --32bit
+ #define OSD0_VLU_ADDR1           0x20E00000// # uv base: 0x900000
+ #define OSD0_ALP_ADDR0           0x20E00000//  # y base: 0x800000
+ #define OSD0_ALP_ADDR1           0x20E00000// # uv base: 0x900000
+-                  
++
+ #define OSD1_VLU_ADDR0           0x20E00000 //  # y base: 0x800000
+ #define OSD1_VLU_ADDR1           0x20E00000 // # uv base: 0x900000
+ #define OSD1_ALP_ADDR0           0x20E00000 //  # y base: 0x800000
+@@ -152,24 +152,24 @@
+ #define OSD_LOAD_VLU_SRAM_ADDR0         0x000C0000
+ #define OSD_LOAD_VLU_SRAM_ADDR1         0x000C0000
+ 
+-#define DUMP_Y_MFBD_DATA_ADDR0             0x24000000 
+-#define DUMP_Y_MFBD_HEAD_ADDR0             0x25000000 
+-#define DUMP_Y_MFBD_DATA_STRIDE0             0x800 
+-#define DUMP_Y_MFBD_HEAD_STRIDE0             0x800 
+-
+-#define DUMP_Y_MFBD_DATA_ADDR1             0x26000000 
+-#define DUMP_Y_MFBD_HEAD_ADDR1             0x27000000 
+-#define DUMP_Y_MFBD_DATA_STRIDE1             0x800 
+-#define DUMP_Y_MFBD_HEAD_STRIDE1             0x800 
+-
+-#define DUMP_UV_MFBD_DATA_ADDR0             0x24280000 
+-#define DUMP_UV_MFBD_HEAD_ADDR0             0x25280000 
+-#define DUMP_UV_MFBD_DATA_STRIDE0             0x800 
+-#define DUMP_UV_MFBD_HEAD_STRIDE0             0x800 
+-#define DUMP_UV_MFBD_DATA_ADDR1             0x26280000 
+-#define DUMP_UV_MFBD_HEAD_ADDR1             0x27280000 
+-#define DUMP_UV_MFBD_DATA_STRIDE1             0x800 
+-#define DUMP_UV_MFBD_HEAD_STRIDE1             0x800 
++#define DUMP_Y_MFBD_DATA_ADDR0             0x24000000
++#define DUMP_Y_MFBD_HEAD_ADDR0             0x25000000
++#define DUMP_Y_MFBD_DATA_STRIDE0             0x800
++#define DUMP_Y_MFBD_HEAD_STRIDE0             0x800
++
++#define DUMP_Y_MFBD_DATA_ADDR1             0x26000000
++#define DUMP_Y_MFBD_HEAD_ADDR1             0x27000000
++#define DUMP_Y_MFBD_DATA_STRIDE1             0x800
++#define DUMP_Y_MFBD_HEAD_STRIDE1             0x800
++
++#define DUMP_UV_MFBD_DATA_ADDR0             0x24280000
++#define DUMP_UV_MFBD_HEAD_ADDR0             0x25280000
++#define DUMP_UV_MFBD_DATA_STRIDE0             0x800
++#define DUMP_UV_MFBD_HEAD_STRIDE0             0x800
++#define DUMP_UV_MFBD_DATA_ADDR1             0x26280000
++#define DUMP_UV_MFBD_HEAD_ADDR1             0x27280000
++#define DUMP_UV_MFBD_DATA_STRIDE1             0x800
++#define DUMP_UV_MFBD_HEAD_STRIDE1             0x800
+ //
+ typedef enum _VO_VIDEOLAYER_YUV_MODE_E
+ {
+@@ -190,11 +190,11 @@ typedef enum _VO_VIDEOLAYER_UV_ENDIAN_E
+     VO_VIDEO_LAYER_UV_ENDIAN_MODE0              = 0x0,//U2 V2 U3 V3 U0 V0 U1 V1
+     VO_VIDEO_LAYER_UV_ENDIAN_MODE1              = 0x1,//V2 U2 V3 U3 V0 U0 V1 U1
+     VO_VIDEO_LAYER_UV_ENDIAN_MODE2              = 0x2,//U3 V3 U2 V2 U1 V1 U0 V0
+-    VO_VIDEO_LAYER_UV_ENDIAN_MODE3              = 0x3,//V3 U3 V2 U2 V1 U1 V0 U0  
+-    VO_VIDEO_LAYER_UV_ENDIAN_MODE4              = 0x4,//U0 V0 U1 V1 U2 V2 U3 V3  
+-    VO_VIDEO_LAYER_UV_ENDIAN_MODE5              = 0x5,//V0 U0 V1 U1 V2 U2 V3 U3 
++    VO_VIDEO_LAYER_UV_ENDIAN_MODE3              = 0x3,//V3 U3 V2 U2 V1 U1 V0 U0
++    VO_VIDEO_LAYER_UV_ENDIAN_MODE4              = 0x4,//U0 V0 U1 V1 U2 V2 U3 V3
++    VO_VIDEO_LAYER_UV_ENDIAN_MODE5              = 0x5,//V0 U0 V1 U1 V2 U2 V3 U3
+     VO_VIDEO_LAYER_UV_ENDIAN_MODE6              = 0x6,//U1 V1 U0 V0 U3 V3 U2 V2
+-    VO_VIDEO_LAYER_UV_ENDIAN_MODE7              = 0x7//V1 U1 V0 U0 V3 U3 V2 U2 
++    VO_VIDEO_LAYER_UV_ENDIAN_MODE7              = 0x7//V1 U1 V0 U0 V3 U3 V2 U2
+ } VO_VIDEOLAYER_UV_ENDIAN_E;
+ 
+ typedef enum _VO_SYSTEM_MODE_E
+@@ -219,7 +219,7 @@ typedef enum _VO_SYSTEM_MODE_E
+     VO_SYSTEM_MODE_1080x1920x30P,
+     //! System mode is 800x1280 at 30 Hz.
+     VO_SYSTEM_MODE_800x1280x30P,
+-    
++
+ }VO_SYSTEM_MODE_E;
+ 
+ typedef enum _VO_MIXER_ORDER_E
+@@ -254,12 +254,12 @@ typedef struct _VO_DISP_INFO_S
+     unsigned int dispHsync2Ctl_start;
+     unsigned int dispHsync2Ctl_stop;
+     unsigned int dispVsync2Ctl_start;
+-    unsigned int dispVsync2Ctl_stop; 
++    unsigned int dispVsync2Ctl_stop;
+     unsigned int vcntbit0    ;
+     unsigned int secndfoffset;
+     unsigned int framesyncdly;
+     unsigned int hsize;
+-    unsigned int vsize;    
++    unsigned int vsize;
+ }VO_DISP_INFO_S;
+ //LAYER0
+ typedef struct _VO_LAYER0_DAT_MODE_INFO_S
+@@ -320,17 +320,17 @@ typedef struct _VO_LAYER0_MFBD_INFO_S
+ {
+ 	unsigned int mfbd_en;
+ 	unsigned int y_addr0;
+-	unsigned int y_stride0;		
++	unsigned int y_stride0;
+ 	unsigned int y_addr1;
+ 	unsigned int y_stride1;
+ 	unsigned int y_head_addr0;
+-	unsigned int y_head_stride0;		
++	unsigned int y_head_stride0;
+ 	unsigned int y_head_addr1;
+ 	unsigned int y_head_stride1;
+ 	unsigned int uv_addr0;
+     unsigned int uv_stride0;
+ 	unsigned int uv_addr1;
+-	unsigned int uv_stride1; 
++	unsigned int uv_stride1;
+ 	unsigned int uv_head_addr0;
+     unsigned int uv_head_stride0;
+ 	unsigned int uv_head_addr1;
+@@ -340,7 +340,7 @@ typedef struct _VO_LAYER0_MFBD_INFO_S
+ typedef struct _VO_LAYER0_INFO_S
+ {
+     unsigned int  layer0DispEn;
+-    unsigned int  layer0En; 
++    unsigned int  layer0En;
+     unsigned int  scalerBlen;
+     //
+     VO_LAYER0_DAT_MODE_INFO_S datModeInfo;
+@@ -364,9 +364,9 @@ typedef struct _VO_LAYER_INFO_S
+     unsigned int enable   ;
+     unsigned int yuv422en ;
+     unsigned int yuv420en ;
+-    unsigned int endiany  ;        
+-    unsigned int endianuv ;        
+-    unsigned int uvswap   ; 
++    unsigned int endiany  ;
++    unsigned int endianuv ;
++    unsigned int uvswap   ;
+ } VO_LAYER_INFO_S;
+ //
+ typedef struct _VO_LAYER_SIZE_INFO_S
+@@ -379,7 +379,7 @@ typedef struct _VO_LAYER_SIZE_INFO_S
+ //
+ typedef struct _VO_IMG_IN_BLENTH_INFO_S
+ {
+-    unsigned int blen   ;        
++    unsigned int blen   ;
+     unsigned int voffset;
+ } VO_IMG_IN_BLENTH_INFO_S;
+ //
+@@ -393,11 +393,11 @@ typedef struct _VO_LAYER1_INFO_S
+     //
+     VO_YUV_BUF_INFO_S       bufInfo;
+     //
+-    VO_LAYER_SIZE_INFO_S    layer1SizeInfo; 
++    VO_LAYER_SIZE_INFO_S    layer1SizeInfo;
+     //
+-    VO_IMG_IN_BLENTH_INFO_S imgInBlenthInfo; 
++    VO_IMG_IN_BLENTH_INFO_S imgInBlenthInfo;
+     //
+-    VO_BASE_MODE_INFO_S     baseModeInfo;      
++    VO_BASE_MODE_INFO_S     baseModeInfo;
+ }VO_LAYER1_INFO_S;
+ //LAYER2
+ typedef struct _VO_LAYER2_INFO_S
+@@ -410,11 +410,11 @@ typedef struct _VO_LAYER2_INFO_S
+     //
+     VO_YUV_BUF_INFO_S       bufInfo;
+     //
+-    VO_LAYER_SIZE_INFO_S    layer2SizeInfo; 
++    VO_LAYER_SIZE_INFO_S    layer2SizeInfo;
+     //
+-    VO_IMG_IN_BLENTH_INFO_S imgInBlenthInfo; 
++    VO_IMG_IN_BLENTH_INFO_S imgInBlenthInfo;
+     //
+-    VO_BASE_MODE_INFO_S     baseModeInfo; 
++    VO_BASE_MODE_INFO_S     baseModeInfo;
+ }VO_LAYER2_INFO_S;
+ //LAYER3
+ typedef struct _VO_LAYER3_INFO_S
+@@ -427,24 +427,24 @@ typedef struct _VO_LAYER3_INFO_S
+     //
+     VO_YUV_BUF_INFO_S       bufInfo;
+     //
+-    VO_LAYER_SIZE_INFO_S    layer3SizeInfo; 
++    VO_LAYER_SIZE_INFO_S    layer3SizeInfo;
+     //
+-    VO_IMG_IN_BLENTH_INFO_S imgInBlenthInfo; 
++    VO_IMG_IN_BLENTH_INFO_S imgInBlenthInfo;
+     //
+-    VO_BASE_MODE_INFO_S     baseModeInfo; 
++    VO_BASE_MODE_INFO_S     baseModeInfo;
+ }VO_LAYER3_INFO_S;
+ //osd0
+ typedef struct _VO_OSD_SIZE_INFO_S
+ {
+     unsigned int width;
+-    unsigned int height; 
++    unsigned int height;
+ } VO_OSD_SIZE_INFO_S;
+ //
+ typedef struct _VO_OSD_BUF_INFO_S
+ {
+     unsigned int    alp_addr0;
+     unsigned int    alp_addr1;
+-    unsigned int    alpstride;        
++    unsigned int    alpstride;
+     unsigned int    vlu_addr0;
+     unsigned int    vlu_addr1;
+     unsigned int    osdstride;
+@@ -454,7 +454,7 @@ typedef struct _VO_OSD_DMA_INFO_S
+ {
+     unsigned int dmarequestlen;
+     unsigned int dmamap       ;
+-    unsigned int rgbrev       ;     
++    unsigned int rgbrev       ;
+ } VO_OSD_DMA_INFO_S;
+ //
+ typedef struct _VO_OSD0_INFO_S
+@@ -467,7 +467,7 @@ typedef struct _VO_OSD0_INFO_S
+     VO_OSD_SIZE_INFO_S     osd0SizeInfo;
+     VO_OSD_BUF_INFO_S      osd0BufInfo;
+     VO_BASE_MODE_INFO_S    osd0BaseModeInfo;
+-    VO_OSD_DMA_INFO_S      osd0DmaInfo; 
++    VO_OSD_DMA_INFO_S      osd0DmaInfo;
+ }VO_OSD0_INFO_S;
+ //osd1
+ typedef struct _VO_OSD1_INFO_S
+@@ -588,7 +588,7 @@ typedef struct _VO_WB_INFO_CLR_INFO_S
+ } VO_WB_INFO_CLR_INFO_S;
+ //
+ typedef struct _VO_WB_CH_INFO_S
+-{ 
++{
+ 	unsigned int err_unit;
+ 	unsigned int err_threshold;
+ 	unsigned int request;
+@@ -620,7 +620,7 @@ typedef struct _VO_CORE_INFO_S
+     VO_OSD1_INFO_S   	osd1Info;
+     VO_OSD2_INFO_S   	osd2Info;
+     VO_OSD_RGB2YUV_INFO_S osdRgb2YuvInfo;
+-    VO_YUV2RGB_INFO_S   yuv2rgbInfo;  
++    VO_YUV2RGB_INFO_S   yuv2rgbInfo;
+     VO_DISP_MIX_INFO_S  dispMixCtlInfo;
+     unsigned int        ditherctlen;
+     unsigned int        clutctlen;
+@@ -640,13 +640,13 @@ typedef struct _VO_REMAP_CTRL_INFO_S
+     unsigned int line_start_pos_x ;
+     unsigned int line_end_pos_x	  ;
+     unsigned int line_start_pos_y ;
+-    unsigned int line_end_pos_y	  ;		
++    unsigned int line_end_pos_y	  ;
+     unsigned int line_width_l;
+-    unsigned int line_width_h;		
++    unsigned int line_width_h;
+     unsigned int fill_value_cr;
+     unsigned int fill_value_cb;
+     unsigned int fill_value_y ;
+-    unsigned int fill_alpha ; 
++    unsigned int fill_alpha ;
+ } VO_REMAP_CTRL_INFO_S;
+ 
+ typedef struct _VO_REMAP_CMD_INFO_S
+@@ -660,7 +660,7 @@ typedef struct _VO_REMAP_CMD_INFO_S
+ typedef struct _VO_REMAP_INFO_S
+ {
+     VO_REMAP_CMD_INFO_S  CmdInfo;
+-    VO_REMAP_CTRL_INFO_S CtlInfo[VO_LINE_DRAW_AREA_MAX]; 
++    VO_REMAP_CTRL_INFO_S CtlInfo[VO_LINE_DRAW_AREA_MAX];
+ }VO_REMAP_INFO_S;
+ 
+ typedef struct _VO_INFO_S
+@@ -739,5 +739,6 @@ int VO_TEST_SetRemap(unsigned int draw_num,VO_REMAP_INFO_S *voRemapInfo);
+ //
+ int VO_TEST_VideoOut(VO_TEST_CASE_E voTestCase);
+ int32_t get_panel_id(void);
++int32_t read_display_status(void);
+ 
+ #endif /*_VO_DEF_H_*/
+diff --git a/board/Canaan/k510_crb_lp3/sysctl_clk.c b/board/Canaan/k510_crb_lp3/sysctl_clk.c
+index 4384e359..da974559 100755
+--- a/board/Canaan/k510_crb_lp3/sysctl_clk.c
++++ b/board/Canaan/k510_crb_lp3/sysctl_clk.c
+@@ -121,7 +121,7 @@ void sysctl_boot_set_root_clk_bypass(sysctl_clk_node_e clk, bool enable)
+     }
+ }
+ 
+-/* 
++/*
+    Enable pll, enable 25M clock&pll, only when both 25m clock and PLL are enabled, can PLL output clock
+ */
+ bool sysctl_boot_get_root_clk_en(sysctl_clk_node_e clk)
+@@ -157,7 +157,7 @@ bool sysctl_boot_get_root_clk_en(sysctl_clk_node_e clk)
+     }
+ }
+ 
+-/* 
++/*
+    Enable pll, enable 25M clock&pll, only when both 25m clock and PLL are enabled, can PLL output clock
+ */
+ void sysctl_boot_set_root_clk_en(sysctl_clk_node_e clk, bool enable)
+@@ -1316,14 +1316,14 @@ sysctl_clk_node_e sysctl_clk_get_leaf_parent(sysctl_clk_node_e leaf)
+         {
+             if(0 == (sysctl_clk->gnne_sysclk_cfg & 0x1))
+                 return SYSCTL_CLK_ROOT_PLL0_DIV_2;
+-            else 
++            else
+                 return SYSCTL_CLK_ROOT_PLL1_DIV_2;
+         }
+         case SYSCTL_CLK_GNNE_AXI:
+         {
+             if(0 == (sysctl_clk->ai_gnne_aclk_cfg & 0x1))
+                 return SYSCTL_CLK_ROOT_PLL0_DIV_2;
+-            else 
++            else
+                 return SYSCTL_CLK_ROOT_PLL1_DIV_2;
+         }
+         case SYSCTL_CLK_GNNE_AXI_NOC:
+@@ -2245,7 +2245,7 @@ bool sysctl_clk_get_leaf_en(sysctl_clk_node_e leaf)
+         case SYSCTL_CLK_AX25M_CORE_1:
+             return (0 == ((sysctl_clk->ax25m_clk_cfg >> 9) & 0x1)) ? false: true;
+         case SYSCTL_CLK_AX25M_CORE_0_DC:
+-            return (0 == ((sysctl_clk->ax25m_clk_cfg >> 10) & 0x1)) ? false: true; 
++            return (0 == ((sysctl_clk->ax25m_clk_cfg >> 10) & 0x1)) ? false: true;
+         case SYSCTL_CLK_AX25M_CORE_1_DC:
+             return (0 == ((sysctl_clk->ax25m_clk_cfg >> 11) & 0x1)) ? false: true;
+         case SYSCTL_CLK_AX25M_MTIMER:
+@@ -2445,7 +2445,7 @@ bool sysctl_clk_get_leaf_en(sysctl_clk_node_e leaf)
+         /*---------------------------csi1_system_clk----------------------------*/
+         case SYSCTL_CLK_CSI_1_SYSTEM:
+             return (0 == ((sysctl_clk->csi1_sys_clk_cfg >> 8) & 1)) ? false:true;
+-        
++
+         /*---------------------------csi0_pixel_clk------------------------------*/
+         case SYSCTL_CLK_CSI_0_PIXEL:
+             return (0 == ((sysctl_clk->csi0_pixel_clk_cfg >> 8) & 1)) ? false:true;
+@@ -3369,7 +3369,7 @@ double sysctl_clk_get_leaf_div(sysctl_clk_node_e leaf)
+         /*---------------------------NOC1------------------------------------*/
+         case SYSCTL_CLK_NOC_CLK_1:
+             return (double)(6.0 - ((sysctl_clk->noc_clk_cfg >> 8) & 0x7)) / 6.0;
+-        
++
+         case SYSCTL_CLK_NOC_CLK_1_AXI_MCTL:
+         case SYSCTL_CLK_NOC_CLK_1_H264_AXI:
+         case SYSCTL_CLK_NOC_CLK_1_VO_AXI:
+@@ -3719,14 +3719,14 @@ uint32_t sysctl_clk_get_leaf_freq(sysctl_clk_node_e leaf)
+ }
+ 
+ /* Find the approximate div and mul */
+-int sysctl_clk_find_approximate(uint32_t mul_min, 
+-                                     uint32_t mul_max, 
+-                                     uint32_t div_min, 
+-                                     uint32_t div_max, 
++int sysctl_clk_find_approximate(uint32_t mul_min,
++                                     uint32_t mul_max,
++                                     uint32_t div_min,
++                                     uint32_t div_max,
+                                      sysctl_clk_mul_div_methord_e method,
+-                                     unsigned long rate, 
++                                     unsigned long rate,
+                                      unsigned long parent_rate,
+-                                     uint32_t *div, 
++                                     uint32_t *div,
+                                      uint32_t *mul)
+ {
+     long abs_min;
+@@ -3755,7 +3755,7 @@ int sysctl_clk_find_approximate(uint32_t mul_min,
+ 
+             *div = div_min;
+             break;
+-        } 
++        }
+         /* only div can be changeable, 1/1,1/2,1/3...*/
+         case SYSCTL_CLK_DIV_CHANGEABLE: {
+             perfect_divide = (long)((parent_rate*1000) / rate);
+@@ -3849,3 +3849,11 @@ sysctl_boot_mode_e sysctl_boot_get_boot_mode(void)
+             return SYSCTL_BOOT_DOWNLOAD;
+     }
+ }
++
++void sysctl_boot_reset_soc(void)
++{
++    sysctl_boot->soc_glb_rst = ((1 << 0) | (1 << 16));
++    while(1)
++    {
++    }
++}
+-- 
+2.25.1
+

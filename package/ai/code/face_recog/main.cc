@@ -22,6 +22,7 @@
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+#include <exception>
 #include <nncase/runtime/host_runtime_tensor.h>
 #include <nncase/runtime/interpreter.h>
 #include <nncase/runtime/runtime_tensor.h>
@@ -97,6 +98,9 @@ void fun_sig(int sig)
     {
         quit.store(false);
     }
+}
+void fun_sig_abrt(int sig) {
+    exit(0);
 }
 int kbhit(void)
 {
@@ -561,7 +565,7 @@ display_cleanup:
     mtx.lock();
     video_stop(vdev);
 	video_cleanup(vdev);
-    system("killall -9 face_recog");
+    // system("killall -9 face_recog");
     mtx.unlock();
 }
 
@@ -718,11 +722,15 @@ int main(int argc, char *argv[])
     ai_args.dump_img_dir = argv[15];
 
     /****fixed operation for ctrl+c****/
-    struct sigaction sa;
+    struct sigaction sa, sa_abrt;
     memset( &sa, 0, sizeof(sa) );
+    memset(&sa_abrt, 0, sizeof(sa_abrt));
     sa.sa_handler = fun_sig;
     sigfillset(&sa.sa_mask);
     sigaction(SIGINT, &sa, NULL);
+    sa_abrt.sa_handler = fun_sig_abrt;
+    sigfillset(&sa_abrt.sa_mask);
+    sigaction(SIGABRT, &sa_abrt, NULL);
 
     // get screen resolution
     if (drm_get_resolution(NULL, &screen_width, &screen_height) < 0) {
@@ -757,8 +765,9 @@ int main(int argc, char *argv[])
 
     thread_ds0.join();
     thread_ds2.join();
-    thread_key.join();
-
+    memset(drm_dev.drm_bufs_argb[0].map, 0xff, screen_width * screen_height * 4);
+    usleep(100000);
+    drm_dmabuf_set_plane(&drm_dev.drm_bufs[0], &drm_dev.drm_bufs_argb[0]);
     /****fixed operation for drm deinit****/
     for(uint32_t i = 0; i < DRM_BUFFERS_COUNT; i++) 
     {
@@ -768,6 +777,6 @@ int main(int argc, char *argv[])
     {
         drm_destory_dumb(&drm_dev.drm_bufs_argb[i]);
     }
-	mediactl_exit();     
+	mediactl_exit();
     return 0;
 }

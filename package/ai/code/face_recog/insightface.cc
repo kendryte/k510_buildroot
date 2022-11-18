@@ -61,6 +61,7 @@ void insightface::prepare_memory()
     if(virtual_addr_output == MAP_FAILED) 
     {
         std::cerr << "map allocAlignMemFeOutput error" << std::endl;
+        // FIXME: memory leak, free share memory
         std::abort();
     }
 

@@ -67,7 +67,7 @@
 #define REGISTER_END_ADDR (0x0324 + 0x0400 + 0x92670000)
 #define DEFAULT_PORT 9982
 
-unsigned pic_yuv_width = 0, pic_yuv_height = 0;
+unsigned pic_yuv_width = 0, pic_yuv_height = 0, active_yuv_width = 0;
 unsigned pic_yuv_size = 0;
 
 int page_size = 4096;
@@ -441,10 +441,10 @@ void exec_cmd(void) {
       uint8_t *pic_nv12_buffer = pic_write_buffer[pic_write_buffer_select ^ 1]->buffer;
       memcpy(mem_yuv_logic_addr, pic_nv12_buffer, pic_yuv_size);
       EncInputFrame frame = {
-        .width = pic_yuv_width,
+        .width = active_yuv_width,
         .height = pic_yuv_height,
-        .stride = (pic_yuv_width + 0x1F) & (~0x1F),
-        .data = (unsigned char *)mem_yuv_phy_addr
+        .stride = pic_yuv_width,
+        .data = (unsigned char *)(uint64_t)mem_yuv_phy_addr
       };
       // FIXME: async
       printf("encode jpeg start...\n");
@@ -461,10 +461,10 @@ void exec_cmd(void) {
       uint8_t *pic_nv12_buffer = pic_write_buffer[pic_write_buffer_select ^ 1]->buffer;
       memcpy(mem_yuv_logic_addr, pic_nv12_buffer, pic_yuv_size);
       EncInputFrame frame = {
-        .width = pic_yuv_width,
+        .width = active_yuv_width,
         .height = pic_yuv_height,
-        .stride = (pic_yuv_width + 0x1F) & (~0x1F),
-        .data = (unsigned char *)mem_yuv_phy_addr
+        .stride = pic_yuv_width,
+        .data = (unsigned char *)(uint64_t)mem_yuv_phy_addr
       };
       // FIXME: async
       printf("encode h264 start...\n");
@@ -575,7 +575,7 @@ void on_new_connection(uv_stream_t *server, int status) {
         .command = 0x91,
         .size = 4
       };
-      uint16_t report_data[2] = {pic_yuv_width, pic_yuv_height};
+      uint16_t report_data[2] = {active_yuv_width, pic_yuv_height};
       uv_buf_t buf[2] = {
         uv_buf_init((char*)&report_command, sizeof(struct command_buffer)),
         uv_buf_init((char*)report_data, 4)
@@ -675,7 +675,7 @@ int main(int argc, char *argv[]) {
         break;
       }
       case 'w': {
-        pic_yuv_width = atol(optarg);
+        active_yuv_width = atol(optarg);
         break;
       }
       case 'h': {
@@ -694,20 +694,24 @@ int main(int argc, char *argv[]) {
       }
     }
   }
-  // FIXME: alignment
+  pic_yuv_width = (active_yuv_width + 15) / 16 * 16;
   pic_yuv_size = pic_yuv_width * pic_yuv_height * 3 / 2;
   if (pic_yuv_size > 0) {
     pic_write_buffer[0] = malloc(sizeof(struct command_buffer) + pic_yuv_size);
     pic_write_buffer[1] = malloc(sizeof(struct command_buffer) + pic_yuv_size);
+    pic_write_buffer[0]->head = 0x99;
+    pic_write_buffer[0]->command = 0x9A;
+    pic_write_buffer[0]->size = pic_yuv_size;
+    pic_write_buffer[1]->head = 0x99;
+    pic_write_buffer[1]->command = 0x9A;
+    pic_write_buffer[1]->size = pic_yuv_size;
   }
-  pic_write_buffer[0]->head = 0x99;
-  pic_write_buffer[0]->command = 0x9A;
-  pic_write_buffer[0]->size = pic_yuv_size;
-  pic_write_buffer[1]->head = 0x99;
-  pic_write_buffer[1]->command = 0x9A;
-  pic_write_buffer[1]->size = pic_yuv_size;
 
-  fprintf(stderr, "width: %u, height: %u, frame size: %u\n", pic_yuv_width, pic_yuv_height, pic_yuv_size);
+  fprintf(
+    stderr,
+    "active_width: %u, width: %u, height: %u, frame size: %u\n",
+    active_yuv_width, pic_yuv_width, pic_yuv_height, pic_yuv_size
+  );
   // uv
   loop = uv_default_loop();
   signal(SIGINT, before_exit);
@@ -744,7 +748,7 @@ int main(int argc, char *argv[]) {
     // open encoder
     EncSettings encoder_settings = {
         .channel = 0,
-        .width = pic_yuv_width,
+        .width = active_yuv_width,
         .height = pic_yuv_height,
         .FrameRate = 30,
         .BitRate = 4000000,
@@ -766,7 +770,7 @@ int main(int argc, char *argv[]) {
     henc = VideoEncoder_Create(&encoder_settings);
     EncSettings encoder_settings_h264 = {
         .channel = 1,
-        .width = pic_yuv_width,
+        .width = active_yuv_width,
         .height = pic_yuv_height,
         .FrameRate = 30,
         .BitRate = 4000000,
@@ -802,16 +806,17 @@ int main(int argc, char *argv[]) {
   assert(setsockopt(server.io_watcher.fd, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) == 0);
   assert(uv_listen((uv_stream_t*)&server, 128, on_new_connection) == 0);
 
-  uv_tty_t input;
-  uv_handle_type t = uv_guess_handle(STDIN_FILENO);
-  if (t == UV_TTY) {
-    
-  } else if (t == UV_FILE) {
-    // TODO: read from file
-    printf("stdin is not stdin\n");
+  if (pic_yuv_size > 0) {
+    uv_tty_t input;
+    uv_handle_type t = uv_guess_handle(STDIN_FILENO);
+    if (t == UV_TTY) {
+    } else if (t == UV_FILE) {
+      // TODO: read from file
+      printf("stdin is not stdin\n");
+    }
+    uv_tty_init(loop, &input, STDIN_FILENO, 1);
+    uv_read_start((uv_stream_t*)&input, alloc_buffer, stdin_read);
   }
-  uv_tty_init(loop, &input, STDIN_FILENO, 1);
-  uv_read_start((uv_stream_t*)&input, alloc_buffer, stdin_read);
 #if DEBUG_STDIN
   uv_idle_t idle_task;
   uv_idle_init(loop, &idle_task);

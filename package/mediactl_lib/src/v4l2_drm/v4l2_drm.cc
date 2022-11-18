@@ -24,6 +24,7 @@
  */
 
 /* v4l2_test */
+#include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -33,6 +34,7 @@
 #include <getopt.h>             /* getopt_long() */
 
 #include <fcntl.h>              /* low-level i/o */
+#include <strings.h>
 #include <sys/select.h>
 #include <time.h>
 #include <unistd.h>
@@ -70,6 +72,7 @@ static int verbose = 0;
 
 static int isp_ae_status = 0;
 //static int r_2k_status = 0;
+
 static uint32_t screen_width, screen_height;
 #define VIDEO_INPUT_0_ENABLE 1
 #define VIDEO_INPUT_1_ENABLE 2
@@ -155,9 +158,9 @@ int readframe(int fd, struct v4l2_buffer* vbuf) {
 }
 
 /**
- * @brief 
- * 
- * @param camera 
+ * @brief
+ *
+ * @param camera
  */
 static int stop_capturing(struct camera_info *camera)
 {
@@ -168,23 +171,23 @@ static int stop_capturing(struct camera_info *camera)
     pthread_mutex_lock(&mutex);
     if(fd)
     {
-        type = V4L2_BUF_TYPE_VIDEO_CAPTURE;        
+        type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
         if (-1 == xioctl(fd, VIDIOC_STREAMOFF, &type))
         {
             pthread_mutex_unlock(&mutex);
             //  errno_exit("VIDIOC_STREAMOFF");
             printf("%s:VIDIOC_STREAMOFF failed!\n",__func__);
             return -1;
-        }        
+        }
     }
     pthread_mutex_unlock(&mutex);
     printf("%s: end!\n", __func__);
     return 0;
 }
 /**
- * @brief 
- * 
- * @param camera 
+ * @brief
+ *
+ * @param camera
  */
 static int start_capturing(struct camera_info *camera)
 {
@@ -199,7 +202,7 @@ static int start_capturing(struct camera_info *camera)
 
     pr_debug("\tn_buffers: %d\n", n_buffers);
 
-    for (i = 0; i < n_buffers; ++i) {        
+    for (i = 0; i < n_buffers; ++i) {
         struct v4l2_buffer buf;
         pr_debug("\ti: %d\n", i);
 
@@ -210,7 +213,7 @@ static int start_capturing(struct camera_info *camera)
         buf.m.fd = buffers[i].dbuf_fd; //drm
         buf.length = buffers[i].length;
 
-        pr_debug("\tbuf.index: %d\n", buf.index);
+        pr_debug("\tbuf.index: %d, length: %u\n", buf.index, buf.length);
         //printf("\tbuf.index: %d,buf.m.fd %d,buf.length %d\n",buf.index,buf.m.fd,buf.length);
         // err == xioctl(fd, VIDIOC_QBUF, &buf);
         err = ioctl(fd, VIDIOC_QBUF, &buf);
@@ -227,15 +230,15 @@ static int start_capturing(struct camera_info *camera)
     {
         //errno_exit("VIDIOC_STREAMON");
         return -1;
-    }        
+    }
     pr_debug("After STREAMON\n");
     return 0;
 }
 /**
- * @brief 
- * 
- * @param camera 
- * @param drm_bufs 
+ * @brief
+ *
+ * @param camera
+ * @param drm_bufs
  */
 static void uninit_device(struct camera_info *camera,struct drm_buffer *drm_bufs)
 {
@@ -251,16 +254,16 @@ static void uninit_device(struct camera_info *camera,struct drm_buffer *drm_bufs
     pthread_mutex_unlock(&mutex);
 }
 /**
- * @brief 
- * 
- * @param camera 
+ * @brief
+ *
+ * @param camera
  */
 static int init_mmap(struct camera_info *camera,struct drm_buffer *drm_bufs)  //（3）
 {
     struct v4l2_requestbuffers req;
     int fd = camera->fd;
-    struct buffer *buffers; 
-    unsigned int     n_buffers;  
+    struct buffer *buffers;
+    unsigned int     n_buffers;
     char  dev_name[50];
     pr_debug("%s: called!\n", __func__);
     sprintf(&dev_name[0],"%s",&camera->video_name[0]);
@@ -316,10 +319,10 @@ static int init_mmap(struct camera_info *camera,struct drm_buffer *drm_bufs)  //
     return ret;
 }
 /**
- * @brief 
- * 
- * @param camera 
- * @param drm_bufs 
+ * @brief
+ *
+ * @param camera
+ * @param drm_bufs
  */
 static int init_device(struct camera_info *camera,struct drm_buffer *drm_bufs) //static表示次函数只能在本文件中调用
 {
@@ -388,8 +391,8 @@ static int init_device(struct camera_info *camera,struct drm_buffer *drm_bufs) /
     if (-1 == xioctl(fd, VIDIOC_S_FMT, &fmt))
     {
         //errno_exit("VIDIOC_S_FMT");
-        return -errno; 
-    }    
+        return -errno;
+    }
     /* Note VIDIOC_S_FMT may change width and height. */
 
     /* Buggy driver paranoia. */
@@ -405,9 +408,9 @@ static int init_device(struct camera_info *camera,struct drm_buffer *drm_bufs) /
     return ret;
 }
 /**
- * @brief 
- * 
- * @param camera 
+ * @brief
+ *
+ * @param camera
  */
 static void close_device(struct camera_info *camera)
 {
@@ -420,32 +423,32 @@ static void close_device(struct camera_info *camera)
         {
             pthread_mutex_unlock(&mutex);
             errno_exit("close");
-        }     
-        camera->fd = -1; 
+        }
+        camera->fd = -1;
     }
 #if 0
     if(drm_dev.fd &&(drm_dev.camera_num == 1) )
     {
-        drm_exit(); 
-    } 
+        drm_exit();
+    }
     else
     {
         drm_dev.camera_num--;
-    }   
+    }
 #endif
-    pthread_mutex_unlock(&mutex);  
+    pthread_mutex_unlock(&mutex);
 }
 /**
- * @brief 
- * 
- * @param camera 
+ * @brief
+ *
+ * @param camera
  */
 static void open_device(struct camera_info *camera)//
 {
     struct stat st;
     int fd;
     char dev_name[50];
-    sprintf(&dev_name[0],"%s",&camera->video_name[0]); 
+    sprintf(&dev_name[0],"%s",&camera->video_name[0]);
     printf("%s: dev_name %s called!\n", __func__,&dev_name[0]);//_func_表示此时在那个函数里面
 
     if (-1 == stat(dev_name, &st)) {//获取文件信息
@@ -470,11 +473,11 @@ static void open_device(struct camera_info *camera)//
     printf("%s:fd (%d) open\n",__func__,fd);
 }
 /**
- * @brief 
- * 
- * @param fp 
- * @param argc 
- * @param argv 
+ * @brief
+ *
+ * @param fp
+ * @param argc
+ * @param argv
  */
 static void usage(FILE *fp, int argc, char **argv)
 {
@@ -483,47 +486,62 @@ static void usage(FILE *fp, int argc, char **argv)
          "Version 1.3\n"
          "Options:\n"
          "-f | --device cfg name   Video device cfg name [%s]\n"
+         "-e | --ae value          AE enable\n"
+         "-t | --tuning value      isp tuningd enable\n"
          "-h | --help          Print this message\n"
          "-v | --verbose       Verbose output\n"
          "-s | --single[(0|1),[,width*height[,x*y]]] display sensor (0|1)\n"
          "-d | --double[width*height,x*y,width*height,x*y] display double sensor\n"
+         "-a | --anti-clicker-enable (0: all disable | 1: f 2k enable | 2: r 2k enable | 3: f&r 2k enable)\n"
+         "-x | --ae-select sw/hw select (default 0: sw ae | 1: hw ae)\n"
+         "-l | --adaptive enable (0: disable | 1: enable, default: enable)\n"
+         "-r | --rect x,y,width,height,line_width,color,border_master\n"
          "",
          argv[0], video_cfg_file);
 }
 
-static const char short_options[] = "f:e:hvs::d::";// 短选项 ：表示带参数
+static const char short_options[] = "f:e:hvs::d::s:a:x:l:t:r:";// 短选项 ：表示带参数
 
 static const struct option //长选项
 long_options[] = {
     { "device_cfg name", required_argument, NULL, 'f' },
     { "ae config", required_argument, NULL, 'e' },
+    { "tuning isp", required_argument, NULL, 't' },
+    { "rect", required_argument, NULL, 'r' },
     { "help",   no_argument,       NULL, 'h' },
     { "verbose", no_argument,      NULL, 'v' },
     { "single", optional_argument,      NULL, 's' },
     { "double", optional_argument,      NULL, 'd' },
+    { "anfi-flicker-enable", required_argument, NULL, 'a' },
+    { "ae-select", required_argument, NULL, 'x' },
+    { "adaptive", required_argument, NULL, 'l' },
     { 0, 0, 0, 0 }
 };
 
+pid_t isp_tuningd_pid = -1;
 /* end */
 static void sigint_handler(int signal __attribute__((__unused__)))
 {
 	/* Set the done flag to true when the user presses CTRL-C to interrupt
 	 * the main loop.
 	 */
+    if (isp_tuningd_pid >= 0) {
+        kill(isp_tuningd_pid, SIGINT);
+    }
 	done = true;
 }
 
 /**
- * @brief 
- * 
- * @param signo 
+ * @brief
+ *
+ * @param signo
  */
-void sighand(int signo) 
-{ 
-    pthread_t  tid = pthread_self(); 
-   
-    printf("Thread %lu in signal handler/n", tid); 
-    return; 
+void sighand(int signo)
+{
+    pthread_t  tid = pthread_self();
+
+    printf("Thread %lu in signal handler/n", tid);
+    return;
 }
 
 int init_isp(struct camera_info *camera) {
@@ -550,8 +568,8 @@ void deinit_isp(struct camera_info *camera) {
     close_device(camera);
 }
 /**
- * @brief 
- * 
+ * @brief
+ *
  */
 static void cfg_noc_prior(void)
 {
@@ -784,6 +802,40 @@ int video_resolution_adaptation(void)
 }
 
 /**
+ * @brief Spawn isp-tuningd
+ * 
+ * @return int pid of child process
+ */
+static pid_t spawn_isp_tuningd (unsigned width, unsigned height, int* pipe_fd_ptr) {
+    // create pipe
+    int pipe_fd[2];
+    assert(pipe(pipe_fd) == 0);
+    pid_t pid = fork();
+    char width_str[20], height_str[20];
+    sprintf(width_str, "%u", width);
+    sprintf(height_str, "%u", height);
+    if (pid == 0) {
+        // child process
+        // close write pipe
+        close(pipe_fd[1]);
+        // dup to stdin
+        dup2(pipe_fd[0], 0);
+        // exec isp-tuningd
+        if(execl("/app/mediactl_lib/isp-tuningd", "/app/mediactl_lib/isp-tuningd", "-j", "-w", width_str, "-h", height_str, NULL) < 0) {
+            exit(-1);
+        }
+        return 0;
+    } else {
+        // master process
+        // close read pipe
+        close(pipe_fd[0]);
+        // assert(setnonblock(pipe_fd[1]) == 0);
+        *pipe_fd_ptr = pipe_fd[1];
+        return pid;
+    }
+}
+
+/**
  * @brief 
  * 
  * @param __attribute__ 
@@ -800,6 +852,10 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
 	pthread_t f2k_pid,r2k_pid,drm_pid;
     uint32_t sensor_index = 0;
     int parse_count;
+    unsigned tuning_isp = 0;
+    unsigned rect_enable = 0, rect_ptr = 0;
+    unsigned rects[32][7];
+    bzero(rects, sizeof(rects));
 
     for (;;) {
         int idx;
@@ -814,8 +870,32 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
         switch (c) {
         case 0: /* getopt_long() flag */
             break;
-        case 'e': 
+        case 'e':
             isp_ae_status = atol(optarg);//dev_name = ;
+            break;
+
+        case 't':
+            tuning_isp = atoi(optarg);
+            if (!(tuning_isp >= 0 && tuning_isp <= 2)) {
+                fprintf(stderr, "tuning argument must be 0 or 1 or 2\n");
+                exit(EXIT_FAILURE);
+            }
+            break;
+
+        case 'r':
+            rect_enable = 1;
+            sscanf(
+                optarg,
+                "%u,%u,%u,%u,%u,%u,%u",
+                &rects[rect_ptr][0],
+                &rects[rect_ptr][1],
+                &rects[rect_ptr][2],
+                &rects[rect_ptr][3],
+                &rects[rect_ptr][4],
+                &rects[rect_ptr][5],
+                &rects[rect_ptr][6]
+            );
+            rect_ptr++;
             break;
 
         case 'f':
@@ -865,7 +945,15 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
                 video_in_cfg[1].force |= OFFSET_FORCE;
             }
             break;
-
+        case 'a':
+            anti_flicker_init(atoi(optarg));
+            break;
+        case 'x':
+            ae_select_init(atoi(optarg));
+            break;
+        case 'l':
+            adaptive_enable(atoi(optarg));
+            break;
         default:
             usage(stderr, argc, argv);
             exit(EXIT_FAILURE);
@@ -885,13 +973,14 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
 	 */
 	signal(SIGINT, sigint_handler);
     signal(SIGTERM, sigint_handler);
+    signal(SIGPIPE, SIG_IGN);
     //
-    memset(&actions, 0, sizeof(actions)); 
-    sigemptyset(&actions.sa_mask); /* 将参数set信号集初始化并清空 */ 
-    actions.sa_flags = 0; 
-    actions.sa_handler = sighand;   
-    /* 设置SIGALRM的处理函数 */ 
-    sigaction(SIGALRM,&actions,NULL); 
+    memset(&actions, 0, sizeof(actions));
+    sigemptyset(&actions.sa_mask); /* 将参数set信号集初始化并清空 */
+    actions.sa_flags = 0;
+    actions.sa_handler = sighand;
+    /* 设置SIGALRM的处理函数 */
+    sigaction(SIGALRM,&actions,NULL);
     //
     cfg_noc_prior();
     // get screen resolution
@@ -922,8 +1011,13 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
                 camera[0].size.height = dev_info[0].video_height[i];
                 camera[0].buffer_start = 0;
                 camera_num++;
+
+                // rect
+                for (unsigned j = 0; j < rect_ptr; j++) {
+                    mediactl_rect(ISP_F2K_PIPELINE, i, j, rects[j][0], rects[j][1], rects[j][2], rects[j][3], rects[j][4], rects[j][5], rects[j][6]);
+                }
             }
-        }        
+        }
     }
     //
     printf("%s:dev_info[1].video_used(%d)\n",__func__,dev_info[1].video_used);
@@ -938,8 +1032,13 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
                 camera[1].size.height = dev_info[1].video_height[i];
                 camera[1].buffer_start = BUFFERS_COUNT;
                 camera_num++;
+
+                // rect
+                for (unsigned j = 0; j < rect_ptr; j++) {
+                    mediactl_rect(ISP_F2K_PIPELINE, i, j, rects[j][0], rects[j][1], rects[j][2], rects[j][3], rects[j][4], rects[j][5], rects[j][6]);
+                }
             }
-        }        
+        }
     }
 
     printf("%s:size[0].width is %d size[0].height is %d,size[1].width is %d size[1].height is %d,camera_num(%d)\n",__func__,camera[0].size.width,camera[0].size.height,camera[1].size.width,camera[1].size.height,camera_num);
@@ -960,7 +1059,7 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
         size[0].src_offset_w = 0;
         size[0].src_offset_h = 0;
         size[0].crtc_offset_w = 0;
-        size[0].crtc_offset_h = 200;  
+        size[0].crtc_offset_h = 200;
         size[1].src_offset_w = 0;
         size[1].src_offset_h = 0;
         size[1].crtc_offset_w = 0;
@@ -998,19 +1097,23 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
     }
 
     drm_dev.camera_num = camera_num;
-    struct camera_info* used_cam;
 
+    int isp_tuningd_pipe_fd = -1;
 	if(dev_info[0].video_used) {
 		if (init_isp(&camera[0]) < 0) {
 			goto cleanup;
 		}
-        used_cam = &camera[0];
+        if (tuning_isp == 1) {
+            isp_tuningd_pid = spawn_isp_tuningd(camera[0].size.width, camera[0].size.height, &isp_tuningd_pipe_fd);
+        }
 	}
 	if(dev_info[1].video_used) {
 		if (init_isp(&camera[1]) < 0) {
             goto cleanup;
 		}
-        used_cam = &camera[1];
+        if (tuning_isp == 2) {
+            isp_tuningd_pid = spawn_isp_tuningd(camera[1].size.width, camera[1].size.height, &isp_tuningd_pipe_fd);
+        }
 	}
 
     struct drm_buffer *fbuf1 = &drm_dev.drm_bufs[0];
@@ -1139,8 +1242,8 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
             printf("Flush fail\n");
             goto cleanup;
         }
-    } 
-    else if(dev_info[0].video_used) { 
+    }
+    else if(dev_info[0].video_used) {
         if (drm_dmabuf_set_plane(&drm_dev.drm_bufs[vbuf[1][0].index])) {
             printf("Flush fail\n");
             goto cleanup;
@@ -1269,8 +1372,8 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
                 printf("Flush fail\n");
                 break;
             }
-        } 
-        else if(dev_info[0].video_used) { 
+        }
+        else if(dev_info[0].video_used) {
             if (drm_dmabuf_set_plane(&drm_dev.drm_bufs[vbuf[vbuf_ptr[0]][0].index])) {
                 printf("Flush fail\n");
                 break;
@@ -1282,6 +1385,17 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
             }
         }
 
+        // isp-tuningd
+        static unsigned frame_counter_for_isp_tuningd = frame_counter;
+        if (frame_counter - frame_counter_for_isp_tuningd >= 30) {
+            frame_counter_for_isp_tuningd = frame_counter;
+            if(dev_info[0].video_used && tuning_isp == 1) {
+                write(isp_tuningd_pipe_fd, drm_dev.drm_bufs[vbuf[vbuf_ptr[0]][0].index].map, drm_dev.drm_bufs[vbuf[vbuf_ptr[0]][0].index].size);
+            } else if (dev_info[1].video_used && tuning_isp == 2) {
+                write(isp_tuningd_pipe_fd, drm_dev.drm_bufs[vbuf[vbuf_ptr[1]][1].index + BUFFERS_COUNT].map, drm_dev.drm_bufs[vbuf[vbuf_ptr[1]][1].index + BUFFERS_COUNT].size);
+            }
+        }
+
         // FIXME: always flip
         for (unsigned i = 0; i < 2; i++) {
             vbuf_ptr[i] ^= 1;
@@ -1290,7 +1404,7 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
 cleanup:
     if(drm_dev.fd) {
         fprintf(stderr, "drm_exit\n");
-        drm_exit(); 
+        drm_exit();
     }
     if(dev_info[0].video_used) {
         deinit_isp(&camera[0]);

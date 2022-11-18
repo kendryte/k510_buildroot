@@ -621,11 +621,14 @@ static void usage(FILE *fp, int argc, char **argv)
          "-c | --count         Number of frames to grab [%i]\n"
          "-v | --verbose       Verbose output\n"
          "-O | --output file   Output file full path[%s]\n"
+         "-a | --anti-clicker-enable (0: all disable | 1: f 2k enable | 2: r 2k enable | 3: f&r 2k enable)\n"
+         "-x | --ae sw/hw select (default 0: sw ae | 1: hw ae)\n"
+         "-l | --adaptive enable (0: disable | 1: enable, default: enable)\n"
          "",
          argv[0], dev_name, frame_count, video_name);
 }
 
-static const char short_options[] = "d:hmruofc:vO:";// 短选项 ：表示带参数
+static const char short_options[] = "d:hmruofc:vO:a:x:l:";// 短选项 ：表示带参数
 
 static const struct option //长选项
 long_options[] = {
@@ -639,6 +642,9 @@ long_options[] = {
     { "count",  required_argument, NULL, 'c' },
     { "verbose", no_argument,      NULL, 'v' },
     { "ouput file",  required_argument, NULL, 'O' },
+    { "anfi-flicker-enable", required_argument, NULL, 'a' },
+    { "ae-select", required_argument, NULL, 'x' },
+    { "adaptive", required_argument, NULL, 'l' },
     { 0, 0, 0, 0 }
 };
 
@@ -659,7 +665,7 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
 {
     dev_name = "/dev/video3";
     unsigned int width = FORCED_WIDTH;
-    unsigned int height = FORCED_HEIGHT; 
+    unsigned int height = FORCED_HEIGHT;
     struct video_info dev_info[2];
 
     for (;;) {
@@ -716,6 +722,12 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
             break;
         case 'O':
             video_name = optarg;
+            break;
+        case 'a':
+            anti_flicker_init(atoi(optarg));
+            break;
+        case 'l':
+            adaptive_enable(atoi(optarg));
             break;
         default:
             usage(stderr, argc, argv);

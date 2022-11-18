@@ -1,5 +1,6 @@
 BR2_VERSION		= 2020.02.11
 
+
 RED=\e[1;31m
 NC=\e[0m
 
@@ -106,11 +107,11 @@ clean:
 
 dl:
 	rm -rf pkg-download/dl.tar.gz;
-	wget -c  https://github.com/kendryte/k510_buildroot/releases/download/v1.6/dl.tar.gz  -O pkg-download/dl.tar.gz;
+	wget -c  https://kendryte-download.canaan-creative.com/k510/package/dl/v1.0.0/dl.tar.gz  -O pkg-download/dl.tar.gz;
 	tar -zxf pkg-download/dl.tar.gz;
-	mkdir -p  dl/ai/; wget -c https://github.com/kendryte/k510_buildroot/releases/download/v1.7/ai_kmodel_data.tar.xz  -O dl/ai/ai_kmodel_data.tar.xz;
+	mkdir -p  dl/ai/; wget -c https://kendryte-download.canaan-creative.com/k510/package/ai/v1.0.0/ai_kmodel_data.tar.xz  -O dl/ai/ai_kmodel_data.tar.xz;
 	(set -xe;   NNCASE_VER=v1.7.1 ;\
-		NNCASE_SITE=https://github.com/kendryte/nncase/releases/download;\
+		NNCASE_SITE=https://kendryte-download.canaan-creative.com/k510/nncase/release;\
 		NNCASE_PIP_VD=1.7.1.20220701		; \
 		NNCASE_PIP_K510_VD=1.7.1.20220701 ;\
 		mkdir -p dl/nncase_linux_runtime;  cd dl/nncase_linux_runtime;		\

@@ -22,18 +22,6 @@
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-/******************************************************************************
-  File Name     : isp_cfg.c
-  Version       : Initial Draft
-  Author        : 
-  Created       : 
-  Description   : 
-  History       :
-  1.Date        : 
-    Author      :
-    Modification: Created file
-
-******************************************************************************/
 
 #include <errno.h>
 #include <fcntl.h>
@@ -241,7 +229,7 @@ int isp_f2k_cfg(struct media_entity *entity,struct isp_cfg_info *isp_cfg,uint32_
 	// ldc
 	isp_wrap_info->ldcInfo.ldc_line_stride = line_stride;
 	isp_wrap_info->ldcInfo.ldc_y_buf_base = phyAddr + 4096 * 1024 * 2;
-	isp_wrap_info->ldcInfo.ldc_uv_buf_base = phyAddr + 4096 * 1024 * 2 + line_stride * height;
+	isp_wrap_info->ldcInfo.ldc_uv_buf_base = phyAddr + 4096 * 1024 * 5;
 
 	//
 	width = isp_wrap_info->ds0Info.ds0_size.width;
@@ -289,6 +277,12 @@ int isp_f2k_cfg(struct media_entity *entity,struct isp_cfg_info *isp_cfg,uint32_
 		isp_wrap_info->ds2Info.ds2_b_buf0_base = phyAddr + line_stride*height*2;
 		isp_wrap_info->ds2Info.ds2_b_buf1_base = phyAddr + line_stride*height*2;		
 	}
+
+	// enable pixel remap
+	isp_wrap_info->mainInfo.main_pix_remap_en = 1;
+	isp_wrap_info->ds0Info.pix_remap_out0_en = 1;
+	isp_wrap_info->ds1Info.pix_remap_out1_en = 1;
+
 	ret = ioctl(entity->fd, VIDIOC_K510ISP_F2K_WRAP_CFG,isp_wrap_info);
 	if (ret < 0)
 	{
@@ -445,6 +439,12 @@ int isp_r2k_cfg(struct media_entity *entity,struct isp_cfg_info *isp_cfg,uint32_
 		isp_wrap_info->ds2Info.ds2_b_buf0_base = phyAddr + line_stride*height*2;
 		isp_wrap_info->ds2Info.ds2_b_buf1_base = phyAddr + line_stride*height*2;		
 	}
+
+	// enable pixel remap
+	isp_wrap_info->mainInfo.main_pix_remap_en = 1;
+	isp_wrap_info->ds0Info.pix_remap_out0_en = 1;
+	isp_wrap_info->ds1Info.pix_remap_out1_en = 1;
+
 	ret = ioctl(entity->fd, VIDIOC_K510ISP_R2K_WRAP_CFG,isp_wrap_info);
 	if (ret < 0)
 	{
