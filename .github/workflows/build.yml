@@ -152,7 +152,7 @@ jobs:
           echo "Reserve DUT start"
           echo "PR ID: $PULL_REQUEST_ID"
           echo "Job ID: $GITHUB_RUN_ID"
-          reserved=$(./bin/ailab add ${{ env.available }} --site github-actions --source $PULL_REQUEST_ID --job $GITHUB_RUN_ID --format args)
+          reserved=$(./bin/ailab add ${{ env.available }} --time 15m --site github-actions --source $PULL_REQUEST_ID --job $GITHUB_RUN_ID --format args)
           echo $reserved
           echo "reserved=$reserved" >> $GITHUB_ENV
           if [[ $reserved =~ "github-actions" ]]; then
