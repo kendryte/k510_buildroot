@@ -1,0 +1,118 @@
+From e3e96315d34259704ddfa5964a811c3e856dacb4 Mon Sep 17 00:00:00 2001
+From: wangjianxin <wangjianxin@canaan-creative.com>
+Date: Fri, 18 Nov 2022 11:44:25 +0800
+Subject: [PATCH] fix rng init error
+
+---
+ drivers/char/hw_random/k510-rng.c | 77 ++++++++++++++++++-------------
+ 1 file changed, 46 insertions(+), 31 deletions(-)
+
+diff --git a/drivers/char/hw_random/k510-rng.c b/drivers/char/hw_random/k510-rng.c
+index c06a75e3..8982b227 100755
+--- a/drivers/char/hw_random/k510-rng.c
++++ b/drivers/char/hw_random/k510-rng.c
+@@ -25,6 +25,7 @@
+ #define PUF_REG_IP_LP_STATE		0x18
+ #define PUF_REG_TRNG_OUTPUT		0x1c
+ #define PUF_REG_TRNG_OUTPUT_VALID	0x20
++#define PUF_REG_PGM_BUSY_ADDR	0x78 
+ 
+ #define PUF_REG_ENABLE_ENABLE		0x00000001U
+ #define PUF_REG_ENABLE_DISABLE		0x00000000U
+@@ -52,7 +53,7 @@ struct k510_rng {
+ 
+ static int wait_us_1000(volatile uint32_t* register_addr, int mode);
+ 
+-#define check_pgm_busy_error(p) wait_us_1000(p->base+PUF_REG_MODE_STA, PUF_REG_PGM_READY)
++#define check_pgm_busy_error(p) wait_us_1000(p->base+PUF_REG_PGM_BUSY_ADDR, PUF_REG_PGM_READY)
+ 
+ #define to_k510_rng(p)	container_of(p, struct k510_rng, rng)
+ 
+@@ -70,40 +71,54 @@ static int wait_us_1000(volatile uint32_t* register_addr, int mode)
+     return 0;
+ }
+ 
+-
++static void k510_rng_cleanup(struct hwrng *rng);
+ static int k510_rng_init(struct hwrng *rng)
+ {
+ 	struct k510_rng *k510rng = to_k510_rng(rng);
+-	int ret = 0;
+-
+-	writel(PUF_REG_ENABLE_ENABLE, k510rng->base + PUF_REG_ENABLE);
+-	if(check_pgm_busy_error(k510rng)) {
+-		dev_err(k510rng->dev, "enable puf failure \n");
+-		return -EBUSY;
+-	}
+-
+-	writel(PUF_REG_MODE_TRNG_OUTPUT, k510rng->base + PUF_REG_MODE);
+-	if(check_pgm_busy_error(k510rng)) {
+-		dev_err(k510rng->dev, "set puf mode to TRNG failure \n");
+-		return -EBUSY;
+-	}
++	int ret = -EBUSY;
++	int i = 0;
++
++	do 
++	{
++		if( i > 0)
++			k510_rng_cleanup(rng);	
++
++		writel(PUF_REG_ENABLE_ENABLE, k510rng->base + PUF_REG_ENABLE);
++		if(check_pgm_busy_error(k510rng)) {
++			dev_err(k510rng->dev, "enable puf failure \n");
++			continue;
++		}
++
++		writel(PUF_REG_MODE_TRNG_OUTPUT, k510rng->base + PUF_REG_MODE);
++		if(check_pgm_busy_error(k510rng)) {
++			dev_err(k510rng->dev, "set puf mode to TRNG failure \n");
++			continue;
++		}
+ 	
+-	writel(PUF_REG_MODE_EN_ENABLE, k510rng->base + PUF_REG_MODE_EN);
+-	if(check_pgm_busy_error(k510rng)) {
+-		dev_err(k510rng->dev, "set puf mode enable failure \n");
+-		return -EBUSY;
+-	}
+-	
+-	ret = wait_us_1000(k510rng->base+PUF_REG_MODE_STA, PUF_REG_MODE_TRNG_OUTPUT);
+-	if(ret) {
+-		dev_err(k510rng->dev, "puf is not set to TRNG MODE \n");
+-		return -EIO;
+-	}
+-
+-	ret = wait_us_1000(k510rng->base+PUF_REG_TRNG_OUTPUT_VALID, TRNG_OUTPUT_VALID);
+-	if(ret) {
+-		dev_err(k510rng->dev, "TRNG output invalid \n");
+-		return -EIO;
++		
++		writel(PUF_REG_MODE_EN_ENABLE, k510rng->base + PUF_REG_MODE_EN);
++		if(check_pgm_busy_error(k510rng)) {
++			dev_err(k510rng->dev, "set puf mode enable failure \n");
++			continue;
++		}
++		
++		ret = wait_us_1000(k510rng->base+PUF_REG_MODE_STA, PUF_REG_MODE_TRNG_OUTPUT);
++		if(ret) {
++			dev_err(k510rng->dev, "puf is not set to TRNG MODE \n");
++			continue;
++		}
++
++		ret = wait_us_1000(k510rng->base+PUF_REG_TRNG_OUTPUT_VALID, TRNG_OUTPUT_VALID);
++		if(ret) {
++			dev_err(k510rng->dev, "TRNG output invalid \n");
++			continue;
++		}
++
++		break;
++	}while(i++ < 3);
++
++	if(i>=3) {
++		dev_err(k510rng->dev, "%s error error error error \n", __func__);
+ 	}
+ 
+ 
+-- 
+2.30.2
+
