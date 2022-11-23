@@ -124,6 +124,11 @@ enum isp_callback_id
     ISP_CALLBACK_ID_END, // 14
 };
 
+enum ir_cut_mode_e {
+	USER_IR_CUT_NIGHT,
+ 	USER_IR_CUT_DAY,
+};
+
 /* user callback function */
 typedef int (* __IspCallBack)(void *);
 
@@ -158,7 +163,11 @@ int attr_page_get_written_stat(enum isp_pipeline_e pipeline);
 int isp_module_callback_register(ISP_CB_T * icb);
 int isp_module_callback_ctl_stat(enum isp_pipeline_e pipeline, enum isp_callback_id cbid);
 unsigned int mediactl_get_isp_modules(enum isp_pipeline_e pipeline,enum isp_modules module);
-
+/* ir cut API */
+int ir_cut_ev_get(enum isp_pipeline_e pipeline, enum ir_cut_mode_e ir_cut_mode);
+int ir_cut_ev_set(enum isp_pipeline_e pipeline, enum ir_cut_mode_e ir_cut_mode, int level);
+float ir_cut_hold_time_get(enum isp_pipeline_e pipeline, enum ir_cut_mode_e ir_cut_mode);
+int ir_cut_hold_time_set(enum isp_pipeline_e pipeline, enum ir_cut_mode_e ir_cut_mode, float hold_time);
 
 #ifdef __cplusplus
 }

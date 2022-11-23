@@ -409,6 +409,9 @@ typedef struct {
     unsigned short n2dnrWeightStep_p_rawk; // 6 - 10, (255 - max_adap_2dnr + 1) / (10 - 6 + 1)
     unsigned short n2dnrWeightStep_p_ek; // 6 - 10, (255 - max_adap_2dnr + 1) / (10 - 6 + 1)
     unsigned short n2dnrWeightStep_p_yk; // 6 - 10, (255 - max_adap_2dnr + 1) / (10 - 6 + 1)
+    // ir cut
+    unsigned short nIrCutLevelDay2Night; // 2 - 20
+    unsigned short nIrCutLevelNight2Day; // 0 - 18
 } ADAPTIVE_ISP_EX_MODEL_VAL_T;
 
 typedef struct {
