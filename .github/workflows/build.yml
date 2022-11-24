@@ -133,10 +133,10 @@ jobs:
           export HW_MODEL=`echo ${{ matrix.cfg }}|awk -F '_' '{print $1}'`
           export HW_VER=`echo ${{ matrix.cfg }}|awk -F '_' '{print $3"."$4}'`
           test -d bin || mkdir ./bin
-          test -f ./bin/ai_dut && rm -rf ./bin/ai_dut
-          wget -qc https://ai.b-bug.org/k510_buildroot/github/ai_dut -O ./bin/ai_dut
-          chmod +x ./bin/ai_dut
-          available=$(./bin/ai_dut show --dest available --hw_type k510 --hw_model $HW_MODEL --hw_ver $HW_VER --format args)
+          test -f ./bin/ailab && rm -rf ./bin/ailab
+          wget -qc https://ai.b-bug.org/k510_buildroot/github/ailab -O ./bin/ailab
+          chmod +x ./bin/ailab
+          available=$(./bin/ailab show --dest available --hw_type k510 --hw_model $HW_MODEL --hw_ver $HW_VER --format args)
           echo $available
           echo "available=$available" >> $GITHUB_ENV
           if [[ $available =~ "k510" ]]; then
@@ -152,7 +152,7 @@ jobs:
           echo "Reserve DUT start"
           echo "PR ID: $PULL_REQUEST_ID"
           echo "Job ID: $GITHUB_RUN_ID"
-          reserved=$(./bin/ai_dut add ${{ env.available }} --site github-actions --source $PULL_REQUEST_ID --job $GITHUB_RUN_ID --format args)
+          reserved=$(./bin/ailab add ${{ env.available }} --time 15m --site github-actions --source $PULL_REQUEST_ID --job $GITHUB_RUN_ID --format args)
           echo $reserved
           echo "reserved=$reserved" >> $GITHUB_ENV
           if [[ $reserved =~ "github-actions" ]]; then
@@ -161,12 +161,12 @@ jobs:
             echo "ERROR: Reserve DUT failed"
             exit 1
           fi
-          power=$(./bin/ai_dut power --type=cycle ${{ env.available }})
+          power=$(./bin/ailab power --type=on ${{ env.available }})
           echo $power
           if [[ $power =~ "True" ]]; then
-            echo "Power Cycle DUT pass"
+            echo "Power on DUT pass"
           else
-            echo "ERROR: Power Cycle DUT failed"
+            echo "ERROR: Power on DUT failed"
             exit 1
           fi
 
@@ -178,12 +178,12 @@ jobs:
           echo "bbl md5: ${{needs.build_image.outputs.md5_bbl}}"
           echo "dtb md5: ${{needs.build_image.outputs.md5_dtb}}"
           test -d bin || mkdir ./bin
-          test -f ./bin/ai_load && rm -rf ./bin/ai_load
-          wget -qc https://ai.b-bug.org/k510_buildroot/github/ai_load -O ./bin/ai_load
-          chmod +x ./bin/ai_load
+          test -f ./bin/aiload && rm -rf ./bin/aiload
+          wget -qc https://ai.b-bug.org/k510_buildroot/github/aiload -O ./bin/aiload
+          chmod +x ./bin/aiload
           echo $PULL_REQUEST_ID
           echo $GITHUB_RUN_ID
-          ./bin/ai_load --pr_id $PULL_REQUEST_ID --job_id $GITHUB_RUN_ID --md5_dtb ${{needs.build_image.outputs.md5_dtb}} --md5_bbl ${{needs.build_image.outputs.md5_bbl}} ${{ env.available }}
+          ./bin/aiload --pr_id $PULL_REQUEST_ID --job_id $GITHUB_RUN_ID --md5_dtb ${{needs.build_image.outputs.md5_dtb}} --md5_bbl ${{needs.build_image.outputs.md5_bbl}} ${{ env.available }}
 
       - name: Run Test
         id: run_test
@@ -191,15 +191,15 @@ jobs:
         run: |
           echo "Run Test start"
           test -d bin || mkdir ./bin
-          test -f ./bin/ai_robot && rm -rf ./bin/ai_robot
-          wget -qc https://ai.b-bug.org/k510_buildroot/github/ai_robot -O ./bin/ai_robot
-          chmod +x ./bin/ai_robot
+          test -f ./bin/airobot && rm -rf ./bin/airobot
+          wget -qc https://ai.b-bug.org/k510_buildroot/github/airobot -O ./bin/airobot
+          chmod +x ./bin/airobot
           test -f ./k510.robot && rm -rf ./k510.robot
           wget -qc https://ai.b-bug.org/k510_buildroot/github/k510.robot -O ./k510.robot
-          ./bin/ai_dut convert --dest=script --format yaml --file_name=var.yml ${{ env.available }}
+          ./bin/ailab convert --dest=script --format yaml --file_name=var.yml ${{ env.available }}
           test -f var.yml || exit 1
           echo "Run test case start"
-          ./bin/ai_robot -m github -V var.yml -i github k510.robot
+          ./bin/airobot -m github -V var.yml -i github k510.robot
           echo "Run test case pass"
 
       - name: Release DUT
@@ -208,11 +208,19 @@ jobs:
         run: |
           echo "Release DUT start"
           test -d bin || mkdir ./bin
-          result=$(./bin/ai_dut delete ${{ env.reserved }})
+          result=$(./bin/ailab update ${{ env.reserved }})
           echo $result
           if [[ $result =~ "True" ]]; then
             echo "Release DUT pass"
           else
             echo "ERROR: Release DUT failed"
+            exit 1
+          fi
+          power=$(./bin/ailab power --type=off ${{ env.available }})
+          echo $power
+          if [[ $power =~ "True" ]]; then
+            echo "Power off DUT pass"
+          else
+            echo "ERROR: Power off DUT failed"
             exit 1
           fi

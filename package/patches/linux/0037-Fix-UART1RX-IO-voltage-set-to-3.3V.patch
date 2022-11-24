@@ -1,0 +1,30 @@
+From 571536440f08f124b613c8f01b2ad2532dc15d2b Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=E9=BB=84=E5=AD=90=E6=87=BF?=
+ <huangziyi@canaan-creative.com>
+Date: Fri, 11 Nov 2022 10:47:02 +0800
+Subject: [PATCH] Fix UART1RX IO voltage, set to 3.3V
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Signed-off-by: 黄子懿 <huangziyi@canaan-creative.com>
+---
+ drivers/pinctrl/canaan/muxpin.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/pinctrl/canaan/muxpin.c b/drivers/pinctrl/canaan/muxpin.c
+index d6adda5..c821976 100755
+--- a/drivers/pinctrl/canaan/muxpin.c
++++ b/drivers/pinctrl/canaan/muxpin.c
+@@ -1728,7 +1728,7 @@ static const muxpin_config_t function_config[(FUNC_MAX & MUXPIN_FUCTION_MASK) +
+ 	 .pu       = 1,
+ 	 .oe_en    = 1,
+ 	 .ie_en    = 0,
+-	 .msc      = 1,
++	 .msc      = 0,
+ 	 .sl       = 0,
+ 	 .io_sel   = 3,
+ 	 .lsio_sel = 106
+-- 
+2.36.1
+
