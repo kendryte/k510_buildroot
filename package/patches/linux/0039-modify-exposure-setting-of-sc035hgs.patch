@@ -1,0 +1,49 @@
+From 4663d10080b423000c1e3ca1df673ecbfc4cdb29 Mon Sep 17 00:00:00 2001
+From: goatxiu <liujiaan@canaan-creative.com>
+Date: Fri, 18 Nov 2022 14:27:43 +0800
+Subject: [PATCH] modify exposure setting of sc035hgs
+
+---
+ drivers/media/i2c/soc_camera/canaanchip/sc035hgs.c | 8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/media/i2c/soc_camera/canaanchip/sc035hgs.c b/drivers/media/i2c/soc_camera/canaanchip/sc035hgs.c
+index 1e2ee7f2..3a7b2737 100644
+--- a/drivers/media/i2c/soc_camera/canaanchip/sc035hgs.c
++++ b/drivers/media/i2c/soc_camera/canaanchip/sc035hgs.c
+@@ -268,6 +268,8 @@ static const struct regval sc035hgs_640x480_120fps_1lane_regs[] = {
+ 	{0x3e02, 0x80},//ET[7:4]
+ 	{0x3e03, 0x2b},
+ 	{0x3e06, 0x0c},
++	{0x3e08, 0x00},//Coarse gain[4:2]
++	{0x3e09, 0x10},//Fine gain [7:0]
+ 	{0x3f04, 0x03},
+ 	{0x3f05, 0x34},
+ 	{0x4500, 0x59},
+@@ -1000,6 +1002,7 @@ static int sc035hgs_set_ctrl(struct v4l2_ctrl *ctrl)
+ 
+ 	switch (ctrl->id) {
+ 	case V4L2_CID_EXPOSURE:
++#if 0
+ 		dev_dbg(&client->dev, "set exposure 0x%x\n", ctrl->val);
+ 		ret = sc035hgs_write_reg(sc035hgs->client, SC035HGS_GROUP_HOLD,
+ 					 SC035HGS_REG_VALUE_08BIT,
+@@ -1009,12 +1012,13 @@ static int sc035hgs_set_ctrl(struct v4l2_ctrl *ctrl)
+ 		ret |= sc035hgs_write_reg(sc035hgs->client, SC035HGS_GROUP_HOLD,
+ 					  SC035HGS_REG_VALUE_08BIT,
+ 					  SC035HGS_GROUP_HOLD_LUNCH);
++#endif
+ 		break;
+ 
+ 	case V4L2_CID_GAIN:
+ 	case V4L2_CID_ANALOGUE_GAIN:
+-		dev_dbg(&client->dev, "set again 0x%x\n", ctrl->val);
+-		ret = sc035hgs_set_ctrl_gain(sc035hgs, ctrl->val);
++		//dev_dbg(&client->dev, "set again 0x%x\n", ctrl->val);
++		//ret = sc035hgs_set_ctrl_gain(sc035hgs, ctrl->val);
+ 		break;
+ 	case V4L2_CID_VBLANK:
+ 		vts = ctrl->val + sc035hgs->cur_mode->height;
+-- 
+2.36.1
+

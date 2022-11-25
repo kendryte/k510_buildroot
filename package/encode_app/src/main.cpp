@@ -703,6 +703,40 @@ static void *encode_ch(void *arg)
       input.stride = stride;
       index = pCtx->v4l2_rev[channel][pCtx->v4l2_rp[channel]].addr & V4L2_INVALID_INDEX;
       input.data = (unsigned char *)pCtx->v4l2_buf[channel][index].paddr;
+      
+#ifdef ISP_OUTPUT_DUMP      
+      static FILE *dump_file=NULL;      
+
+      if(dump_file == NULL)
+      {
+        unsigned char *pSrc;
+        unsigned int size;
+        int i;
+      
+        size = input.stride*input.height*3/2;
+        pSrc = (unsigned char * )mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, pCtx->fd_ddr, pCtx->v4l2_buf[channel][index].paddr);
+        
+        if((dump_file=fopen("isp_dump.yuv","w+b")) == NULL )
+        {
+          printf("Cannot open output file!\n");
+        }        
+        //write Y
+        for(i=0; i<input.height; i++)
+        {
+          fwrite(pSrc, 1, input.width, dump_file);
+          pSrc += input.stride;
+        }
+        //write UV
+        for(i=0; i<input.height/2; i++)
+        {
+          fwrite(pSrc, 1, input.width, dump_file);
+          pSrc += input.stride;
+        }
+        fclose(dump_file);
+        munmap(pSrc, size);
+        printf("dump input yuv\n");
+      }
+#endif    
     }
     else
     {
@@ -1841,7 +1875,6 @@ int parse_conf()
         }
         item = cJSON_GetObjectItem(video, video_used_name);
         cJSON_SetIntValue(item, 1);
-
         item = cJSON_GetObjectItem(video, video_width_name);
         cJSON_SetIntValue(item, pCtx->width[i]);
 
@@ -2185,15 +2218,20 @@ int parse_cmd(int argc, char *argv[])
     }
     else if(strcmp(argv[i], "-enableGDR") == 0)
     {
-      pCtx->Cfg[cur_ch].bEnableGDR = true;
-      pCtx->Cfg[cur_ch].FreqIDR = atoi(argv[i+1]);
-      if (pCtx->Cfg[cur_ch].FreqIDR <= 0)
+      int nFreqIDR = atoi(argv[i+1]);
+      if (nFreqIDR < 0)
       {
         printf("gdr fresh period error\n");
         return -1;
       }
+      else if (nFreqIDR > 0)
+      {
+        pCtx->Cfg[cur_ch].bEnableGDR = true;
+        pCtx->Cfg[cur_ch].FreqIDR = nFreqIDR;
 
-      printf("enable gdr and fresh peroid %d\n", pCtx->Cfg[cur_ch].FreqIDR);
+
+        printf("enable gdr and fresh peroid %d\n", nFreqIDR);
+      }
     }
     else if (strcmp(argv[i], "-GDRMode") == 0)
     {
@@ -2337,7 +2375,6 @@ int main(int argc, char *argv[])
       pCtx->Cfg[i].entropyMode                                     = ENTROPY_MODE_CABAC;
       pCtx->Cfg[i].sliceSplitCfg.bSplitEnable                      = false;
 
-      
     }
 
     for(int i =0;i < pCtx->ch_cnt; i++)

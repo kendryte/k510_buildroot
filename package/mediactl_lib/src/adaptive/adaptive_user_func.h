@@ -32,19 +32,27 @@
 
 /* user init */
 int adaptive_calc_feture_init(enum adaptive_isp_pipeline_e pipeline, ADAPTIVE_IMG_TIMING_CFG_T image_timing_cfg);
-int adaptive_param_init(enum adaptive_isp_pipeline_e pipeline, ADAPTIVE_SENSOR_NAME_S_T adaptive_sensor_name_s, char * sensor_name);
-
+int adaptive_param_init(enum adaptive_isp_pipeline_e pipeline, ADAPTIVE_SENSOR_NAME_S_T * adaptive_sensor_name_s, char * sensor_name);
+int adaptive_user_attr_page_init(enum adaptive_isp_pipeline_e pipeline);
 /* user functions */
 int adaptive_get_3a_stat(enum adaptive_isp_pipeline_e pipeline, struct media_entity * pipe);
 int adaptive_setting_ctl(enum adaptive_isp_pipeline_e pipeline);
 int adaptive_param_apply(enum adaptive_isp_pipeline_e pipeline, struct media_entity * pipe);
+int adaptive_callback_ctl_stat(enum adaptive_isp_pipeline_e pipeline, enum adap_callback_id cbid);
+
+/* can setting gamma, if gamma_table = NULL, will use linner-wdr-gamma */
+int adaptive_gamma_setting(enum adaptive_isp_pipeline_e pipeline, unsigned short * gamma_table);
 
 /* user ex opeartion */
 int adaptive_ex_gt_update_flag(enum adaptive_isp_pipeline_e pipeline);
 int adaptive_ex_gt_awb_apply_flag(enum adaptive_isp_pipeline_e pipeline);
+int adaptive_ex_gt_target_stat(enum adaptive_isp_pipeline_e pipeline);
+int adaptive_ex_gt_target_range_stat(enum adaptive_isp_pipeline_e pipeline);
 int adaptive_ex_st_ev_apply_flag(enum adaptive_isp_pipeline_e pipeline, int flag);
 int adaptive_ex_st_ae_apply(enum adaptive_isp_pipeline_e pipeline, int yeverage, int expl, int agco);
 int adaptive_ex_st_update_flag(enum adaptive_isp_pipeline_e pipeline);
+int adaptive_user_attr_page_parse(enum adaptive_isp_pipeline_e pipeline, ADAPTIVE_ATTRIBUTE_PAGE_T * adap_attr_page);
+int adaptive_user_attr_page_compare(enum adaptive_isp_pipeline_e pipeline, ADAPTIVE_ATTRIBUTE_PAGE_T * adap_attr_page);
 
 /* user get version */
 char * adaptive_get_version();
