@@ -1,0 +1,79 @@
+Index: b/testProgs/IRtspServer.h
+===================================================================
+--- a/testProgs/IRtspServer.h
++++ b/testProgs/IRtspServer.h
+@@ -7,6 +7,7 @@
+ */
+ 
+ #pragma once
++#include <pthread.h>
+ 
+ enum RTSP_AUDIO_TYPE
+ {
+@@ -33,6 +34,7 @@ public:
+ 	virtual int     CreateStreamUrl(char const* streamName) = 0;//创建流地址
+ 	virtual bool    PushVideoData(unsigned char *pBuf, int nlen, unsigned long long dTime) = 0;  //视频数据(I帧带SPS，PPS，内部自动识别视频参数配置)
+ 	virtual bool    PushAudioData(unsigned char *pBuf, int nlen, unsigned long long dTime) = 0;
++	virtual void    GetThreadId(pthread_t *tid) = 0;
+ };
+ 
+ 
+Index: b/testProgs/RtspServerEX.cpp
+===================================================================
+--- a/testProgs/RtspServerEX.cpp
++++ b/testProgs/RtspServerEX.cpp
+@@ -141,9 +141,13 @@ int CRtspServerEX::Init(short sPort,bool
+ 
+ 	OutPacketBuffer::maxSize = 10000000;//max framesize
+ 	//CreateThread(NULL, 0, StartRtspEventLoop, (LPVOID)NULL, 0, NULL);
+-	pthread_t tid1;
+-	pthread_create(&tid1, NULL, StartRtspEventLoop, this);
++	
++	pthread_create(&m_tid, NULL, StartRtspEventLoop, this);
+ 
++  char name[12]; 
++  sprintf(name, "rtsp%d", sPort);
++  pthread_setname_np(m_tid, name);
++  
+ 	return 0;
+ }
+ 
+@@ -152,3 +156,9 @@ void    CRtspServerEX::SetAudioInfo(cons
+ 	m_audioInfo = audioInfo;
+ }
+ 
++void CRtspServerEX::GetThreadId(pthread_t *tid)
++{
++  *tid = m_tid;
++}
++
++
+Index: b/testProgs/RtspServerEX.h
+===================================================================
+--- a/testProgs/RtspServerEX.h
++++ b/testProgs/RtspServerEX.h
+@@ -11,7 +11,7 @@ class CRtspSourceDataObj;
+ class UsageEnvironment;
+ class RTSPServer;
+ #include"IRtspServer.h"
+-
++#include <pthread.h>
+ 
+ class CRtspServerEX:public IRtspServerEX
+ {
+@@ -24,6 +24,7 @@ public:
+ 	int     CreateStreamUrl(char const* streamName);
+ 	bool    PushVideoData(unsigned char *pBuf, int nlen, unsigned long long dTime);
+ 	bool    PushAudioData(unsigned char *pBuf, int nlen, unsigned long long dTime);
++	void    GetThreadId(pthread_t *tid);
+ 
+ protected:
+ 	static void* StartRtspEventLoop(void* pUser);
+@@ -43,6 +44,6 @@ private:
+ 	int          m_nCurUrlIndex;
+ 	RTSP_AUDIO_INFO        m_audioInfo;
+ 	bool                 m_bTransferAudio;
+-	
++	pthread_t m_tid;
+ };
+ 

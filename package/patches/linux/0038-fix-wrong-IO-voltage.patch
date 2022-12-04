@@ -1,0 +1,30 @@
+From 730b5cafd905d996b2fd89d9f52fa141c729d1fc Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=E9=BB=84=E5=AD=90=E6=87=BF?=
+ <huangziyi@canaan-creative.com>
+Date: Thu, 17 Nov 2022 09:25:30 +0800
+Subject: [PATCH] fix wrong IO voltage
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Signed-off-by: 黄子懿 <huangziyi@canaan-creative.com>
+---
+ drivers/pinctrl/canaan/muxpin.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/pinctrl/canaan/muxpin.c b/drivers/pinctrl/canaan/muxpin.c
+index c8219763..09adb6d4 100755
+--- a/drivers/pinctrl/canaan/muxpin.c
++++ b/drivers/pinctrl/canaan/muxpin.c
+@@ -2960,7 +2960,7 @@ static const muxpin_config_t function_config[(FUNC_MAX & MUXPIN_FUCTION_MASK) +
+ 	 .pu       = 0,
+ 	 .oe_en    = 1,
+ 	 .ie_en    = 0,
+-	 .msc      = 1,
++	 .msc      = 0,
+ 	 .sl       = 0,
+ 	 .io_sel   = 3,
+ 	 .lsio_sel = 183
+-- 
+2.36.1
+

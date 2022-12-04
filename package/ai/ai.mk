@@ -8,7 +8,8 @@ AI_SITE = $(AI_LOCAL_PATH)
 AI_SOURCE = code.tar
 
 AI_SITE_METHOD = file
-AI_KMODEL_DATA_SITE = https://github.com/kendryte/k510_buildroot/releases/download/v1.7/ai_kmodel_data.tar.xz
+AI_KMODEL_DATA_VERSION = v1.0.0
+AI_KMODEL_DATA_SITE = https://kendryte-download.canaan-creative.com/k510/package/ai/$(AI_KMODEL_DATA_VERSION)/ai_kmodel_data.tar.xz
 AI_EXTRA_DOWNLOADS = $(call qstrip,$(AI_KMODEL_DATA_SITE))
 MODEL=$(AI_DIR)/ai_kmodel_data/kmodel_release
 

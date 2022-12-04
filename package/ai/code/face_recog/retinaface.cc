@@ -103,6 +103,7 @@ void retinaface::prepare_memory()
         if(ioctl(share_memory, SHARE_MEMORY_ALIGN_ALLOC, &allocAlignMemFdInput[i]) < 0) 
         {
             std::cerr << "alloc allocAlignMemFdInput error" << std::endl;
+            // FIXME: share memory leak
             std::abort();
         }
         virtual_addr_input[i] = (char *)mmap(NULL, allocAlignMemFdInput[i].size, PROT_READ | PROT_WRITE, MAP_SHARED, mem_map, allocAlignMemFdInput[i].phyAddr);
@@ -400,7 +401,7 @@ retinaface::~retinaface()
             if(ioctl(share_memory, SHARE_MEMORY_FREE, &allocAlignMemFdInput[i].phyAddr) < 0) 
             {
                 std::cerr << "free allocAlignMemFdInput error" << std::endl;
-                std::abort();
+                // std::abort();
             }
         }
     }
@@ -412,7 +413,7 @@ retinaface::~retinaface()
         if(ioctl(share_memory, SHARE_MEMORY_FREE, &allocAlignMemFdOutput.phyAddr) < 0) 
         {
             std::cerr << "free allocAlignMemFdOutput error" << std::endl;
-            std::abort();
+            // std::abort();
         }
     }
     close(share_memory);
