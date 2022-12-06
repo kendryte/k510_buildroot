@@ -74,6 +74,11 @@ else
 	#udhcpc -b  -i eth0  &
 fi
 
+ifconfig wlan0 up
+if [ $? -eq 0 ];then
+        wpa_supplicant -D nl80211 -i wlan0 -c /etc/wpa_supplicant.conf -B
+fi
+
 /sbin/ifup -a -f
 
 #telnetd
