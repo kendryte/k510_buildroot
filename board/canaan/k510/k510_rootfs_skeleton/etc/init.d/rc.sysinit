@@ -76,6 +76,12 @@ fi
 
 ifconfig wlan0 up
 if [ $? -eq 0 ];then
+	if [ -f /first_run_flag_file ];then
+                echo "ctrl_interface=/var/run/wpa_supplicant" > /etc/wpa_supplicant.conf
+                echo "update_config=1" >> /etc/wpa_supplicant.conf
+                echo "ap_scan=1" >> /etc/wpa_supplicant.conf
+        fi
+
         wpa_supplicant -D nl80211 -i wlan0 -c /etc/wpa_supplicant.conf -B
 fi
 

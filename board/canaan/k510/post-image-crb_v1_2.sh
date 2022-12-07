@@ -69,7 +69,6 @@ ${KERNEL_BUILD_DIR}/scripts/dtc/dtc -I dts -o ${BINARIES_DIR}/k510-hdmi.dtb ${BI
 
 rm -rf  ${BINARIES_DIR}/k510_crb_lp3_v1_2.dts.tmp
 rm -rf  ${BINARIES_DIR}/k510_crb_lp3_hdmi_v1_2.dts.tmp
-cp -a ${TARGET_DIR}/../../board/canaan/k510/k510_rootfs_skeleton/etc/wpa_supplicant.conf ${TARGET_DIR}/etc
 
 genimage                           \
 	--rootpath "${TARGET_DIR}"     \
