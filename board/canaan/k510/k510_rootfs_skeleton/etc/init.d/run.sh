@@ -86,10 +86,6 @@ if [ -d /lib/modules/$linux_ver/ ]; then
         done</lib/modules/$linux_ver/modules.order
 fi
 
-sleep 0.5
-ifconfig wlan0 up
-wpa_supplicant -Dnl80211 -iwlan0 -c/etc/wpa_supplicant.conf -B
-
 #change SHELL default version
 #if [ -f /bin/bash ]; then
 #        ln -sf /bin/bash /bin/sh
