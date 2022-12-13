@@ -1573,7 +1573,7 @@ void run_all_ae_video(void *info)
          */
 
         /* Timeout. */
-        tv.tv_sec = 2;
+        tv.tv_sec = 5;
         tv.tv_usec = 0;
         fd_set rfds = fds;
         r = select(max_fd, &rfds, NULL, NULL, &tv);
