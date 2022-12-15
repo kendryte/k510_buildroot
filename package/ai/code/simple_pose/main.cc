@@ -278,6 +278,10 @@ void ai_worker(ai_worker_args ai_args)
                     spo.set_valid_box(cropped_box, ori_img_R);
                 }
                 cropped_R = spo.crop_image(ori_img_R);
+                if (cropped_R.empty()) {
+                    printf("img is empty!\n");
+                    continue;
+                }
                 cv::resize(cropped_R, spo_img_R, cv::Size(pose_width, pose_height), cv::INTER_AREA);
                 cropped_G = spo.crop_image(ori_img_G);
                 cv::resize(cropped_G, spo_img_G, cv::Size(pose_width, pose_height), cv::INTER_AREA);
