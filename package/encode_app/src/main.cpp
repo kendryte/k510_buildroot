@@ -2022,7 +2022,7 @@ int parse_cmd(int argc, char *argv[])
       printf("-inframes: input frames for input file\n");
       printf("-outframes: output frames for output file\n");
       printf("-gop: gop length in frames including the I picture,use in IDR\n");
-      printf("-rcmode: 0:CONST_QP  1:CBR  2:VBR 3:jpg\n");
+      printf("-rcmode: 0:CONST_QP  1:CBR  2:VBR\n");
       printf("-bitrate: bitrate(Kb)\n");
       printf("-maxbitrate: max bitrate(Kb),use in vbr\n");
       printf("-profile: 0: base  1:main 2:high\n");
