@@ -224,7 +224,7 @@ void ai_worker(ai_worker_args ai_args)
 
             for (uint32_t cc = 0; cc < points_to_clear[index].size(); cc++)
             {          
-                cv::putText(img_argb, strs_to_clear[index][cc], points_to_clear[index][cc], cv::FONT_HERSHEY_COMPLEX, 2, cv::Scalar(0, 0, 0, 0), 2, 8, 0);
+                cv::putText(img_argb, strs_to_clear[index][cc], points_to_clear[index][cc], cv::FONT_HERSHEY_COMPLEX, 1, cv::Scalar(0, 0, 0, 0), 1, 8, 0);
             }
         }
 
@@ -283,7 +283,7 @@ void ai_worker(ai_worker_args ai_args)
                         std::string text = fexpre.labels[score_index] + ":" + std::to_string(round(score_max * 100) / 100.0).substr(0,4);
                         int x0 = std::max(0, std::min(int((b.x - b.w / 2) * fd_net_len / valid_width * screen_width), (int)screen_width));
                         int y0 = std::max(0, std::min(int((b.y - b.h / 2) *  fd_net_len / valid_height * screen_height) + 60, (int)screen_height));
-                        cv::putText(img_argb, text, cv::Point(x0, y0), cv::FONT_HERSHEY_COMPLEX, 2, cv::Scalar(255, 0, 0, 255), 2, 8, 0);
+                        cv::putText(img_argb, text, cv::Point(x0, y0), cv::FONT_HERSHEY_COMPLEX, 1, cv::Scalar(255, 0, 0, 255), 1, 8, 0);
                         points_to_clear[index].push_back(cv::Point(x0, y0));
                         strs_to_clear[index].push_back(text);
                     }

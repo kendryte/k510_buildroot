@@ -122,8 +122,7 @@ void ai_worker()
     float obj_thresh = 0.2;
     float nms_thresh = 0.45;
     int offset_channel = gnne_input_width * gnne_input_height;
-    uint32_t padding_r, padding_l;
-    objectDetect od(obj_thresh, nms_thresh);
+    objectDetect od(obj_thresh, nms_thresh, YOLOV5_FIX_SIZE, {gnne_valid_width, gnne_valid_height});
 
     od.load_model(kmodel_name);
 
@@ -137,10 +136,7 @@ void ai_worker()
     capture.set(cv::CAP_PROP_FRAME_HEIGHT, gnne_input_height);
     capture.set(cv::CAP_PROP_FOURCC, dev_info[0].video_out_format[3] ? V4L2_PIX_FMT_ARGB32 : V4L2_PIX_FMT_RGB24);
     mtx.unlock();
-    padding_r = (gnne_input_width - gnne_valid_width);
-    padding_l = padding_r / 2;
-    padding_r -= padding_l;
-    cv::Mat rgb24_img_for_ai(YOLOV5_FIX_SIZE, YOLOV5_FIX_SIZE, CV_8UC3, od.virtual_addr_input[0] + padding_l);
+    cv::Mat rgb24_img_for_ai(YOLOV5_FIX_SIZE, YOLOV5_FIX_SIZE, CV_8UC3, od.virtual_addr_input[0] + (gnne_input_height - gnne_valid_height) / 2 * gnne_input_width + (gnne_input_width - gnne_valid_width) / 2);
 
     while(quit.load()) 
     {
@@ -165,7 +161,11 @@ void ai_worker()
         g_addr = (uint8_t *)od.virtual_addr_input[0] + offset_channel;
         b_addr = (uint8_t *)od.virtual_addr_input[0] + offset_channel * 2;
         if (gnne_valid_width < gnne_input_width) {
-            for (int row = 0; row < gnne_valid_height; row++) {
+            uint32_t padding_r = gnne_input_width - gnne_valid_width;
+            uint32_t padding_l = padding_r / 2;
+            uint32_t row_offset = (gnne_input_height - gnne_valid_height) / 2;
+            padding_r -= padding_l;
+            for (int row = row_offset; row < row_offset + gnne_valid_height; row++) {
                 uint32_t offset_l = row * gnne_input_width;
                 uint32_t offset_r = offset_l + gnne_valid_width + padding_l;
                 memset(r_addr + offset_l, 114, padding_l);
@@ -177,11 +177,18 @@ void ai_worker()
             }
         }
         if (gnne_valid_height < gnne_input_height) {
-            uint32_t padding = (gnne_input_height - gnne_valid_height) * gnne_input_width;
-            uint32_t offset = gnne_valid_height * gnne_input_width;
-            memset(r_addr + offset, 114, padding);
-            memset(g_addr + offset, 114, padding);
-            memset(b_addr + offset, 114, padding);
+            uint32_t padding_t = gnne_input_height - gnne_valid_height;
+            uint32_t padding_b = padding_t / 2;
+            padding_t -= padding_b;
+            padding_t *= gnne_input_width;
+            padding_b *= gnne_input_width;
+            uint32_t offset = padding_t + gnne_valid_height * gnne_input_width;
+            memset(r_addr, 114, padding_t);
+            memset(g_addr, 114, padding_t);
+            memset(b_addr, 114, padding_t);
+            memset(r_addr + offset, 114, padding_b);
+            memset(g_addr + offset, 114, padding_b);
+            memset(b_addr + offset, 114, padding_b);
         }
         if(display_ds2)
         {
