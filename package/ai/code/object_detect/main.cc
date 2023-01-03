@@ -127,7 +127,7 @@ void ai_worker(ai_worker_args ai_args)
 
     // define cv::Mat for ai input
     // padding offset is (net_len - valid_width) / 2
-    cv::Mat rgb24_img_for_ai(net_len, net_len, CV_8UC3, od.virtual_addr_input[0] + (net_len - valid_width) / 2);
+    cv::Mat rgb24_img_for_ai(net_len, net_len, CV_8UC3, od.virtual_addr_input[0] + (net_len - valid_width) / 2 + (net_len - valid_height) / 2 * net_len);
     while(quit.load()) 
     {
         bool ret = false;
@@ -148,8 +148,9 @@ void ai_worker(ai_worker_args ai_args)
         if (gnne_valid_width < gnne_input_width) {
             uint32_t padding_r = (gnne_input_width - gnne_valid_width);
             uint32_t padding_l = padding_r / 2;
+            uint32_t row_offset = (gnne_input_height - gnne_valid_height) / 2;
             padding_r -= padding_l;
-            for (int row = 0; row < gnne_valid_height; row++) {
+            for (int row = row_offset; row < row_offset + gnne_valid_height; row++) {
                 uint32_t offset_l = row * gnne_input_width;
                 uint32_t offset_r = offset_l + gnne_valid_width + padding_l;
                 memset(r_addr + offset_l, PADDING_R, padding_l);
@@ -161,11 +162,18 @@ void ai_worker(ai_worker_args ai_args)
             }
         }
         if (gnne_valid_height < gnne_input_height) {
-            uint32_t padding = (gnne_input_height - gnne_valid_height) * gnne_input_width;
-            uint32_t offset = gnne_valid_height * gnne_input_width;
-            memset(r_addr + offset, PADDING_R, padding);
-            memset(g_addr + offset, PADDING_G, padding);
-            memset(b_addr + offset, PADDING_B, padding);
+            uint32_t padding_t = gnne_input_height - gnne_valid_height;
+            uint32_t padding_b = padding_t / 2;
+            padding_t -= padding_b;
+            padding_t *= gnne_input_width;
+            padding_b *= gnne_input_width;
+            uint32_t offset = padding_t + gnne_valid_height * gnne_input_width;
+            memset(r_addr, PADDING_R, padding_t);
+            memset(g_addr, PADDING_G, padding_t);
+            memset(b_addr, PADDING_B, padding_t);
+            memset(r_addr + offset, PADDING_R, padding_b);
+            memset(g_addr + offset, PADDING_G, padding_b);
+            memset(b_addr + offset, PADDING_B, padding_b);
         }
         if(enable_dump_image)
         {

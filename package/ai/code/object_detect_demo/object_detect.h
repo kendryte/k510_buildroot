@@ -65,7 +65,7 @@ using namespace std;
 #define GNNE_INPUT_WIDTH 320
 #define GNNE_INPUT_HEIGHT 240
 #endif
-#define INPUT_SIZE       (YOLOV5_FIX_SIZE * YOLOV5_FIX_SIZE * 3)
+#define INPUT_SIZE       (YOLOV5_FIX_SIZE * YOLOV5_FIX_SIZE * 4)
 
 #define OUTPUT_SIZE0     (255*40*40*4)
 #define OUTPUT_SIZE1     (255*20*20*4)
@@ -86,7 +86,7 @@ struct share_memory_alloc_align_args {
 class objectDetect
 {
 public:
-    objectDetect(float obj_thresh, float nms_thresh);
+    objectDetect(float obj_thresh, float nms_thresh, int net_len, Framesize frame_size);
     void prepare_memory();
     void set_input(uint32_t index);
     void set_output();
@@ -123,7 +123,7 @@ public:
 private:
     float obj_thresh;
     float nms_thresh;
-    Framesize frame_size = {GNNE_INPUT_WIDTH, GNNE_INPUT_HEIGHT};
+    Framesize frame_size;
     uint32_t output_size[3] = {
         OUTPUT_SIZE0,
         OUTPUT_SIZE1,
@@ -133,7 +133,7 @@ private:
     interpreter interp_od;
     vector<unsigned char> od_model;
 
-    int net_len = YOLOV5_FIX_SIZE;
+    int net_len;
     int anchors_num = 3;
     int classes_num = 80;
     int channels = anchors_num * (5 + classes_num);
