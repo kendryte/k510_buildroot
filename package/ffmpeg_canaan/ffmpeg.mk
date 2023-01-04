@@ -48,6 +48,8 @@ define FFMPEG_CANAAN_CONFIGURE_CMDS
 		--extra-ldflags="-Wl,-rpath ." \
 		--enable-static \
 		--enable-shared \
+		--enable-pic \
+		--extra-ldflags="-Wl,-Bsymbolic" \
 		--enable-libk510_video \
 		--enable-libk510_h264 \
 		--enable-libk510_jpeg \
