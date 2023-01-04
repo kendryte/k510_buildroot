@@ -1,0 +1,610 @@
+From 84458d65ad55d2ebf06c7724dc5b9697737d4c1e Mon Sep 17 00:00:00 2001
+From: goatxiu <liujiaan@canaan-creative.com>
+Date: Thu, 29 Dec 2022 10:23:11 +0800
+Subject: [PATCH] modify sensor output size and otc crop
+
+---
+ .../i2c/soc_camera/canaanchip/imx219_0.c      | 265 ++++++++++++++++++
+ .../i2c/soc_camera/canaanchip/imx219_1.c      | 264 +++++++++++++++++
+ .../platform/canaan-isp/isp_2k/isp_f2k.c      |   4 +-
+ .../platform/canaan-isp/isp_2k/isp_r2k.c      |   4 +-
+ 4 files changed, 533 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/media/i2c/soc_camera/canaanchip/imx219_0.c b/drivers/media/i2c/soc_camera/canaanchip/imx219_0.c
+index 14040bd7..fd91ff04 100644
+--- a/drivers/media/i2c/soc_camera/canaanchip/imx219_0.c
++++ b/drivers/media/i2c/soc_camera/canaanchip/imx219_0.c
+@@ -293,6 +293,249 @@ static const struct imx219_reg imx219_init_tab_1920_1080_30fps[] = {
+ 	{IMX219_TABLE_END, 0x00}
+ };
+ 
++/* MCLK:24MHz  1088x1928  30fps   MIPI LANE2 */
++static const struct imx219_reg imx219_init_tab_1088_1928_30fps[] = {
++	//Access command sequence
++	{0x30eb, 0x05},
++	{0x30eb, 0x0c},
++	{0x300a, 0xff},
++	{0x300b, 0xff},
++	{0x30eb, 0x05},
++	{0x30eb, 0x09},
++	//
++	{0x0114, 0x01}, //REG_CSI_LANE 01 -2lanes 03-4lanes
++	{0x0128, 0x00}, //REG_DPHY_CTRL
++	{0x012a, 0x18}, //REG_EXCK_FREQ_MSB
++	{0x012b, 0x00}, //REG_EXCK_FREQ_LSB
++
++	{0x0160, 0x07},//FRM_LENGTH_A[15:8] 1977
++	{0x0161, 0xb9},//FRM_LENGTH_A[7:0] 1977
++	{0x0162, 0x0d},//0x0d},//LINE_LENGTH_A[15:8] 3453
++	{0x0163, 0x7d},//0x78},//LINE_LENGTH_A[7:0]
++
++	{0x0164, 0x04}, //X_ADD_STA_A[11:8]
++	{0x0165, 0x48},//X_ADD_STA_A[7:0]
++	{0x0166, 0x08}, //X_ADD_END_A[11:8]	//2183 - 1096 + 1 = 1087+1 = 1088
++	{0x0167, 0x87}, //X_ADD_END_A[7:0]
++
++	//
++	{0x0168, 0x01},//Y_ADD_STA_A[11:8]
++	{0x0169, 0x0c},//Y_ADD_STA_A[7:0]
++	{0x016a, 0x08},//Y_ADD_END_A[11:8]  	//2195 - 268 +1 = 1927 +1 = 1928
++	{0x016b, 0x93},//Y_ADD_END_A[7:0]
++	//
++	{0x016c, 0x04},//x_output_size[11:8], 1088
++	{0x016d, 0x40},//x_output_size[7:0]
++	{0x016e, 0x07},//y_output_size[11:8], 1928
++	{0x016f, 0x88},// y_output_size[7:0]
++	//
++	{0x0170, 0x01},//X_ODD_INC_A
++	{0x0171, 0x01},//Y_ODD_INC_A
++	//
++	{0x0172, 0x00},//IMG_ORIENTATION_A
++	//BINNING
++	{0x0174, 0x00},//BINNING_MODE_H_A
++	{0x0175, 0x00},//BINNING_MODE_V_A
++	//
++	{0x0301, 0x05},//VTPXCK_DIV
++	{0x0303, 0x01},//VTSYCK_DIV
++	//
++	{0x0304, 0x03},//PREPLLCK_VT_DIV
++	{0x0305, 0x03},//PREPLLCK_OP_DIV
++	//
++	{0x0306, 0x00},//PLL_VT_MPY[10:8]
++	{0x0307, 0x40},//0x25},//PLL_VT_MPY[7:0] 0x39
++
++	//
++	//{0x0309, 0x00},//OPPXCK_DIV
++	//
++	{0x030b, 0x01},//OPSYCK_DIV
++	//
++	{0x030c, 0x00},//PLL_OP_MPY[10:8]
++	{0x030d, 0x2c},//PLL_OP_MPY[7:0] 0x72  0x56  0x51  0x40
++	//
++	{0x0624, 0x07},
++	{0x0625, 0x80},
++	{0x0626, 0x04},
++	{0x0627, 0x38},
++	{0x455e, 0x00},
++	{0x471e, 0x4b},
++	{0x4767, 0x0f},
++	{0x4750, 0x14},
++	{0x4540, 0x00},
++	{0x47b4, 0x14},
++	{0x4713, 0x30},
++	{0x478b, 0x10},
++	{0x478f, 0x10},
++	{0x4793, 0x10},
++	{0x4797, 0x0e},
++	{0x479b, 0x0e},
++	{0x0157, 0x00},
++	{0x015a, 0x03},
++	{0x015b, 0xe8},
++	{IMX219_TABLE_END, 0x00}
++};
++
++/* MCLK:24MHz  1936x1088  30fps   MIPI LANE2 */
++static const struct imx219_reg imx219_init_tab_1936_1088_30fps[] = {
++	//Access command sequence
++	{0x30eb, 0x05},
++	{0x30eb, 0x0c},
++	{0x300a, 0xff},
++	{0x300b, 0xff},
++	{0x30eb, 0x05},
++	{0x30eb, 0x09},
++	//
++	{0x0114, 0x01}, //REG_CSI_LANE 01 -2lanes 03-4lanes
++	{0x0128, 0x00}, //REG_DPHY_CTRL
++	{0x012a, 0x18}, //REG_EXCK_FREQ_MSB
++	{0x012b, 0x00}, //REG_EXCK_FREQ_LSB
++	//
++	{0x0160, 0x04},//FRM_LENGTH_A[15:8] 1166
++	{0x0161, 0x8e},//FRM_LENGTH_A[7:0] 1166
++	{0x0162, 0x0d},//0x0d},//LINE_LENGTH_A[15:8] 3476
++	{0x0163, 0x94},//0x78},//LINE_LENGTH_A[7:0]
++	//
++	{0x0164, 0x02}, //X_ADD_STA_A[11:8]
++	{0x0165, 0xa0},//X_ADD_STA_A[7:0]
++	{0x0166, 0x0a}, //X_ADD_END_A[11:8]	//2607 - 672 + 1 = 1927+1 = 1936
++	{0x0167, 0x2f}, //X_ADD_END_A[7:0]
++	//
++	{0x0168, 0x02},//Y_ADD_STA_A[11:8]
++	{0x0169, 0xb0},//Y_ADD_STA_A[7:0]
++	{0x016a, 0x06},//Y_ADD_END_A[11:8]	//1775 - 668 + 1 = 1087+1 = 1088
++	{0x016b, 0xef},//Y_ADD_END_A[7:0]
++	//
++	{0x016c, 0x07},//x_output_size[11:8], 1936
++	{0x016d, 0x90},//x_output_size[7:0]
++	{0x016e, 0x04},//y_output_size[11:8], 1088
++	{0x016f, 0x40},// y_output_size[7:0]
++	//
++	{0x0170, 0x01},//X_ODD_INC_A
++	{0x0171, 0x01},//Y_ODD_INC_A
++	//
++	//BINNING
++	{0x0174, 0x00},//BINNING_MODE_H_A
++	{0x0175, 0x00},//BINNING_MODE_V_A
++	//
++	{0x0301, 0x05},//VTPXCK_DIV
++	{0x0303, 0x01},//VTSYCK_DIV
++	//
++	{0x0304, 0x03},//PREPLLCK_VT_DIV
++	{0x0305, 0x03},//PREPLLCK_OP_DIV
++	//
++	{0x0306, 0x00},//PLL_VT_MPY[10:8]
++	{0x0307, 0x26},//0x25},//PLL_VT_MPY[7:0] 0x39
++	//
++	//{0x0309, 0x00},//OPPXCK_DIV
++	//
++	{0x030b, 0x01},//OPSYCK_DIV
++	//
++	{0x030c, 0x00},//PLL_OP_MPY[10:8]
++	{0x030d, 0x30},//PLL_OP_MPY[7:0] 0x72
++	//
++	{0x0624, 0x07},
++	{0x0625, 0x80},
++	{0x0626, 0x04},
++	{0x0627, 0x38},
++	{0x455e, 0x00},
++	{0x471e, 0x4b},
++	{0x4767, 0x0f},
++	{0x4750, 0x14},
++	{0x4540, 0x00},
++	{0x47b4, 0x14},
++	{0x4713, 0x30},
++	{0x478b, 0x10},
++	{0x478f, 0x10},
++	{0x4793, 0x10},
++	{0x4797, 0x0e},
++	{0x479b, 0x0e},
++	{0x0157, 0x00},
++	{0x015a, 0x03},
++	{0x015b, 0xe8},
++	{IMX219_TABLE_END, 0x00}
++};
++
++/* MCLK:24MHz  1928x1088  30fps   MIPI LANE2 */
++static const struct imx219_reg imx219_init_tab_1928_1088_30fps[] = {
++	//Access command sequence
++	{0x30eb, 0x05},
++	{0x30eb, 0x0c},
++	{0x300a, 0xff},
++	{0x300b, 0xff},
++	{0x30eb, 0x05},
++	{0x30eb, 0x09},
++	//
++	{0x0114, 0x01}, //REG_CSI_LANE 01 -2lanes 03-4lanes
++	{0x0128, 0x00}, //REG_DPHY_CTRL
++	{0x012a, 0x18}, //REG_EXCK_FREQ_MSB
++	{0x012b, 0x00}, //REG_EXCK_FREQ_LSB
++	//
++	{0x0160, 0x04},//FRM_LENGTH_A[15:8] 1166
++	{0x0161, 0x8e},//FRM_LENGTH_A[7:0] 1166
++	{0x0162, 0x0d},//0x0d},//LINE_LENGTH_A[15:8] 3476
++	{0x0163, 0x94},//0x78},//LINE_LENGTH_A[7:0]
++	//
++	{0x0164, 0x02}, //X_ADD_STA_A[11:8]
++	{0x0165, 0xa4},//X_ADD_STA_A[7:0]
++	{0x0166, 0x0a}, //X_ADD_END_A[11:8]	//2603 - 676 + 1 = 1927+1 = 1928
++	{0x0167, 0x2b}, //X_ADD_END_A[7:0]
++	//
++	{0x0168, 0x02},//Y_ADD_STA_A[11:8]
++	{0x0169, 0xb0},//Y_ADD_STA_A[7:0]
++	{0x016a, 0x06},//Y_ADD_END_A[11:8]	//1775 - 668 + 1 = 1087+1 = 1088
++	{0x016b, 0xef},//Y_ADD_END_A[7:0]
++	//
++	{0x016c, 0x07},//x_output_size[11:8], 1928
++	{0x016d, 0x88},//x_output_size[7:0]
++	{0x016e, 0x04},//y_output_size[11:8], 1088
++	{0x016f, 0x40},// y_output_size[7:0]
++	//
++	{0x0170, 0x01},//X_ODD_INC_A
++	{0x0171, 0x01},//Y_ODD_INC_A
++	//
++	//BINNING
++	{0x0174, 0x00},//BINNING_MODE_H_A
++	{0x0175, 0x00},//BINNING_MODE_V_A
++	//
++	{0x0301, 0x05},//VTPXCK_DIV
++	{0x0303, 0x01},//VTSYCK_DIV
++	//
++	{0x0304, 0x03},//PREPLLCK_VT_DIV
++	{0x0305, 0x03},//PREPLLCK_OP_DIV
++	//
++	{0x0306, 0x00},//PLL_VT_MPY[10:8]
++	{0x0307, 0x26},//0x25},//PLL_VT_MPY[7:0] 0x39
++	//
++	//{0x0309, 0x00},//OPPXCK_DIV
++	//
++	{0x030b, 0x01},//OPSYCK_DIV
++	//
++	{0x030c, 0x00},//PLL_OP_MPY[10:8]
++	{0x030d, 0x30},//PLL_OP_MPY[7:0] 0x72
++	//
++	{0x0624, 0x07},
++	{0x0625, 0x80},
++	{0x0626, 0x04},
++	{0x0627, 0x38},
++	{0x455e, 0x00},
++	{0x471e, 0x4b},
++	{0x4767, 0x0f},
++	{0x4750, 0x14},
++	{0x4540, 0x00},
++	{0x47b4, 0x14},
++	{0x4713, 0x30},
++	{0x478b, 0x10},
++	{0x478f, 0x10},
++	{0x4793, 0x10},
++	{0x4797, 0x0e},
++	{0x479b, 0x0e},
++	{0x0157, 0x00},
++	{0x015a, 0x03},
++	{0x015b, 0xe8},
++	{IMX219_TABLE_END, 0x00}
++};
++
+ /* MCLK:24MHz  1088x1920  30fps   MIPI LANE2 */
+ static const struct imx219_reg imx219_init_tab_1088_1920_30fps[] = {
+ 	//Access command sequence
+@@ -794,6 +1037,28 @@ static const struct imx219_mode supported_modes[] = {
+ 		.vts_def = 0x048e,
+ 		.reg_list = imx219_init_tab_1920_1080_30fps,
+ 	},
++	{
++		.width = 1936,
++		.height = 1088,
++		.max_fps = {
++			.numerator = 10000,
++			.denominator = 300000,
++		},
++		.hts_def = 0x0d94 - IMX219_EXP_LINES_MARGIN,
++		.vts_def = 0x048e,
++		.reg_list = imx219_init_tab_1936_1088_30fps,
++	},
++	{
++		.width = 1088,
++		.height = 1928,
++		.max_fps = {
++			.numerator = 10000,
++			.denominator = 300000,
++		},
++		.hts_def = 0x0d7d - IMX219_EXP_LINES_MARGIN,
++		.vts_def = 0x07b9,
++		.reg_list = imx219_init_tab_1088_1928_30fps,
++	},
+ 	{
+ 		.width = 1088,
+ 		.height = 1920,
+diff --git a/drivers/media/i2c/soc_camera/canaanchip/imx219_1.c b/drivers/media/i2c/soc_camera/canaanchip/imx219_1.c
+index e988297c..6a156160 100644
+--- a/drivers/media/i2c/soc_camera/canaanchip/imx219_1.c
++++ b/drivers/media/i2c/soc_camera/canaanchip/imx219_1.c
+@@ -291,6 +291,248 @@ static const struct imx219_reg imx219_init_tab_1920_1080_30fps[] = {
+ 	{IMX219_TABLE_END, 0x00}
+ };
+ 
++/* MCLK:24MHz  1088x1928  30fps   MIPI LANE2 */
++static const struct imx219_reg imx219_init_tab_1088_1928_30fps[] = {
++	//Access command sequence
++	{0x30eb, 0x05},
++	{0x30eb, 0x0c},
++	{0x300a, 0xff},
++	{0x300b, 0xff},
++	{0x30eb, 0x05},
++	{0x30eb, 0x09},
++	//
++	{0x0114, 0x01}, //REG_CSI_LANE 01 -2lanes 03-4lanes
++	{0x0128, 0x00}, //REG_DPHY_CTRL
++	{0x012a, 0x18}, //REG_EXCK_FREQ_MSB
++	{0x012b, 0x00}, //REG_EXCK_FREQ_LSB
++
++	{0x0160, 0x07},//FRM_LENGTH_A[15:8] 1977
++	{0x0161, 0xb9},//FRM_LENGTH_A[7:0] 1977
++	{0x0162, 0x0d},//0x0d},//LINE_LENGTH_A[15:8] 3453
++	{0x0163, 0x7d},//0x78},//LINE_LENGTH_A[7:0]
++
++	{0x0164, 0x04}, //X_ADD_STA_A[11:8]
++	{0x0165, 0x48},//X_ADD_STA_A[7:0]
++	{0x0166, 0x08}, //X_ADD_END_A[11:8]	//2183 - 1096 + 1 = 1087+1 = 1088
++	{0x0167, 0x87}, //X_ADD_END_A[7:0]
++
++	//
++	{0x0168, 0x01},//Y_ADD_STA_A[11:8]
++	{0x0169, 0x0c},//Y_ADD_STA_A[7:0]
++	{0x016a, 0x08},//Y_ADD_END_A[11:8]  	//2195 - 268 +1 = 1927 +1 = 1928
++	{0x016b, 0x93},//Y_ADD_END_A[7:0]
++	//
++	{0x016c, 0x04},//x_output_size[11:8], 1088
++	{0x016d, 0x40},//x_output_size[7:0]
++	{0x016e, 0x07},//y_output_size[11:8], 1928
++	{0x016f, 0x88},// y_output_size[7:0]
++	//
++	{0x0170, 0x01},//X_ODD_INC_A
++	{0x0171, 0x01},//Y_ODD_INC_A
++	//
++	{0x0172, 0x00},//IMG_ORIENTATION_A
++	//BINNING
++	{0x0174, 0x00},//BINNING_MODE_H_A
++	{0x0175, 0x00},//BINNING_MODE_V_A
++	//
++	{0x0301, 0x05},//VTPXCK_DIV
++	{0x0303, 0x01},//VTSYCK_DIV
++	//
++	{0x0304, 0x03},//PREPLLCK_VT_DIV
++	{0x0305, 0x03},//PREPLLCK_OP_DIV
++	//
++	{0x0306, 0x00},//PLL_VT_MPY[10:8]
++	{0x0307, 0x40},//0x25},//PLL_VT_MPY[7:0] 0x39
++
++	//
++	//{0x0309, 0x00},//OPPXCK_DIV
++	//
++	{0x030b, 0x01},//OPSYCK_DIV
++	//
++	{0x030c, 0x00},//PLL_OP_MPY[10:8]
++	{0x030d, 0x2c},//PLL_OP_MPY[7:0] 0x72  0x56  0x51  0x40
++	//
++	{0x0624, 0x07},
++	{0x0625, 0x80},
++	{0x0626, 0x04},
++	{0x0627, 0x38},
++	{0x455e, 0x00},
++	{0x471e, 0x4b},
++	{0x4767, 0x0f},
++	{0x4750, 0x14},
++	{0x4540, 0x00},
++	{0x47b4, 0x14},
++	{0x4713, 0x30},
++	{0x478b, 0x10},
++	{0x478f, 0x10},
++	{0x4793, 0x10},
++	{0x4797, 0x0e},
++	{0x479b, 0x0e},
++	{0x0157, 0x00},
++	{0x015a, 0x03},
++	{0x015b, 0xe8},
++	{IMX219_TABLE_END, 0x00}
++};
++/* MCLK:24MHz  1936x1088  30fps   MIPI LANE2 */
++static const struct imx219_reg imx219_init_tab_1936_1088_30fps[] = {
++	//Access command sequence
++	{0x30eb, 0x05},
++	{0x30eb, 0x0c},
++	{0x300a, 0xff},
++	{0x300b, 0xff},
++	{0x30eb, 0x05},
++	{0x30eb, 0x09},
++	//
++	{0x0114, 0x01}, //REG_CSI_LANE 01 -2lanes 03-4lanes
++	{0x0128, 0x00}, //REG_DPHY_CTRL
++	{0x012a, 0x18}, //REG_EXCK_FREQ_MSB
++	{0x012b, 0x00}, //REG_EXCK_FREQ_LSB
++	//
++	{0x0160, 0x04},//FRM_LENGTH_A[15:8] 1166
++	{0x0161, 0x8e},//FRM_LENGTH_A[7:0] 1166
++	{0x0162, 0x0d},//0x0d},//LINE_LENGTH_A[15:8] 3476
++	{0x0163, 0x94},//0x78},//LINE_LENGTH_A[7:0]
++	//
++	{0x0164, 0x02}, //X_ADD_STA_A[11:8]
++	{0x0165, 0xa0},//X_ADD_STA_A[7:0]
++	{0x0166, 0x0a}, //X_ADD_END_A[11:8]	//2607 - 672 + 1 = 1927+1 = 1936
++	{0x0167, 0x2f}, //X_ADD_END_A[7:0]
++	//
++	{0x0168, 0x02},//Y_ADD_STA_A[11:8]
++	{0x0169, 0xb0},//Y_ADD_STA_A[7:0]
++	{0x016a, 0x06},//Y_ADD_END_A[11:8]	//1775 - 668 + 1 = 1087+1 = 1088
++	{0x016b, 0xef},//Y_ADD_END_A[7:0]
++	//
++	{0x016c, 0x07},//x_output_size[11:8], 1936
++	{0x016d, 0x90},//x_output_size[7:0]
++	{0x016e, 0x04},//y_output_size[11:8], 1088
++	{0x016f, 0x40},// y_output_size[7:0]
++	//
++	{0x0170, 0x01},//X_ODD_INC_A
++	{0x0171, 0x01},//Y_ODD_INC_A
++	//
++	//BINNING
++	{0x0174, 0x00},//BINNING_MODE_H_A
++	{0x0175, 0x00},//BINNING_MODE_V_A
++	//
++	{0x0301, 0x05},//VTPXCK_DIV
++	{0x0303, 0x01},//VTSYCK_DIV
++	//
++	{0x0304, 0x03},//PREPLLCK_VT_DIV
++	{0x0305, 0x03},//PREPLLCK_OP_DIV
++	//
++	{0x0306, 0x00},//PLL_VT_MPY[10:8]
++	{0x0307, 0x26},//0x25},//PLL_VT_MPY[7:0] 0x39
++	//
++	//{0x0309, 0x00},//OPPXCK_DIV
++	//
++	{0x030b, 0x01},//OPSYCK_DIV
++	//
++	{0x030c, 0x00},//PLL_OP_MPY[10:8]
++	{0x030d, 0x30},//PLL_OP_MPY[7:0] 0x72
++	//
++	{0x0624, 0x07},
++	{0x0625, 0x80},
++	{0x0626, 0x04},
++	{0x0627, 0x38},
++	{0x455e, 0x00},
++	{0x471e, 0x4b},
++	{0x4767, 0x0f},
++	{0x4750, 0x14},
++	{0x4540, 0x00},
++	{0x47b4, 0x14},
++	{0x4713, 0x30},
++	{0x478b, 0x10},
++	{0x478f, 0x10},
++	{0x4793, 0x10},
++	{0x4797, 0x0e},
++	{0x479b, 0x0e},
++	{0x0157, 0x00},
++	{0x015a, 0x03},
++	{0x015b, 0xe8},
++	{IMX219_TABLE_END, 0x00}
++};
++
++/* MCLK:24MHz  1928x1088  30fps   MIPI LANE2 */
++static const struct imx219_reg imx219_init_tab_1928_1088_30fps[] = {
++	//Access command sequence
++	{0x30eb, 0x05},
++	{0x30eb, 0x0c},
++	{0x300a, 0xff},
++	{0x300b, 0xff},
++	{0x30eb, 0x05},
++	{0x30eb, 0x09},
++	//
++	{0x0114, 0x01}, //REG_CSI_LANE 01 -2lanes 03-4lanes
++	{0x0128, 0x00}, //REG_DPHY_CTRL
++	{0x012a, 0x18}, //REG_EXCK_FREQ_MSB
++	{0x012b, 0x00}, //REG_EXCK_FREQ_LSB
++	//
++	{0x0160, 0x04},//FRM_LENGTH_A[15:8] 1166
++	{0x0161, 0x8e},//FRM_LENGTH_A[7:0] 1166
++	{0x0162, 0x0d},//0x0d},//LINE_LENGTH_A[15:8] 3476
++	{0x0163, 0x94},//0x78},//LINE_LENGTH_A[7:0]
++	//
++	{0x0164, 0x02}, //X_ADD_STA_A[11:8]
++	{0x0165, 0xa4},//X_ADD_STA_A[7:0]
++	{0x0166, 0x0a}, //X_ADD_END_A[11:8]	//2603 - 676 + 1 = 1927+1 = 1928
++	{0x0167, 0x2b}, //X_ADD_END_A[7:0]
++	//
++	{0x0168, 0x02},//Y_ADD_STA_A[11:8]
++	{0x0169, 0xb0},//Y_ADD_STA_A[7:0]
++	{0x016a, 0x06},//Y_ADD_END_A[11:8]	//1775 - 668 + 1 = 1087+1 = 1088
++	{0x016b, 0xef},//Y_ADD_END_A[7:0]
++	//
++	{0x016c, 0x07},//x_output_size[11:8], 1928
++	{0x016d, 0x88},//x_output_size[7:0]
++	{0x016e, 0x04},//y_output_size[11:8], 1088
++	{0x016f, 0x40},// y_output_size[7:0]
++	//
++	{0x0170, 0x01},//X_ODD_INC_A
++	{0x0171, 0x01},//Y_ODD_INC_A
++	//
++	//BINNING
++	{0x0174, 0x00},//BINNING_MODE_H_A
++	{0x0175, 0x00},//BINNING_MODE_V_A
++	//
++	{0x0301, 0x05},//VTPXCK_DIV
++	{0x0303, 0x01},//VTSYCK_DIV
++	//
++	{0x0304, 0x03},//PREPLLCK_VT_DIV
++	{0x0305, 0x03},//PREPLLCK_OP_DIV
++	//
++	{0x0306, 0x00},//PLL_VT_MPY[10:8]
++	{0x0307, 0x26},//0x25},//PLL_VT_MPY[7:0] 0x39
++	//
++	//{0x0309, 0x00},//OPPXCK_DIV
++	//
++	{0x030b, 0x01},//OPSYCK_DIV
++	//
++	{0x030c, 0x00},//PLL_OP_MPY[10:8]
++	{0x030d, 0x30},//PLL_OP_MPY[7:0] 0x72
++	//
++	{0x0624, 0x07},
++	{0x0625, 0x80},
++	{0x0626, 0x04},
++	{0x0627, 0x38},
++	{0x455e, 0x00},
++	{0x471e, 0x4b},
++	{0x4767, 0x0f},
++	{0x4750, 0x14},
++	{0x4540, 0x00},
++	{0x47b4, 0x14},
++	{0x4713, 0x30},
++	{0x478b, 0x10},
++	{0x478f, 0x10},
++	{0x4793, 0x10},
++	{0x4797, 0x0e},
++	{0x479b, 0x0e},
++	{0x0157, 0x00},
++	{0x015a, 0x03},
++	{0x015b, 0xe8},
++	{IMX219_TABLE_END, 0x00}
++};
++
+ /* MCLK:24MHz  1088x1920  30fps   MIPI LANE2 */
+ static const struct imx219_reg imx219_init_tab_1088_1920_30fps[] = {
+ 	//Access command sequence
+@@ -791,6 +1033,28 @@ static const struct imx219_mode supported_modes[] = {
+ 		.vts_def = 0x048e,
+ 		.reg_list = imx219_init_tab_1920_1080_30fps,
+ 	},
++	{
++		.width = 1936,
++		.height = 1088,
++		.max_fps = {
++			.numerator = 10000,
++			.denominator = 300000,
++		},
++		.hts_def = 0x0d94 - IMX219_EXP_LINES_MARGIN,
++		.vts_def = 0x048e,
++		.reg_list = imx219_init_tab_1936_1088_30fps,
++	},
++	{
++		.width = 1088,
++		.height = 1928,
++		.max_fps = {
++			.numerator = 10000,
++			.denominator = 300000,
++		},
++		.hts_def = 0x0d7d - IMX219_EXP_LINES_MARGIN,
++		.vts_def = 0x07b9,
++		.reg_list = imx219_init_tab_1088_1928_30fps,
++	},
+ 	{
+ 		.width = 1088,
+ 		.height = 1920,
+diff --git a/drivers/media/platform/canaan-isp/isp_2k/isp_f2k.c b/drivers/media/platform/canaan-isp/isp_2k/isp_f2k.c
+index bb3f4883..77600319 100644
+--- a/drivers/media/platform/canaan-isp/isp_2k/isp_f2k.c
++++ b/drivers/media/platform/canaan-isp/isp_2k/isp_f2k.c
+@@ -1342,8 +1342,8 @@ static int isp_f2k_core_SetOtcCtl(struct k510_isp_device *isp,OTC_INFO_S *otcInf
+ 	stOtcCtl.otc_uv_format_sel = otcInfo->otc_uv_format_sel;
+ 	stOtcCtl.otc_hsync_pol_sel = otcInfo->otc_hsync_pol_sel;
+ 	stOtcCtl.otc_vsync_pol_sel = otcInfo->otc_vsync_pol_sel;
+-	stOtcCtl.otc_stt_vr = otcInfo->otc_out_size.Width_st;
+-	stOtcCtl.otc_stt_hr = otcInfo->otc_out_size.Height_st;
++	stOtcCtl.otc_stt_vr = otcInfo->otc_out_size.Height_st;
++	stOtcCtl.otc_stt_hr = otcInfo->otc_out_size.Width_st;
+ 	stOtcCtl.otc_height = otcInfo->otc_out_size.Height;
+ 	stOtcCtl.otc_width = otcInfo->otc_out_size.Width;
+ 	Isp_Drv_F2k_Core_SetOtcCtl(isp,&stOtcCtl);
+diff --git a/drivers/media/platform/canaan-isp/isp_2k/isp_r2k.c b/drivers/media/platform/canaan-isp/isp_2k/isp_r2k.c
+index d7a8b731..a627f438 100644
+--- a/drivers/media/platform/canaan-isp/isp_2k/isp_r2k.c
++++ b/drivers/media/platform/canaan-isp/isp_2k/isp_r2k.c
+@@ -1193,8 +1193,8 @@ static int isp_r2k_core_SetOtcCtl(struct k510_isp_device *isp,OTC_INFO_S *otcInf
+ 	stOtcCtl.otc_uv_format_sel = otcInfo->otc_uv_format_sel;
+ 	stOtcCtl.otc_hsync_pol_sel = otcInfo->otc_hsync_pol_sel;
+ 	stOtcCtl.otc_vsync_pol_sel = otcInfo->otc_vsync_pol_sel;
+-	stOtcCtl.otc_stt_vr = otcInfo->otc_out_size.Width_st;
+-	stOtcCtl.otc_stt_hr = otcInfo->otc_out_size.Height_st;
++	stOtcCtl.otc_stt_vr = otcInfo->otc_out_size.Height_st;
++	stOtcCtl.otc_stt_hr = otcInfo->otc_out_size.Width_st;
+ 	stOtcCtl.otc_height = otcInfo->otc_out_size.Height;
+ 	stOtcCtl.otc_width = otcInfo->otc_out_size.Width;
+ 	Isp_Drv_R2k_Core_SetOtcCtl(isp,&stOtcCtl);
+-- 
+2.36.1
+
