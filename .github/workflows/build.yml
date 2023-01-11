@@ -51,7 +51,6 @@ jobs:
           test -f toolchain/nds64le-linux-glibc-v5d.txz || wget -c https://ai.b-bug.org/k510_buildroot/toolchain/nds64le-linux-glibc-v5d.txz -O toolchain/nds64le-linux-glibc-v5d.txz
           test -f toolchain/nds64le-elf-mculib-v5d.txz || wget -c https://ai.b-bug.org/k510_buildroot/toolchain/nds64le-elf-mculib-v5d.txz -O toolchain/nds64le-elf-mculib-v5d.txz          
 
-
       - name: Download cache package
         id: download_cache
         run: |
