@@ -1,0 +1,20 @@
+Index: b/libavdevice/v4l2.c
+===================================================================
+--- a/libavdevice/v4l2.c
++++ b/libavdevice/v4l2.c
+@@ -1195,6 +1195,7 @@ static void mmap_close(struct video_data
+         
+         if(s->memory == V4L2_MEMORY_USERPTR)
+         {
++            munmap(s->buf_start[i], s->buf_len[i]);
+             if(ioctl(s->fd_share_memory, SHARE_MEMORY_FREE, &s->buf_paddr[i]) < 0)
+             {
+                 printf("%s>Error!\n", __FUNCTION__);
+@@ -1621,6 +1622,7 @@ static int v4l2_read_close(AVFormatConte
+         isp_deinit(ctx);
+     }
+     
++    mediactl_exit();
+     return 0;
+ }
+ 

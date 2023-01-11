@@ -50,6 +50,8 @@
 #define ADAPTIVE_AE_EHN_MODE_NORMAL 0
 #define ADAPTIVE_AE_EHN_MODE_BACKLIGHT 1
 #define ADAPTIVE_AE_EHN_MODE_STRONG_LIGHT_SUPPRESSION 2
+#define ADAPTIVE_IR_CUT_MAX_LEVEL 20
+#define ADAPTIVE_IR_CUT_MIN_LEVEL 0
 
 /* struct define */
 typedef struct _ADAPTIVE_USER_ATTR_ISP_CTL_T {
@@ -196,6 +198,11 @@ enum adap_callback_id
     ADAP_CALLBACK_ID_COLOR2BW, // 12
     ADAP_CALLBACK_ID_ADA, // 13
     ADAP_CALLBACK_ID_END, // 14
+};
+
+enum ir_cut_mode_user_e {
+	ADAPTIVE_USER_IR_CUT_NIGHT,
+ 	ADAPTIVE_USER_IR_CUT_DAY,
 };
 
 // static struct k510isp_reg_val adaptive_apply_rgb_gamma_table = {0x0400, 0x0};
@@ -407,6 +414,13 @@ typedef struct __CB_IR_CUT_T
 #define ADAPTIVE_CALLBACK_ID_OVER_RANGE (-3)
 #define ADAPTIVE_CALLBACK_ID_NOT_MATCH (-4)
 
+/* ir cut level error code */
+#define ADAPTIVE_IR_CUT_SET_EV_SUCCESS (0)
+#define ADAPTIVE_IR_CUT_SET_VAL_SUCCESS (0)
+#define ADAPTIVE_IR_CUT_EV_LV_OVER_RANGE (-1)
+#define ADAPTIVE_IR_CUT_EV_LV_DIFF_LESS_THAN_TWO (-2)
+#define ADAPTIVE_IR_CUT_GET_EV_LV_FAILED (-3)
+#define ADAPTIVE_IR_CUT_SET_EV_LV_FAILED (-4)
 /* callback reg function */
 int adaptive_cb_assign(ADAP_CB_T * acb);
 
@@ -437,4 +451,10 @@ int adaptive_callback_register(ADAP_CB_T * acb);
 /* flip_level 0:normal, 1:hflip, 2:vflip, 3: hvflip */
 int adaptive_mirror_flip_apply(enum adaptive_isp_pipeline_e pipeline, int flip_level);
 
+/* ir cut */
+int adap_ir_cut_ev_get(enum adaptive_isp_pipeline_e pipeline, enum ir_cut_mode_user_e ir_cut_mode);
+int adap_ir_cut_ev_set(enum adaptive_isp_pipeline_e pipeline, enum ir_cut_mode_user_e ir_cut_mode, int level);
+float adap_ir_cut_hold_time_get(enum adaptive_isp_pipeline_e pipeline, enum ir_cut_mode_user_e ir_cut_mode);
+int adap_ir_cut_hold_time_set(enum adaptive_isp_pipeline_e pipeline, enum ir_cut_mode_user_e ir_cut_mode, float hold_time);
+unsigned short adap_ir_cut_lv_calc(enum adaptive_isp_pipeline_e pipeline, int ev);
 #endif

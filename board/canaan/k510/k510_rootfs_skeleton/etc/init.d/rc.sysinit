@@ -74,6 +74,17 @@ else
 	#udhcpc -b  -i eth0  &
 fi
 
+ifconfig wlan0 up
+if [ $? -eq 0 ];then
+	if [ -f /first_run_flag_file ];then
+                echo "ctrl_interface=/var/run/wpa_supplicant" > /etc/wpa_supplicant.conf
+                echo "update_config=1" >> /etc/wpa_supplicant.conf
+                echo "ap_scan=1" >> /etc/wpa_supplicant.conf
+        fi
+
+        wpa_supplicant -D nl80211 -i wlan0 -c /etc/wpa_supplicant.conf -B
+fi
+
 /sbin/ifup -a -f
 
 #telnetd
@@ -104,6 +115,6 @@ ntpdate  ntp.aliyun.com >/dev/null 2>&1 &
 i2ctransfer -f -y 0 w3@0x10 0x01 0x00 0x00
 
 cd /app/mediactl_lib/
-taskset 0x2 ./v4l2_drm.out -f video_drm_1920x1080.conf -e 1 -s &
+./v4l2_drm.out -f video_drm_1920x1080.conf -e 1 -s &
 cd /
 /usr/sbin/ifplugd -d 0 -u 0 -n -p  -I -i eth0 -r /etc/network/ifplug.sh &

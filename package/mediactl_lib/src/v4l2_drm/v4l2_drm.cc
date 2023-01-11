@@ -614,6 +614,9 @@ int video_resolution_adaptation(void)
     uint32_t sensor_total_height[2];
     uint32_t sensor_active_width[2];
     uint32_t sensor_active_height[2];
+    uint32_t main_width[2];
+    uint32_t main_height[2];
+
     uint32_t video_width[2];
     uint32_t video_height[2];
     int32_t video_offset_x[2] = {0, 0};
@@ -623,16 +626,20 @@ int video_resolution_adaptation(void)
     do {\
         sensor_total_width[x] = 3476;\
         sensor_total_height[x] = 1166;\
-        sensor_active_width[x] = 1920;\
-        sensor_active_height[x] = 1080;\
+        sensor_active_width[x] = 1936;\
+        sensor_active_height[x] = 1088;\
+        main_width[x] = 1920; \
+        main_height[x] = 1080; \
     } while(0)
 
 #define SENSOR_1080x1920_TIMING(x) \
     do {\
         sensor_total_width[x] = 3453;\
         sensor_total_height[x] = 1979;\
-        sensor_active_width[x] = 1080;\
-        sensor_active_height[x] = 1920;\
+        sensor_active_width[x] = 1088;\
+        sensor_active_height[x] = 1928;\
+        main_width[x] = 1080; \
+        main_height[x] = 1920; \
     } while(0)
 
     if (screen_width == 1920 && screen_height == 1080) {
@@ -757,8 +764,8 @@ int video_resolution_adaptation(void)
         Pointer("/sensor0/sensor0_total_size/sensor0_total_height").Set(root, sensor_total_height[0]);
         Pointer("/sensor0/sensor0_active_size/sensor0_active_width").Set(root, sensor_active_width[0]);
         Pointer("/sensor0/sensor0_active_size/sensor0_active_height").Set(root, sensor_active_height[0]);
-        Pointer("/sensor0/~1dev~1video2/video2_width").Set(root, sensor_active_width[0]);
-        Pointer("/sensor0/~1dev~1video2/video2_height").Set(root, sensor_active_height[0]);
+        Pointer("/sensor0/~1dev~1video2/video2_width").Set(root, main_width[0]);
+        Pointer("/sensor0/~1dev~1video2/video2_height").Set(root, main_height[0]);
         Pointer("/sensor0/~1dev~1video2/video2_out_format").Set(root, 1);
         Pointer("/sensor0/~1dev~1video3/video3_used").Set(root, 1);
         Pointer("/sensor0/~1dev~1video3/video3_width").Set(root, video_width[0]);
@@ -777,8 +784,8 @@ int video_resolution_adaptation(void)
         Pointer("/sensor1/sensor1_total_size/sensor1_total_height").Set(root, sensor_total_height[1]);
         Pointer("/sensor1/sensor1_active_size/sensor1_active_width").Set(root, sensor_active_width[1]);
         Pointer("/sensor1/sensor1_active_size/sensor1_active_height").Set(root, sensor_active_height[1]);
-        Pointer("/sensor1/~1dev~1video6/video6_width").Set(root, sensor_active_width[1]);
-        Pointer("/sensor1/~1dev~1video6/video6_height").Set(root, sensor_active_height[1]);
+        Pointer("/sensor1/~1dev~1video6/video6_width").Set(root, main_width[1]);
+        Pointer("/sensor1/~1dev~1video6/video6_height").Set(root, main_height[1]);
         Pointer("/sensor1/~1dev~1video6/video6_out_format").Set(root, 1);
         Pointer("/sensor1/~1dev~1video7/video7_used").Set(root, 1);
         Pointer("/sensor1/~1dev~1video7/video7_width").Set(root, video_width[1]);
@@ -803,7 +810,7 @@ int video_resolution_adaptation(void)
 
 /**
  * @brief Spawn isp-tuningd
- * 
+ *
  * @return int pid of child process
  */
 static pid_t spawn_isp_tuningd (unsigned width, unsigned height, int* pipe_fd_ptr) {
@@ -836,11 +843,11 @@ static pid_t spawn_isp_tuningd (unsigned width, unsigned height, int* pipe_fd_pt
 }
 
 /**
- * @brief 
- * 
- * @param __attribute__ 
- * @param __attribute__ 
- * @return int 
+ * @brief
+ *
+ * @param __attribute__
+ * @param __attribute__
+ * @return int
  */
 int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unused__)))
 {

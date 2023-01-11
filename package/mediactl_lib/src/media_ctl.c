@@ -1573,7 +1573,7 @@ void run_all_ae_video(void *info)
          */
 
         /* Timeout. */
-        tv.tv_sec = 2;
+        tv.tv_sec = 5;
         tv.tv_usec = 0;
         fd_set rfds = fds;
         r = select(max_fd, &rfds, NULL, NULL, &tv);
@@ -2434,4 +2434,24 @@ int isp_module_callback_register(ISP_CB_T * icb)
 int isp_module_callback_ctl_stat(enum isp_pipeline_e pipeline, enum isp_callback_id cbid)
 {
 	return adaptive_callback_ctl_stat(pipeline, cbid);
+}
+
+int ir_cut_ev_get(enum isp_pipeline_e pipeline, enum ir_cut_mode_e ir_cut_mode)
+{
+    return adap_ir_cut_ev_get(pipeline, ir_cut_mode);
+}
+
+int ir_cut_ev_set(enum isp_pipeline_e pipeline, enum ir_cut_mode_e ir_cut_mode, int level)
+{
+    return adap_ir_cut_ev_set(pipeline, ir_cut_mode, level);
+}
+
+float ir_cut_hold_time_get(enum isp_pipeline_e pipeline, enum ir_cut_mode_e ir_cut_mode)
+{
+    return adap_ir_cut_hold_time_get(pipeline, ir_cut_mode);
+}
+
+int ir_cut_hold_time_set(enum isp_pipeline_e pipeline, enum ir_cut_mode_e ir_cut_mode, float hold_time)
+{
+    return adap_ir_cut_hold_time_set(pipeline, ir_cut_mode, hold_time);
 }

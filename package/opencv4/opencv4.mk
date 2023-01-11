@@ -45,10 +45,12 @@ OPENCV4_CFLAGS += -march=rv64imafdc
 # OpenCV component options
 OPENCV4_CONF_OPTS += \
 	-DCMAKE_CXX_FLAGS="$(OPENCV4_CXXFLAGS) -O3" \
-	-DCMAKE_C_FLAGS="$(OPENCV4_CFLAGS) -O3" 
+	-DCMAKE_C_FLAGS="$(OPENCV4_CFLAGS) -O3" \
+	-DBUILD_opencv_python3=ON
 
+OPENCV4_CONF_ENV += PKG_CONFIG_PATH=$(TARGET_DIR)/usr/local/lib/pkgconfig
 
-OPENCV4_DEPENDENCIES += host-pkgconf zlib
+OPENCV4_DEPENDENCIES += host-pkgconf zlib ffmpeg_canaan
 
 # Installation hooks:
 define OPENCV4_CLEAN_INSTALL_LICENSE
