@@ -50,11 +50,11 @@
 #include "media_ctl.h"
 #include "v4l2.h"
 
-#define TOTAL_WIDTH 	3448 //0x0d78	
+#define TOTAL_WIDTH 	3448 //0x0d78
 #define TOTAL_HEIGHT 	2200 //0x0898
-#define ACTIVE_WIDTH 	1920 //1080	
+#define ACTIVE_WIDTH 	1920 //1080
 #define ACTIVE_HEIGHT 	1080 //1920
-#define VIDEO_WIDTH 	1920 //1080	
+#define VIDEO_WIDTH 	1920 //1080
 #define VIDEO_HEIGHT 	1080 //1920
 
 #define BUFFERS_COUNT	4
@@ -73,10 +73,10 @@ static pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
  *
 *************************************************************************/
 /**
- * @brief 
- * 
- * @param vdev 
- * @return int 
+ * @brief
+ *
+ * @param vdev
+ * @return int
  */
 static int video_setup(struct v4l2_device *vdev,struct v4l2_pix_format *format)
 {
@@ -109,10 +109,10 @@ static int video_setup(struct v4l2_device *vdev,struct v4l2_pix_format *format)
 	return 0;
 }
 /**
- * @brief 
- * 
- * @param vdev 
- * @return int 
+ * @brief
+ *
+ * @param vdev
+ * @return int
  */
 static int video_start(struct v4l2_device *vdev)
 {
@@ -128,7 +128,7 @@ static int video_start(struct v4l2_device *vdev)
 		if (ret < 0) {
 			printf("error: unable to queue buffer %u\n", i);
 			return -errno;
-		}	
+		}
 	}
 
 	/* Start video streaming. */
@@ -142,10 +142,10 @@ static int video_start(struct v4l2_device *vdev)
 	return 0;
 }
 /**
- * @brief 
- * 
- * @param vdev 
- * @return int 
+ * @brief
+ *
+ * @param vdev
+ * @return int
  */
 static int video_stop(struct v4l2_device *vdev)
 {
@@ -162,9 +162,9 @@ static int video_stop(struct v4l2_device *vdev)
 	return 0;
 }
 /**
- * @brief 
- * 
- * @param vdev 
+ * @brief
+ *
+ * @param vdev
  */
 static void video_cleanup(struct v4l2_device *vdev)
 {
@@ -183,12 +183,12 @@ static void sigint_handler(int signal __attribute__((__unused__)))
 {
 	/* Set the done flag to true when the user presses CTRL-C to interrupt
 	 * the main loop.
-	 */	
+	 */
 	done = true;
 }
 /**
- * @brief 
- * 
+ * @brief
+ *
  */
 int img_cnt[8] = {0};
 static int process_yuv_image(struct v4l2_device *vdev,char *video_name,struct v4l2_pix_format *format,unsigned int video_num)
@@ -210,12 +210,12 @@ static int process_yuv_image(struct v4l2_device *vdev,char *video_name,struct v4
 		printf("warning: error in dequeued buffer, skipping\n");
 		return 0;
 	}
-	
+
 	if(img_cnt[video_num] < 20)
-	{		
+	{
 		sprintf(filename,"./%s_%dx%d_nv12_%d.yuv",&video_name[5],((width+15)/16*16),height,img_cnt[video_num]);
 		printf("%s:%s\n",__func__,filename);
-		FILE *fd = fopen(filename, "wb");    
+		FILE *fd = fopen(filename, "wb");
 		if(fd == NULL)
 		{
 	    	printf("open %s failure, errno %d\n",filename,errno);
@@ -242,13 +242,13 @@ static int process_yuv_image(struct v4l2_device *vdev,char *video_name,struct v4
 	return 0;
 }
 /**
- * @brief 
- * 
- * @param vdev 
- * @param video_name 
- * @param format 
- * @param video_num 
- * @return int 
+ * @brief
+ *
+ * @param vdev
+ * @param video_name
+ * @param format
+ * @param video_num
+ * @return int
  */
 static int process_rgb_image(struct v4l2_device *vdev,char *video_name,struct v4l2_pix_format *format,unsigned int video_num)
 {
@@ -280,7 +280,7 @@ static int process_rgb_image(struct v4l2_device *vdev,char *video_name,struct v4
 		{
 			sprintf(filename,"./%s_%dx%d_%d.argb",&video_name[5],((width+15)/16*16),height,img_cnt[video_num]);
 			printf("%s:%s\n",__func__,filename);
-			fd = fopen(filename, "wb");    
+			fd = fopen(filename, "wb");
 			if(fd == NULL)
 			{
 	    		printf("open %s failure, errno %d\n",filename,errno);
@@ -299,7 +299,7 @@ static int process_rgb_image(struct v4l2_device *vdev,char *video_name,struct v4
 		{
 			sprintf(filename,"./%s_%dx%d_%d.rgb",&video_name[5],((width+15)/16*16),height,img_cnt[video_num]);
 			printf("%s:%s\n",__func__,filename);
-			fd = fopen(filename, "wb");    
+			fd = fopen(filename, "wb");
 			if(fd == NULL)
 			{
 	    		printf("open %s failure, errno %d\n",filename,errno);
@@ -314,7 +314,7 @@ static int process_rgb_image(struct v4l2_device *vdev,char *video_name,struct v4
 	    		return ret;
 			}
 			fclose(fd);
-		}	
+		}
 
 	}
 	img_cnt[video_num]++;
@@ -329,7 +329,7 @@ static int process_rgb_image(struct v4l2_device *vdev,char *video_name,struct v4
 	return 0;
 }
 /*****************************************************************************
- * 
+ *
  *****************************************************************************/
 static char 		   *video_cfg_file = NULL;
 static int 			   verbose = 0;
@@ -343,23 +343,29 @@ static void usage(FILE *fp, int argc, char **argv)
          "-h | --help          Print this message\n"
          "-f | --video_cfg_file   video_cfg_filename [%s]\n"
          "-v | --verbose       Verbose output\n"
+         "-a | --anti-clicker-enable (0: all disable | 1: f 2k enable | 2: r 2k enable | 3: f&r 2k enable)\n"
+         "-x | --ae sw/hw select (default 0: sw ae | 1: hw ae)\n"
+         "-l | --adaptive enable (0: disable | 1: enable, default: enable)\n"
          "",
          argv[0],video_cfg_file);
 }
 
-static const char short_options[] = "hf:v";// 短选项 ：表示带参数
+static const char short_options[] = "hf:va:x:l:";// 短选项 ：表示带参数
 
 static const struct option //长选项
 long_options[] = {
     { "video_cfg_file", required_argument, NULL, 'f' },
     { "help",   no_argument, 	   NULL, 'h' },
     { "verbose", no_argument,      NULL, 'v' },
+    { "anfi-flicker-enable", required_argument, NULL, 'a' },
+    { "ae-select", required_argument, NULL, 'x' },
+    { "adaptive", required_argument, NULL, 'l' },
     { 0, 0, 0, 0 }
 };
 /**
- * @brief 
- * 
- * @param s 
+ * @brief
+ *
+ * @param s
  */
 static void errno_exit(const char *s)
 {
@@ -367,22 +373,22 @@ static void errno_exit(const char *s)
     exit(EXIT_FAILURE);
 }
 /**
- * @brief 
- * 
- * @param signo 
+ * @brief
+ *
+ * @param signo
  */
-void sighand(int signo) 
-{ 
-    pthread_t  tid = pthread_self(); 
-   
-    printf("Thread %lu in signal handler/n", tid); 
-    return; 
+void sighand(int signo)
+{
+    pthread_t  tid = pthread_self();
+
+    printf("Thread %lu in signal handler/n", tid);
+    return;
 }
 /**
- * @brief 
- * 
- * @param info 
- * @return void* 
+ * @brief
+ *
+ * @param info
+ * @return void*
  */
 void *run_f2k_video(void *info)
 {
@@ -406,7 +412,7 @@ void *run_f2k_video(void *info)
 		if(dev_info->enable[i] == 1)
 		{
 			pthread_mutex_lock(&mutex);
-			vdev[i] = v4l2_open(dev_info->video_name[i]); 
+			vdev[i] = v4l2_open(dev_info->video_name[i]);
 			if (vdev[i] == NULL) {
 				printf("error: unable to open video capture device %s\n",
 					dev_info->video_name[i]);
@@ -416,7 +422,7 @@ void *run_f2k_video(void *info)
 			printf("%s:vdev->fd %d\n",__func__,vdev[i]->fd);
 			memset(&format[i], 0, sizeof(struct v4l2_pix_format));
 			format[i].width = dev_info->video_width[i];//width;
-			format[i].height = dev_info->video_height[i];//height;				
+			format[i].height = dev_info->video_height[i];//height;
 			//
 			if(dev_info->video_out_format[i] == 1)
 			{
@@ -455,7 +461,7 @@ void *run_f2k_video(void *info)
 			 */
 			FD_SET(vdev[i]->fd, &fds);
 			if(vdev[i]->fd > maxfd ) maxfd = vdev[i]->fd;
-			printf("%s:maxfd(%d)vdev[i]->fd(%d)\n",__func__,maxfd,vdev[i]->fd);	
+			printf("%s:maxfd(%d)vdev[i]->fd(%d)\n",__func__,maxfd,vdev[i]->fd);
 		}
 	}
 	//
@@ -515,7 +521,7 @@ void *run_f2k_video(void *info)
 				pthread_mutex_lock(&mutex);
 				process_rgb_image(vdev[3],dev_info->video_name[3],&format[3],3);
 				pthread_mutex_unlock(&mutex);
-			}					
+			}
 		}
 
 		count++;
@@ -555,10 +561,10 @@ cleanup_f2k:
 	}
 }
 /**
- * @brief 
- * 
- * @param info 
- * @return void* 
+ * @brief
+ *
+ * @param info
+ * @return void*
  */
 void *run_r2k_video(void *info)
 {
@@ -582,18 +588,18 @@ void *run_r2k_video(void *info)
 		if(dev_info->enable[i] == 1)
 		{
 			pthread_mutex_lock(&mutex);
-			vdev[i] = v4l2_open(dev_info->video_name[i]); 
+			vdev[i] = v4l2_open(dev_info->video_name[i]);
 			if (vdev[i] == NULL) {
 				printf("error: unable to open video capture device %s\n",
 					dev_info->video_name[i]);
-				pthread_mutex_unlock(&mutex);	
+				pthread_mutex_unlock(&mutex);
 				goto cleanup_r2k;
 			}
 			printf("%s:vdev->fd %d\n",__func__,vdev[i]->fd);
 			//c = getchar();
 			memset(&format[i], 0, sizeof(struct v4l2_pix_format));
 			format[i].width = dev_info->video_width[i];//width;
-			format[i].height = dev_info->video_height[i];//height;				
+			format[i].height = dev_info->video_height[i];//height;
 			//
 			if(dev_info->video_out_format[i] == 1)
 			{
@@ -632,7 +638,7 @@ void *run_r2k_video(void *info)
 			 * set, to be used by select() in the main loop.
 			 */
 			FD_SET(vdev[i]->fd, &fds);
-			if(vdev[i]->fd > maxfd ) maxfd = vdev[i]->fd;	
+			if(vdev[i]->fd > maxfd ) maxfd = vdev[i]->fd;
 		}
 	}
 	//
@@ -691,7 +697,7 @@ void *run_r2k_video(void *info)
 				pthread_mutex_lock(&mutex);
 				process_rgb_image(vdev[3],dev_info->video_name[3],&format[3],7);
 				pthread_mutex_unlock(&mutex);
-			}					
+			}
 		}
 		count++;
 	}
@@ -732,11 +738,11 @@ cleanup_r2k:
 	}
 }
 /**
- * @brief 
- * 
- * @param argc 
- * @param argv 
- * @return int 
+ * @brief
+ *
+ * @param argc
+ * @param argv
+ * @return int
  */
 int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unused__)))
 {
@@ -766,7 +772,15 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
         case 'v':
             verbose = 1;
             break;
-
+        case 'a':
+            anti_flicker_init(atoi(optarg));
+            break;
+        case 'x':
+            ae_select_init(atoi(optarg));
+            break;
+        case 'l':
+            adaptive_enable(atoi(optarg));
+            break;
         default:
             usage(stderr, argc, argv);
             exit(EXIT_FAILURE);
@@ -781,15 +795,15 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
 
 	mediactl_init(video_cfg_file,&dev_info[0]);
 	//
-    memset(&actions, 0, sizeof(actions)); 
-    sigemptyset(&actions.sa_mask); /* 将参数set信号集初始化并清空 */ 
-    actions.sa_flags = 0; 
-    actions.sa_handler = sighand;   
-    /* 设置SIGALRM的处理函数 */ 
-    sigaction(SIGALRM,&actions,NULL); 
+    memset(&actions, 0, sizeof(actions));
+    sigemptyset(&actions.sa_mask); /* 将参数set信号集初始化并清空 */
+    actions.sa_flags = 0;
+    actions.sa_handler = sighand;
+    /* 设置SIGALRM的处理函数 */
+    sigaction(SIGALRM,&actions,NULL);
 
 	if(dev_info[0].video_used == 1)
-	{	
+	{
 		pthread_create(&f2k_pid,NULL,run_f2k_video,(void *)&dev_info[0]);
 	}
 
@@ -809,11 +823,11 @@ int main(int argc __attribute__((__unused__)), char *argv[] __attribute__((__unu
 		pthread_kill(r2k_pid, SIGALRM);
 	}
 
-    printf("Wait for masked and unmasked threads to complete\n"); 
+    printf("Wait for masked and unmasked threads to complete\n");
 	if( dev_info[0].video_used == 1)
     {
 		pthread_join(f2k_pid, NULL);
-	} 
+	}
 
 	if( dev_info[1].video_used == 1)
 	{

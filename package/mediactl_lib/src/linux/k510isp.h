@@ -56,7 +56,7 @@
 #define VIDIOC_K510ISP_F2K_REMAP_OUT1_CFG \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 7,struct isp_remap_cfg_info)
 #define VIDIOC_K510ISP_F2K_FBCD_CFG \
-	_IOWR('V', BASE_VIDIOC_PRIVATE + 8,struct isp_remap_cfg_info)	
+	_IOWR('V', BASE_VIDIOC_PRIVATE + 8,struct isp_remap_cfg_info)
 #define VIDIOC_K510ISP_R2K_WRAP_CFG \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 9,struct isp_wrap_cfg_info)
 #define VIDIOC_K510ISP_R2K_CORE_CFG \
@@ -114,7 +114,7 @@
 #define VIDIOC_K510ISP_F2K_CORE_CFG_GET \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 36,struct isp_core_cfg_info)
 #define VIDIOC_K510ISP_R2K_CORE_CFG_GET \
-	_IOWR('V', BASE_VIDIOC_PRIVATE + 37,struct isp_core_cfg_info) 
+	_IOWR('V', BASE_VIDIOC_PRIVATE + 37,struct isp_core_cfg_info)
 #define VIDIOC_K510ISP_SYSCTL_RST_CSI \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 38,unsigned long)
 #define VIDIOC_K510ISP_SYSCTL_RST_VI \
@@ -123,6 +123,14 @@
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 40,unsigned long)
 #define VIDIOC_K510ISP_SYSCTL_RST_R2K \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 41,unsigned long)
+#define VIDIOC_K510ISP_F2K_CORE_REG_SET \
+	_IOWR('V', BASE_VIDIOC_PRIVATE + 42, struct k510isp_reg_val)
+#define VIDIOC_K510ISP_F2K_CORE_REG_GET \
+	_IOWR('V', BASE_VIDIOC_PRIVATE + 43, struct k510isp_reg_val)
+#define VIDIOC_K510ISP_R2K_CORE_REG_SET \
+	_IOWR('V', BASE_VIDIOC_PRIVATE + 44, struct k510isp_reg_val)
+#define VIDIOC_K510ISP_R2K_CORE_REG_GET \
+	_IOWR('V', BASE_VIDIOC_PRIVATE + 45, struct k510isp_reg_val)
 //
 /*
  * Events
@@ -177,10 +185,15 @@ struct k510isp_awb_config{
     __u32 awb_b_obj;//White balance object value of blue
 };
 
+struct k510isp_awb_sync_info {
+    __u32 awb_ar; // AWB value of red
+    __u32 awb_ab; // AWB value of blue
+};
+
 struct k510isp_awb_stats{
     //
     __u32 bfb_pos;//Blue hist value of AWB in feedback mode
-    __u32 bfb_pot;//Blue hist pixels of AWB in feedback mode 
+    __u32 bfb_pot;//Blue hist pixels of AWB in feedback mode
     __u32 rfb_pos;//Red hist value of AWB in feedback mode
     __u32 rfb_pot;//Red hist pixels of AWB in feedback mode
     //
@@ -292,5 +305,10 @@ struct k510isp_stat_event_status {
 	__u32 frame_number;
 	__u16 config_counter;
 	__u8 buf_err;
+};
+
+struct k510isp_reg_val {
+    __u32 reg_addr;
+    __u32 reg_value;
 };
 #endif

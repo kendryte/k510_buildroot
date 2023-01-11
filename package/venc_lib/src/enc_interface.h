@@ -69,9 +69,11 @@ typedef enum
 typedef enum
 {
     ASPECT_RATIO_AUTO, 
+    ASPECT_RATIO_1_1,
     ASPECT_RATIO_4_3, 
     ASPECT_RATIO_16_9, 
-    ASPECT_RATIO_NONE
+    ASPECT_RATIO_NONE,
+    ASPECT_RATIO_MAX,
 } AVC_AspectRatio;
 
 typedef struct
@@ -93,16 +95,37 @@ typedef struct
 typedef enum
 {
     ROI_QP_TABLE_NONE,
-    ROI_QP_TABLE_RELATIVE,//[-32,31],6 LSBs effective
+    ROI_QP_TABLE_RELATIVE,//[-31,31],6 LSBs effective
     ROI_QP_TABLE_ABSOLUTE,//[0,51],6 LSBs effective
 } ROICtrlMode;
 
 typedef enum
 {
-  GDR_VERTICAL = 0,
-  GDR_HORIZONTAL ,
-  GDR_CTRLMAX,
+    GDR_VERTICAL = 0,
+    GDR_HORIZONTAL ,
+    GDR_CTRLMAX,
 }GDRCtrlMode;
+
+typedef struct
+{
+    bool bSplitEnable;
+    unsigned int u32SplitMode; // 0:splite by byte; 1:splite by slice count
+    unsigned int u32SliceSize;
+}EncSliceSplitCfg;
+
+typedef enum
+{
+    ENTROPY_MODE_CAVLC = 0,
+    ENTROPY_MODE_CABAC,
+    ENTROPY_MODE_MAX,
+}EncEntropyMode;
+
+typedef struct
+{
+    unsigned int  disable_deblocking_filter_idc;//[0,2]
+    int  slice_alpha_c0_offset_div2;//[-6,6]
+    int  slice_beta_offset_div2;//[-6,6]
+}EncDblkCfg;
 
 typedef enum
 {
@@ -134,8 +157,12 @@ typedef struct
     bool                      bEnableGDR;//gdr
     GDRCtrlMode               gdrMode;
     bool                      bEnableLTR;//Long Term reference
+    bool                      lossless; //jpeg lossless encode
 
     ROICtrlMode               roiCtrlMode;
+    EncSliceSplitCfg          sliceSplitCfg;
+    EncEntropyMode            entropyMode;//Profile is set to AVC_MAIN or AVC_HIGH is valid
+    EncDblkCfg                encDblkCfg;
 }EncSettings;	
 
 typedef struct
@@ -179,16 +206,22 @@ EncoderHandle* VideoEncoder_Create(EncSettings *pCfg);
 EncStatus      VideoEncoder_SetRoiCfg(EncoderHandle *hEnc,const EncROICfg*pEncRoiCfg);
 
 EncStatus      VideoEncoder_SetLongTerm(EncoderHandle *hEnc);
-EncStatus      VideoEncoder_UseLongTerm(EncoderHandle *hEnc);
+EncStatus      VideoEncoder_UseLongTerm(EncoderHandle *hEnc);  
+EncStatus      VideoEncoder_InsertUserData(EncoderHandle *hEnc,char*pUserData,unsigned int nlen);
+
+
 
 
 EncStatus VideoEncoder_Destroy(EncoderHandle *hEnc);
 
 EncStatus VideoEncoder_EncodeOneFrame(EncoderHandle *hEnc, EncInputFrame *input);
 
+
 EncStatus VideoEncoder_EncodeOneFrame_Async(EncoderHandle *hEnc, EncInputFrame *input, void (*callback)());
 
 EncStatus VideoEncoder_GetStream(EncoderHandle *hEnc, EncOutputStream *output);
+EncStatus VideoEncoder_GetStream_ByExtBuf(EncoderHandle *hEnc,EncOutputStream *output);
+
 
 EncStatus VideoEncoder_GetStreamSection(EncoderHandle *hEnc, EncOutputStreamSection *output);
 

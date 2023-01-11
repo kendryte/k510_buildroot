@@ -54,7 +54,7 @@ int OpenUart(char *UART_DEV)
     {
         return -1;
     }
-    SetOpt(fd);
+    // SetOpt(fd);
     return fd;
 }
 
@@ -95,11 +95,16 @@ void main(int argc, char **argv)
     char str_dev[30];
      if (argc != 2)
     {
-      printf("Please input uart number 0、1、2\n");
+      printf("Please input uart number 0、1\n");
       return 0;
     }
     printf("请输入要发送的内容:");
-    scanf("%45s", &send_str);
+    scanf("%[^\n]", &send_str);
+    if(strlen(send_str) >= 50)
+    {
+        printf("输入字符长度不得高于50字节\n");
+        return;
+    }
     int num = atoi(argv[1]);
     sprintf(str_dev, "/dev/ttyS%d", num);
     fd = open(str_dev, O_RDWR | O_NOCTTY);
@@ -108,9 +113,14 @@ void main(int argc, char **argv)
         printf(" COM Open Fail !");
         return;
     }
-    SetOpt(fd);
+    // SetOpt(fd);
     int TxLen = UartSend(fd, send_str, strlen(send_str));
     printf("\nTxLen = %d\n", TxLen);
+    if (TxLen < 0)
+    {
+        printf("send error\n");
+        goto exit;
+    }
     while (1)
     {
         while (((RxLen = UartRead(fd, RxBuff, TxLen)) > 0))
@@ -122,6 +132,7 @@ void main(int argc, char **argv)
         if (flag == 1)
             break;
     }
-
+exit:
+    tcflush(fd, TCIFLUSH);
     UartClose(fd);
 }

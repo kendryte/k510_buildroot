@@ -1,0 +1,482 @@
+Index: b/testProgs/G711FramedLiveSource.cpp
+===================================================================
+--- /dev/null
++++ b/testProgs/G711FramedLiveSource.cpp
+@@ -0,0 +1,135 @@
++/* Copyright (c) 2022, Canaan Bright Sight Co., Ltd
++
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software Foundation.
++*/
++#include"G711FramedLiveSource.h"
++#include <GroupsockHelper.hh>
++
++
++
++G711FramedLiveSource::G711FramedLiveSource(UsageEnvironment& env, CRtspSourceDataObj *pObj): FramedSource(env)
++{
++
++	m_startPts = 0;
++	m_dLastTimeStamp = 0;
++
++	m_dFirstTimeStamp = 0;
++
++	m_pPullDataObj = pObj;
++	pObj->SetAuidoDataState(true);
++	printf("=============================new G711FramedLiveSource\n");
++}
++
++
++G711FramedLiveSource::~G711FramedLiveSource(void)
++{
++	printf("=============================delete G711FramedLiveSource\n");
++	m_pPullDataObj->SetAuidoDataState(false);
++}
++
++void G711FramedLiveSource::doGetNextFrame()
++{
++	fDurationInMicroseconds = 0;
++	fFrameSize = 0;
++	fNumTruncatedBytes = 0;
++
++	int nLen = fMaxSize;
++	unsigned char *pBuffer = m_pBuffer;
++	unsigned long long  dTimeStamp = 0;
++	if (m_pPullDataObj->GetAudioFrame(pBuffer, nLen, dTimeStamp))
++	{
++
++		//if (fPresentationTime.tv_sec == 0 && fPresentationTime.tv_usec == 0) {
++			if (m_dFirstTimeStamp == 0) {
++				// This is the first frame, so use the current time:
++			fDurationInMicroseconds = 0;
++			m_dLastTimeStamp = dTimeStamp;
++			m_dFirstTimeStamp = dTimeStamp;
++			gettimeofday(&fPresentationTime, NULL);
++			gettimeofday(&m_fFirstPresentationTime, NULL);
++			
++
++
++
++		}
++		else {
++
++#if 0
++			unsigned long long lastTimeTemp = fPresentationTime.tv_sec * 1000000 + fPresentationTime.tv_usec;
++			gettimeofday(&fPresentationTime, NULL);
++			unsigned long long nowTimeTemp = fPresentationTime.tv_sec * 1000000 + fPresentationTime.tv_usec;
++			fDurationInMicroseconds = nowTimeTemp - lastTimeTemp;
++			m_dLastTimeStamp = dTimeStamp;
++#else
++			//unsigned differTime = dTimeStamp - m_dLastTimeStamp;
++			//fDurationInMicroseconds = differTime;
++			//unsigned uSeconds = fPresentationTime.tv_usec + differTime;
++			//fPresentationTime.tv_sec += uSeconds / 1000000;
++			//fPresentationTime.tv_usec = uSeconds % 1000000;
++			//m_dLastTimeStamp = dTimeStamp;
++
++
++			unsigned differTime = dTimeStamp - m_dLastTimeStamp;
++			fDurationInMicroseconds = differTime;
++			m_dLastTimeStamp = dTimeStamp;
++
++
++			unsigned long long uSeconds = m_fFirstPresentationTime.tv_usec + (dTimeStamp - m_dFirstTimeStamp);
++			long tv_sec = uSeconds / 1000000;
++			long tv_usec = uSeconds % 1000000;
++			fPresentationTime.tv_sec = m_fFirstPresentationTime.tv_sec + tv_sec;
++			fPresentationTime.tv_usec = tv_usec;
++
++ 
++
++
++			
++#endif 
++
++		}
++		
++		if (nLen > fMaxSize)
++		{
++			nLen = fMaxSize;
++			fNumTruncatedBytes = nLen - fMaxSize;
++		}
++
++		//È¥ï¿½ï¿½adtsÍ· 
++#if 0
++		//memcpy(fTo, pBuffer + 7, nLen - 7);
++		//fFrameSize = nLen - 7;
++#else
++		memcpy(fTo, pBuffer, nLen);
++		fFrameSize = nLen;
++#endif 
++	}
++	else
++	{
++		//nextTask() = envir().taskScheduler().scheduleDelayedTask(20000,
++		//	(TaskFunc*)FramedSource::afterGetting, this);
++		//printf("audio++++++++++++++++++++++++++++++++++++++++++++++++++\n");
++		//return;
++		if (fPresentationTime.tv_sec == 0 && fPresentationTime.tv_usec == 0) {
++			gettimeofday(&fPresentationTime, NULL);
++
++			{
++				
++				printf("audio fPresentationTime timestamp = 0\n");
++			}
++		}
++		//fDurationInMicroseconds = fuSecsPerFrame;
++		nextTask() = envir().taskScheduler().scheduleDelayedTask(20000,
++			(TaskFunc*)FramedSource::afterGetting, this);
++		return;
++		
++	}
++
++	nextTask() = envir().taskScheduler().scheduleDelayedTask(0,
++		(TaskFunc*)FramedSource::afterGetting, this);//ï¿½ï¿½Ê¾ï¿½Ó³ï¿½0ï¿½ï¿½ï¿½ï¿½ï¿½Ö´ï¿½ï¿½ afterGetting ï¿½ï¿½ï¿½ï¿½
++}
++
++
++
++
+Index: b/testProgs/G711FramedLiveSource.h
+===================================================================
+--- /dev/null
++++ b/testProgs/G711FramedLiveSource.h
+@@ -0,0 +1,33 @@
++/* Copyright (c) 2022, Canaan Bright Sight Co., Ltd
++
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software Foundation.
++*/
++#pragma once
++#include "PullDataObj.h"
++
++class G711FramedLiveSource:public FramedSource
++{
++	public:
++	G711FramedLiveSource(UsageEnvironment& env, CRtspSourceDataObj *pObj);
++	~G711FramedLiveSource(void);
++
++protected:
++	virtual void doGetNextFrame();
++
++private:
++	CRtspSourceDataObj *     m_pPullDataObj;
++	long long          m_startPts ;
++	timeval            m_start_tval;
++
++	unsigned char      m_pBuffer[150000];
++	unsigned long long m_dLastTimeStamp;
++	unsigned long long             m_dFirstTimeStamp;
++	struct timeval                 m_fFirstPresentationTime;
++	struct timeval fTempTime;
++
++};
++
++
++
+Index: b/testProgs/G711LiveAudioServerMediaSubssion.cpp
+===================================================================
+--- /dev/null
++++ b/testProgs/G711LiveAudioServerMediaSubssion.cpp
+@@ -0,0 +1,97 @@
++/* Copyright (c) 2022, Canaan Bright Sight Co., Ltd
++
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software Foundation.
++*/
++
++#include "G711LiveAudioServerMediaSubssion.h"
++#include "G711FramedLiveSource.h"
++#include"IRtspServer.h"
++
++G711LiveAudioServerMediaSubssion::~G711LiveAudioServerMediaSubssion(void)
++{
++	
++}
++
++G711LiveAudioServerMediaSubssion* G711LiveAudioServerMediaSubssion::createNew( UsageEnvironment& env, CRtspSourceDataObj *pObj,const RTSP_AUDIO_INFO& audioInfo)
++{
++	return new G711LiveAudioServerMediaSubssion(env,pObj,audioInfo);
++}
++
++G711LiveAudioServerMediaSubssion::G711LiveAudioServerMediaSubssion( UsageEnvironment& env, CRtspSourceDataObj *pObj,const RTSP_AUDIO_INFO& audioInfo):\
++	OnDemandServerMediaSubsession(env, true)
++{
++	m_pSourceDataObj = pObj;
++	m_G711AudioInfo  = audioInfo;
++}
++
++
++FramedSource* G711LiveAudioServerMediaSubssion::createNewStreamSource(  unsigned clientSessionId,unsigned& estBitrate )
++{
++	unsigned bitsPerSecond = m_G711AudioInfo.nSamplingFrequency*m_G711AudioInfo.nBitsPerSample*m_G711AudioInfo.nNumChannels;
++	estBitrate = (bitsPerSecond+500)/1000; // kbps
++
++  FramedSource* pFrameSource = new G711FramedLiveSource(envir(), m_pSourceDataObj);
++	return pFrameSource;
++}
++
++RTPSink* G711LiveAudioServerMediaSubssion::createNewRTPSink( Groupsock* rtpGroupsock, unsigned char rtpPayloadTypeIfDynamic, FramedSource* inputSource )
++{
++	do {
++			char const* mimeType;
++			unsigned char payloadFormatCode = rtpPayloadTypeIfDynamic; // by default, unless a static RTP payload type can be used
++			if (em_audio_type_g711a == m_G711AudioInfo.audioType)
++			{
++				mimeType = "PCMA";
++				if (m_G711AudioInfo.nSamplingFrequency == 8000 && m_G711AudioInfo.nNumChannels == 1)
++				{
++					payloadFormatCode = 8; // a static RTP payload type
++				}
++			}
++			else if (em_audio_type_g711u == m_G711AudioInfo.audioType)
++			{
++				mimeType = "PCMU";
++				if (m_G711AudioInfo.nSamplingFrequency == 8000 && m_G711AudioInfo.nNumChannels == 1)
++				{
++					payloadFormatCode = 0; // a static RTP payload type
++				}
++			}
++			else
++			{
++				break;
++			}
++    
++    return SimpleRTPSink::createNew(envir(), rtpGroupsock,
++				    payloadFormatCode, m_G711AudioInfo.nSamplingFrequency,
++				    "audio", mimeType, m_G711AudioInfo.nNumChannels);
++  } while (0);
++
++  // An error occurred:
++  return NULL;
++}
++
++void G711LiveAudioServerMediaSubssion::deleteStream(unsigned clientSessionId, void*& streamToken)
++{
++	OnDemandServerMediaSubsession::deleteStream(clientSessionId, streamToken);
++	{
++		char sInfo[1000] = { 0 };
++		sprintf(sInfo, "==============================G711LiveAudioServerMediaSubssion::deleteStream:%p,fDestinationsHashTable size:%d\n", this, fDestinationsHashTable->numEntries());
++		printf(sInfo);
++	}
++
++	if (fDestinationsHashTable->IsEmpty())
++	{
++		m_pSourceDataObj->SetAuidoDataState(false);
++	}
++}
++
++
++
++
++
++
++
++
++
++
+Index: b/testProgs/G711LiveAudioServerMediaSubssion.h
+===================================================================
+--- /dev/null
++++ b/testProgs/G711LiveAudioServerMediaSubssion.h
+@@ -0,0 +1,30 @@
++/* Copyright (c) 2022, Canaan Bright Sight Co., Ltd
++
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software Foundation.
++*/
++
++#pragma once
++#include <OnDemandServerMediaSubsession.hh>
++#include "PullDataObj.h"
++#include"IRtspServer.h"
++class G711LiveAudioServerMediaSubssion: public OnDemandServerMediaSubsession
++{
++public:
++	static G711LiveAudioServerMediaSubssion* createNew(UsageEnvironment& env, CRtspSourceDataObj *pObj,const RTSP_AUDIO_INFO& audioInfo);
++	~G711LiveAudioServerMediaSubssion(void);
++protected:
++	G711LiveAudioServerMediaSubssion(UsageEnvironment& env, CRtspSourceDataObj *pObj,const RTSP_AUDIO_INFO& audioInfo);
++	virtual FramedSource* createNewStreamSource(unsigned clientSessionId, unsigned& estBitrate);
++	virtual RTPSink* createNewRTPSink(Groupsock* rtpGroupsock, unsigned char rtpPayloadTypeIfDynamic, FramedSource* inputSource);
++	virtual void deleteStream(unsigned clientSessionId, void*& streamToken);
++	
++private:
++	CRtspSourceDataObj*          m_pSourceDataObj;
++	RTSP_AUDIO_INFO              m_G711AudioInfo;
++
++
++};
++
++
+Index: b/testProgs/IRtspServer.h
+===================================================================
+--- a/testProgs/IRtspServer.h
++++ b/testProgs/IRtspServer.h
+@@ -7,14 +7,32 @@
+ */
+ 
+ #pragma once
++
++enum RTSP_AUDIO_TYPE
++{
++	em_audio_type_g711a = 0,
++	em_audio_type_g711u
++};
++
++struct RTSP_AUDIO_INFO
++{
++	RTSP_AUDIO_TYPE              audioType;     //ÒôÆµ±àÂëÀàÐÍ
++	int                          nBitsPerSample;//²ÉÑùÎ»Êý
++	int                          nSamplingFrequency;//²ÉÑùÂÊ
++	int                          nNumChannels;  //Í¨µÀÊý
++};
++
++
+ class IRtspServerEX
+ {
+ public:
+ 	static IRtspServerEX*   CreateRTSPServerEX();
+ 	virtual ~IRtspServerEX() {};
+-	virtual int     Init(short sPort) = 0;//³õÊ¼»¯¶Ë¿ÚºÅ
++	virtual int     Init(short sPort,bool bTransferAudio=false) = 0;//³õÊ¼»¯¶Ë¿ÚºÅ
++	virtual void    SetAudioInfo(const RTSP_AUDIO_INFO& audioInfo) = 0;
+ 	virtual int     CreateStreamUrl(char const* streamName) = 0;//´´½¨Á÷µØÖ·
+ 	virtual bool    PushVideoData(unsigned char *pBuf, int nlen, unsigned long long dTime) = 0;  //ÊÓÆµÊý¾Ý(IÖ¡´øSPS£¬PPS£¬ÄÚ²¿×Ô¶¯Ê¶±ðÊÓÆµ²ÎÊýÅäÖÃ)
++	virtual bool    PushAudioData(unsigned char *pBuf, int nlen, unsigned long long dTime) = 0;
+ };
+ 
+ 
+Index: b/testProgs/Makefile
+===================================================================
+--- a/testProgs/Makefile
++++ b/testProgs/Makefile
+@@ -42,7 +42,7 @@ HELPER_OBJS = announceURL.$(OBJ)
+ 
+ VIDEO_STREAMER_OBJS = VideoStreamer.$(OBJ)
+ VIDEO_STREAMER_FILE_OBJS = VideoStreamerFile.$(OBJ)
+-RTSP_OBJS = DataBufCtrlEX.o H264AACSourceData.o H264FramedLiveSource.o H264LiveVideoServerMediaSubssion.o  RtspServerEX.o
++RTSP_OBJS = DataBufCtrlEX.o H264AACSourceData.o H264FramedLiveSource.o H264LiveVideoServerMediaSubssion.o  G711FramedLiveSource.o G711LiveAudioServerMediaSubssion.o RtspServerEX.o
+ 
+ 
+ 
+@@ -60,7 +60,9 @@ DataBufCtrlEX.$(CPP):DataBufCtrlEX.h
+ H264AACSourceData.$(CPP):H264AACSourceData.h
+ H264FramedLiveSource.$(CPP):H264FramedLiveSource.h
+ H264LiveVideoServerMediaSubssion.$(CPP):H264LiveVideoServerMediaSubssion.h
+-RtspServerEX.$(CPP):announceURL.hh IRtspServer.h RtspServerEX.h H264AACSourceData.h H264LiveVideoServerMediaSubssion.h 
++G711FramedLiveSource$(CPP):G711FramedLiveSource.h
++G711LiveAudioServerMediaSubssion.$(CPP):G711LiveAudioServerMediaSubssion.h
++RtspServerEX.$(CPP):announceURL.hh IRtspServer.h RtspServerEX.h H264AACSourceData.h H264LiveVideoServerMediaSubssion.h G711FramedLiveSource.h G711LiveAudioServerMediaSubssion.h
+ 
+ 
+ USAGE_ENVIRONMENT_DIR = ../UsageEnvironment
+Index: b/testProgs/RtspServerEX.cpp
+===================================================================
+--- a/testProgs/RtspServerEX.cpp
++++ b/testProgs/RtspServerEX.cpp
+@@ -10,6 +10,7 @@
+ #include "VideoStreamer.hh"
+ #include "H264AACSourceData.h"
+ #include "H264LiveVideoServerMediaSubssion.h"
++#include "G711LiveAudioServerMediaSubssion.h"
+ #include<liveMedia.hh>
+ #include<BasicUsageEnvironment.hh>
+ #include"announceURL.hh"
+@@ -32,6 +33,7 @@ CRtspServerEX::CRtspServerEX()
+ 	m_pEnv = NULL;
+ 	memset(m_sStreamName, 0, 256);
+ 	m_bInitStream = false;
++	m_bTransferAudio = false;
+ }
+ 
+ 
+@@ -61,6 +63,15 @@ bool CRtspServerEX::PushVideoData(unsign
+ 	return m_pSourceData->AddVideoFrame(pBuf, nlen, dTime);
+ }
+ 
++bool CRtspServerEX::PushAudioData(unsigned char *pBuf, int nlen, unsigned long long dTime)
++{
++	if (m_pSourceData == NULL || !m_bTransferAudio)
++	{
++		return false;
++	}
++	return m_pSourceData->AddAudioFrame(pBuf, nlen, dTime);
++}
++
+ 
+ void* CRtspServerEX::StartRtspEventLoop(void* pUser)
+ {
+@@ -85,6 +96,12 @@ int CRtspServerEX::_InitStreamUrl()
+ 	sms->addSubsession(H264LiveVideoServerMediaSubssion
+ 		::createNew(*m_pEnv, m_pSourceData));//ÐÞ¸ÄÎª×Ô¼ºÊµÏÖµÄservermedia  H264LiveVideoServerMediaSubssion
+ 
++	if (m_bTransferAudio)
++	{
++		sms->addSubsession(G711LiveAudioServerMediaSubssion
++		::createNew(*m_pEnv, m_pSourceData,m_audioInfo));
++	}
++
+ 	m_rtspServer->addServerMediaSession(sms);
+ 
+ 	announceURL(m_rtspServer, sms);
+@@ -94,7 +111,7 @@ int CRtspServerEX::_InitStreamUrl()
+ 	return m_nCurUrlIndex;
+ }
+ 
+-int CRtspServerEX::Init(short sPort)
++int CRtspServerEX::Init(short sPort,bool bTransferAudio)
+ {
+ 	if (m_bInit)
+ 	{
+@@ -103,6 +120,7 @@ int CRtspServerEX::Init(short sPort)
+ 
+ 	m_bInit = true;
+ 	m_Port = sPort;
++	m_bTransferAudio = bTransferAudio;
+ 
+ 	TaskScheduler* scheduler = BasicTaskScheduler::createNew();
+ 	m_pEnv = BasicUsageEnvironment::createNew(*scheduler);
+@@ -128,3 +146,9 @@ int CRtspServerEX::Init(short sPort)
+ 
+ 	return 0;
+ }
++
++void    CRtspServerEX::SetAudioInfo(const RTSP_AUDIO_INFO& audioInfo)
++{
++	m_audioInfo = audioInfo;
++}
++
+Index: b/testProgs/RtspServerEX.h
+===================================================================
+--- a/testProgs/RtspServerEX.h
++++ b/testProgs/RtspServerEX.h
+@@ -17,11 +17,13 @@ class CRtspServerEX:public IRtspServerEX
+ {
+ public:
+ 	CRtspServerEX();
+-	~CRtspServerEX();
++	~CRtspServerEX();	
+ 
+-	int     Init(short sPort) ;
++	int     Init(short sPort,bool bTransferAudio=false) ;
++	virtual void    SetAudioInfo(const RTSP_AUDIO_INFO& audioInfo);
+ 	int     CreateStreamUrl(char const* streamName);
+ 	bool    PushVideoData(unsigned char *pBuf, int nlen, unsigned long long dTime);
++	bool    PushAudioData(unsigned char *pBuf, int nlen, unsigned long long dTime);
+ 
+ protected:
+ 	static void* StartRtspEventLoop(void* pUser);
+@@ -39,5 +41,8 @@ private:
+ 
+ 	CRtspSourceDataObj  *m_pSourceData;
+ 	int          m_nCurUrlIndex;
++	RTSP_AUDIO_INFO        m_audioInfo;
++	bool                 m_bTransferAudio;
++	
+ };
+ 

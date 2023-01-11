@@ -14,3 +14,10 @@
 
 ## 关联issue:
 
+fix #X
+
+<!--
+请将#之后的X，手动修改为PR关联的issue ID, PR合并成功后，可以自动关闭对应的issue
+Example: 
+fix #1
+-->

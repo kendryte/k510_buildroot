@@ -243,7 +243,7 @@ int drm_dmabuf_set_plane(struct drm_buffer *buf)
 {
 	int ret;
 	static int first = 1;
-	uint32_t flags = DRM_MODE_PAGE_FLIP_EVENT;
+	uint32_t flags = DRM_MODE_PAGE_FLIP_EVENT | DRM_MODE_ATOMIC_NONBLOCK;
 	drm_dev.req = drmModeAtomicAlloc();
 
 	/* On first Atomic commit, do a modeset */
@@ -284,7 +284,7 @@ int drm_dmabuf_set_2plane(struct drm_buffer *buf,struct drm_buffer *buf2)
 {
 	int ret;
 	static int first = 1;
-	uint32_t flags = DRM_MODE_PAGE_FLIP_EVENT;
+	uint32_t flags = DRM_MODE_PAGE_FLIP_EVENT | DRM_MODE_ATOMIC_NONBLOCK;
 	//struct drm_buffer *buf2 =&buf[BUFFERS_COUNT];
 	drm_dev.req = drmModeAtomicAlloc();
 
@@ -609,8 +609,8 @@ static int drm_setup(unsigned int fourcc)
 		goto err;
 	}
 
-	drm_dev.width = 1920;//width;
-	drm_dev.height = 1080;//height;
+	drm_dev.width = drm_dev.mode.hdisplay;
+	drm_dev.height = drm_dev.mode.vdisplay;
 
 	ret = find_plane(fourcc, &drm_dev.plane_id, drm_dev.crtc_id, drm_dev.crtc_idx);
 	if (ret) {
@@ -685,6 +685,8 @@ static int drm_allocate_dumb(struct drm_buffer *buf)
 	uint32_t handles[4] = {0}, pitches[4] = {0}, offsets[4] = {0};
 	int ret;
 
+	if (buf->width == 0 || buf->height == 0)
+		return 0;
 	/* create dumb buffer */
 	memset(&creq, 0, sizeof(creq));
 
@@ -932,7 +934,7 @@ void drm_init(uint32_t width, uint32_t height)
 #else
 
 
-void drm_init(struct drm_size *size)
+int  drm_init(struct drm_size *size)
 {
 	int ret, i, j;
 
@@ -946,14 +948,14 @@ void drm_init(struct drm_size *size)
 			drm_dev.drm_bufs[j + (i * BUFFERS_COUNT)].src_offset_h = size[i].src_offset_h;
 			drm_dev.drm_bufs[j + (i * BUFFERS_COUNT)].crtc_offset_w = size[i].crtc_offset_w;
 			drm_dev.drm_bufs[j + (i * BUFFERS_COUNT)].crtc_offset_h = size[i].crtc_offset_h;
-		}		
+		}
 	}
 
 	ret = drm_setup(DRM_FOURCC);
 	if (ret) {
 		close(drm_dev.fd);
 		drm_dev.fd = -1;
-		return;
+		return ret;
 	}
 
 	ret = drm_setup_buffers( );
@@ -961,7 +963,7 @@ void drm_init(struct drm_size *size)
 		err("DRM buffer allocation failed");
 		close(drm_dev.fd);
 		drm_dev.fd = -1;
-		return;
+		return ret;
 	}
 }
 
@@ -989,7 +991,7 @@ void drm_exit(void)
 void drm_reset(void)
 {
 	unsigned int val = 0;
-	return drmIoctl(drm_dev.fd, DRM_IOCTL_KENDRYTE_RESET,&val);	
+	drmIoctl(drm_dev.fd, DRM_IOCTL_KENDRYTE_RESET,&val);
 }
 // static int terminate = 1;
 
@@ -997,5 +999,20 @@ void drm_reset(void)
 // {
 // 	terminate = 0;
 // }
+
+int drm_get_resolution(struct drm_dev *dev, uint32_t *width, uint32_t *height)
+{
+	int ret = drm_setup(DRM_FOURCC);
+	if (ret) {
+		close(drm_dev.fd);
+		drm_dev.fd = -1;
+		return ret;
+	}
+	*width = drm_dev.mode.hdisplay;
+	*height = drm_dev.mode.vdisplay;
+	close(drm_dev.fd);
+
+	return 0;
+}
 
 /* drm code end */

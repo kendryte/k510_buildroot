@@ -1,0 +1,302 @@
+From e1f981610dfbcac22da0a9749769cc81a361631c Mon Sep 17 00:00:00 2001
+From: "Chenggen.Wang" <wangchenggen@canaan-creative.com>
+Date: Tue, 18 Oct 2022 14:31:03 +0800
+Subject: [PATCH] dsi: only the mipi lcd init failed, do soc reset.
+
+Signed-off-by: Chenggen.Wang <wangchenggen@canaan-creative.com>
+---
+ board/Canaan/dsi_logo/test/log/main.c      | 222 ++++++++++-----------
+ board/Canaan/dsi_logo/test/log/vo/vo_app.c |   5 +
+ 2 files changed, 113 insertions(+), 114 deletions(-)
+ mode change 100755 => 100644 board/Canaan/dsi_logo/test/log/main.c
+
+diff --git a/board/Canaan/dsi_logo/test/log/main.c b/board/Canaan/dsi_logo/test/log/main.c
+old mode 100755
+new mode 100644
+index e96b5262..67971ad1
+--- a/board/Canaan/dsi_logo/test/log/main.c
++++ b/board/Canaan/dsi_logo/test/log/main.c
+@@ -43,94 +43,94 @@
+ 
+ void SYSCTL_DRV_Init(void)
+ {
+-    //1. init csi pix clk
+-    //a. enable clk
+-    sysctl_clk_set_leaf_en(SYSCTL_CLK_CSI_0_PIXEL, TRUE);
+-    sysctl_clk_set_leaf_en(SYSCTL_CLK_CSI_1_PIXEL, TRUE);
+-
+-    //b. set pix clk to 74.25M by default
+-    sysctl_clk_set_leaf_div(SYSCTL_CLK_CSI_0_PIXEL,1, 8);
+-    sysctl_clk_set_leaf_div(SYSCTL_CLK_CSI_1_PIXEL,1, 8);
+-
+-    //2. init csi system clk
+-    //a. enable clk
+-    sysctl_clk_set_leaf_en(SYSCTL_CLK_CSI_0_SYSTEM, TRUE);
+-    sysctl_clk_set_leaf_en(SYSCTL_CLK_CSI_1_SYSTEM, TRUE);
+-
+-    //b. set system clk to 166M by default
+-    sysctl_clk_set_leaf_div(SYSCTL_CLK_CSI_0_SYSTEM,1, 2);
+-    sysctl_clk_set_leaf_div(SYSCTL_CLK_CSI_1_SYSTEM,1, 2);
+-
+-    //3. init dsi pix clk
+-    //a. enable clk
+-    sysctl_clk_set_leaf_en(SYSCTL_CLK_DISPLAY_PIXEL, TRUE);
+-
+-    //b. set pix clk to 74.25M by default
+-    sysctl_clk_set_leaf_div(SYSCTL_CLK_DISPLAY_PIXEL,1, 8);   /// p30 594 / 8   594 / 4 = 148.5 p60
+-
+-    //4. init dsi system clk
+-    //a. enable clk
+-    sysctl_clk_set_leaf_en(SYSCTL_CLK_DISP_SYS_AND_APB_CLK_DIV_DSI_SYSTEM, TRUE);
+-
+-    //b. set system clk to 166M by default, all display subsystem apb clk will be set to 166M together.
+-    sysctl_clk_set_leaf_div(SYSCTL_CLK_DISP_SYS_AND_APB_CLK_DIV,1, 2);
+-
+-    //5. init tpg pix clk
+-    //a. enable clk
+-    sysctl_clk_set_leaf_en(SYSCTL_CLK_TPG_PIXEL, TRUE);
+-
+-    //b. set tpg pix clk to 594/5=118.8M by default
+-    sysctl_clk_set_leaf_div(SYSCTL_CLK_TPG_PIXEL,1, 5);
+-
+-    //6. enable video subsystem apb and axi clk
+-    //enable video apb clk
+-    sysctl_clk_set_leaf_en(SYSCTL_CLK_NOC_CLK_1_CSI_0_APB, 1);
+-    sysctl_clk_set_leaf_en(SYSCTL_CLK_NOC_CLK_1_CSI_1_APB, 1);
+-    sysctl_clk_set_leaf_en(SYSCTL_CLK_NOC_CLK_1_CSI_2_APB, 1);
+-    sysctl_clk_set_leaf_en(SYSCTL_CLK_NOC_CLK_1_CSI_3_APB, 1);
+-    sysctl_clk_set_leaf_en(SYSCTL_CLK_NOC_CLK_1_F2K_APB, 1);
+-    sysctl_clk_set_leaf_en(SYSCTL_CLK_NOC_CLK_1_R2K_APB, 1);
+-    sysctl_clk_set_leaf_en(SYSCTL_CLK_NOC_CLK_1_TOF_APB, 1);
+-    sysctl_clk_set_leaf_en(SYSCTL_CLK_NOC_CLK_1_MFBC_APB, 1);
+-    sysctl_clk_set_leaf_en(SYSCTL_CLK_NOC_CLK_1_VI_APB, 1);
+-
+-
+-    //enable video axi clk
+-    sysctl_clk_set_leaf_en(SYSCTL_CLK_NOC_CLK_1_VI_AXI, 1);
+-    sysctl_clk_set_leaf_en(SYSCTL_CLK_NOC_CLK_1_ISP_F2K_AXI, 1);
+-    sysctl_clk_set_leaf_en(SYSCTL_CLK_NOC_CLK_1_ISP_R2K_AXI, 1);
+-    sysctl_clk_set_leaf_en(SYSCTL_CLK_NOC_CLK_1_ISP_TOF_AXI, 1);
+-    sysctl_clk_set_leaf_en(SYSCTL_CLK_NOC_CLK_1_MFBC_AXI, 1);
+-
+-    //7. enable display subsystem apb and axi clk
+-    //enable display apb clk
+-    sysctl_clk_set_leaf_en(SYSCTL_CLK_DISP_SYS_AND_APB_CLK_DIV_DSI_APB, 1);
+-    sysctl_clk_set_leaf_en(SYSCTL_CLK_DISP_SYS_AND_APB_CLK_DIV_VO_APB, 1);
+-    sysctl_clk_set_leaf_en(SYSCTL_CLK_DISP_SYS_AND_APB_CLK_DIV_TWOD_APB, 1);
+-    sysctl_clk_set_leaf_en(SYSCTL_CLK_DISP_SYS_AND_APB_CLK_DIV_BT1120_APB, 1);
+-
+-    //enable display axi clk
+-    sysctl_clk_set_leaf_en(SYSCTL_CLK_NOC_CLK_1_VO_AXI, 1);
+-    sysctl_clk_set_leaf_en(SYSCTL_CLK_NOC_CLK_1_TWOD_AXI, 1);
+-    sysctl_clk_set_leaf_en(SYSCTL_CLK_NOC_CLK_1_MFBC_AXI, 1);
+-    sysctl_clk_set_leaf_en(SYSCTL_CLK_NOC_CLK_1_TWOD_AXI, 1);
+-    sysctl_clk_set_leaf_en(SYSCTL_CLK_NOC_CLK_1_TWOD_AXI, 1);
++	//1. init csi pix clk
++	//a. enable clk
++	sysctl_clk_set_leaf_en(SYSCTL_CLK_CSI_0_PIXEL, TRUE);
++	sysctl_clk_set_leaf_en(SYSCTL_CLK_CSI_1_PIXEL, TRUE);
++
++	//b. set pix clk to 74.25M by default
++	sysctl_clk_set_leaf_div(SYSCTL_CLK_CSI_0_PIXEL,1, 8);
++	sysctl_clk_set_leaf_div(SYSCTL_CLK_CSI_1_PIXEL,1, 8);
++
++	//2. init csi system clk
++	//a. enable clk
++	sysctl_clk_set_leaf_en(SYSCTL_CLK_CSI_0_SYSTEM, TRUE);
++	sysctl_clk_set_leaf_en(SYSCTL_CLK_CSI_1_SYSTEM, TRUE);
++
++	//b. set system clk to 166M by default
++	sysctl_clk_set_leaf_div(SYSCTL_CLK_CSI_0_SYSTEM,1, 2);
++	sysctl_clk_set_leaf_div(SYSCTL_CLK_CSI_1_SYSTEM,1, 2);
++
++	//3. init dsi pix clk
++	//a. enable clk
++	sysctl_clk_set_leaf_en(SYSCTL_CLK_DISPLAY_PIXEL, TRUE);
++
++	//b. set pix clk to 74.25M by default
++	sysctl_clk_set_leaf_div(SYSCTL_CLK_DISPLAY_PIXEL,1, 8);   /// p30 594 / 8   594 / 4 = 148.5 p60
++
++	//4. init dsi system clk
++	//a. enable clk
++	sysctl_clk_set_leaf_en(SYSCTL_CLK_DISP_SYS_AND_APB_CLK_DIV_DSI_SYSTEM, TRUE);
++
++	//b. set system clk to 166M by default, all display subsystem apb clk will be set to 166M together.
++	sysctl_clk_set_leaf_div(SYSCTL_CLK_DISP_SYS_AND_APB_CLK_DIV,1, 2);
++
++	//5. init tpg pix clk
++	//a. enable clk
++	sysctl_clk_set_leaf_en(SYSCTL_CLK_TPG_PIXEL, TRUE);
++
++	//b. set tpg pix clk to 594/5=118.8M by default
++	sysctl_clk_set_leaf_div(SYSCTL_CLK_TPG_PIXEL,1, 5);
++
++	//6. enable video subsystem apb and axi clk
++	//enable video apb clk
++	sysctl_clk_set_leaf_en(SYSCTL_CLK_NOC_CLK_1_CSI_0_APB, 1);
++	sysctl_clk_set_leaf_en(SYSCTL_CLK_NOC_CLK_1_CSI_1_APB, 1);
++	sysctl_clk_set_leaf_en(SYSCTL_CLK_NOC_CLK_1_CSI_2_APB, 1);
++	sysctl_clk_set_leaf_en(SYSCTL_CLK_NOC_CLK_1_CSI_3_APB, 1);
++	sysctl_clk_set_leaf_en(SYSCTL_CLK_NOC_CLK_1_F2K_APB, 1);
++	sysctl_clk_set_leaf_en(SYSCTL_CLK_NOC_CLK_1_R2K_APB, 1);
++	sysctl_clk_set_leaf_en(SYSCTL_CLK_NOC_CLK_1_TOF_APB, 1);
++	sysctl_clk_set_leaf_en(SYSCTL_CLK_NOC_CLK_1_MFBC_APB, 1);
++	sysctl_clk_set_leaf_en(SYSCTL_CLK_NOC_CLK_1_VI_APB, 1);
++
++
++	//enable video axi clk
++	sysctl_clk_set_leaf_en(SYSCTL_CLK_NOC_CLK_1_VI_AXI, 1);
++	sysctl_clk_set_leaf_en(SYSCTL_CLK_NOC_CLK_1_ISP_F2K_AXI, 1);
++	sysctl_clk_set_leaf_en(SYSCTL_CLK_NOC_CLK_1_ISP_R2K_AXI, 1);
++	sysctl_clk_set_leaf_en(SYSCTL_CLK_NOC_CLK_1_ISP_TOF_AXI, 1);
++	sysctl_clk_set_leaf_en(SYSCTL_CLK_NOC_CLK_1_MFBC_AXI, 1);
++
++	//7. enable display subsystem apb and axi clk
++	//enable display apb clk
++	sysctl_clk_set_leaf_en(SYSCTL_CLK_DISP_SYS_AND_APB_CLK_DIV_DSI_APB, 1);
++	sysctl_clk_set_leaf_en(SYSCTL_CLK_DISP_SYS_AND_APB_CLK_DIV_VO_APB, 1);
++	sysctl_clk_set_leaf_en(SYSCTL_CLK_DISP_SYS_AND_APB_CLK_DIV_TWOD_APB, 1);
++	sysctl_clk_set_leaf_en(SYSCTL_CLK_DISP_SYS_AND_APB_CLK_DIV_BT1120_APB, 1);
++
++	//enable display axi clk
++	sysctl_clk_set_leaf_en(SYSCTL_CLK_NOC_CLK_1_VO_AXI, 1);
++	sysctl_clk_set_leaf_en(SYSCTL_CLK_NOC_CLK_1_TWOD_AXI, 1);
++	sysctl_clk_set_leaf_en(SYSCTL_CLK_NOC_CLK_1_MFBC_AXI, 1);
++	sysctl_clk_set_leaf_en(SYSCTL_CLK_NOC_CLK_1_TWOD_AXI, 1);
++	sysctl_clk_set_leaf_en(SYSCTL_CLK_NOC_CLK_1_TWOD_AXI, 1);
+ }
+ /*
+-*
+-*/
++ *
++ */
+ 
+ void fill_ddr(void)
+ {
+ #if 1
+-        int cnt=0;
+-        for(cnt = 0;cnt < 0x30000;cnt=cnt+4)
+-        {
+-            *(volatile unsigned int *)(0x01000000 + cnt) = 0x33333333;
+-            usleep(1);
+-            *(volatile unsigned int *)(0x02000000 + cnt) = 0x33333333;
+-
+-        }
++	int cnt=0;
++	for(cnt = 0;cnt < 0x30000;cnt=cnt+4)
++	{
++		*(volatile unsigned int *)(0x01000000 + cnt) = 0x33333333;
++		usleep(1);
++		*(volatile unsigned int *)(0x02000000 + cnt) = 0x33333333;
++
++	}
+ #endif
+ 
+ }
+@@ -171,35 +171,29 @@ int main_logo(cmd_tbl_t *cmdtp, int flag, int argc, char * const argv[])
+ 	printf("dsi logo start\n");
+ 	time = get_timer(0);
+ 
+-    // hardware init
+-    display_gpio_init();
++	// hardware init
++	display_gpio_init();
+ 
+-    SYSCTL_DRV_Init();
++	SYSCTL_DRV_Init();
+ 
+-    mipi_rxdphy_init(RXDPHY_SPEED_MODE_1500M, RXDPHY_CHCFG_1X4);
++	mipi_rxdphy_init(RXDPHY_SPEED_MODE_1500M, RXDPHY_CHCFG_1X4);
+ 
+-    mipi_txdphy_init();
++	mipi_txdphy_init();
+ 
+-    VO_DRV_Init();
++	VO_DRV_Init();
+ 
+-    panel_id = get_panel_id();
+-    if (panel_id == 0x46593) {
+-        sysctl_clk_set_leaf_div(SYSCTL_CLK_DISPLAY_PIXEL,1, 16);
+-        mipi_txdphy_set_pll(890, 24, 3);
+-        VO_TEST_VideoOut(VO_DSI_MIPI_800x1280);
+-    } else {
+-        VO_TEST_VideoOut(VO_DSI_MIPI_BRINGUP);
+-    }
++	panel_id = get_panel_id();
++	if (panel_id == 0x46593) {
++		sysctl_clk_set_leaf_div(SYSCTL_CLK_DISPLAY_PIXEL,1, 16);
++		mipi_txdphy_set_pll(890, 24, 3);
++		VO_TEST_VideoOut(VO_DSI_MIPI_800x1280);
++	} else {
++		VO_TEST_VideoOut(VO_DSI_MIPI_BRINGUP);
++	}
+ 
+ 	time = get_timer(time);
+ 	printf("dsi logo end use %lu msec\n", time);
+-
+-	ret = read_display_status();
+-	if (ret < 0) {
+-		printf("display init error reset!!!!!!!!\n");
+-		sysctl_boot_reset_soc();
+-	}
+-    return 0;
++	return 0;
+ }
+ 
+ DECLARE_GLOBAL_DATA_PTR;
+@@ -224,25 +218,25 @@ ulong board_get_usable_ram_top(ulong total_size)
+ 
+ static void ws2812_init(void)
+ {
+-    ws2812_info *ws_info;
+-    ws2812_init_spi(WS2812_PIN);
+-    ws_info = ws2812_get_buf(1);
+-    ws2812_set_data(ws_info, 0, NONE);
+-    ws2812_send_data_spi(ws_info);
++	ws2812_info *ws_info;
++	ws2812_init_spi(WS2812_PIN);
++	ws_info = ws2812_get_buf(1);
++	ws2812_set_data(ws_info, 0, NONE);
++	ws2812_send_data_spi(ws_info);
+ }
+ 
+ int board_late_init(void)
+ {
+-    ws2812_init();
++	ws2812_init();
+ 	main_logo(0,0,0,0);
+ 	return 0;
+ }
+ 
+ 
+ U_BOOT_CMD(
+-	wjx_logo,   2,   1,     main_logo,
+-	"logo dsi",
+-	"logo dsi\n"
+-	"    - enable, disable, or flush data (writethrough) cache"
+-);
++		wjx_logo,   2,   1,     main_logo,
++		"logo dsi",
++		"logo dsi\n"
++		"    - enable, disable, or flush data (writethrough) cache"
++	  );
+ 
+diff --git a/board/Canaan/dsi_logo/test/log/vo/vo_app.c b/board/Canaan/dsi_logo/test/log/vo/vo_app.c
+index 32d404ef..260b858f 100644
+--- a/board/Canaan/dsi_logo/test/log/vo/vo_app.c
++++ b/board/Canaan/dsi_logo/test/log/vo/vo_app.c
+@@ -3194,6 +3194,11 @@ int VO_TEST_VideoOut(VO_TEST_CASE_E voTestCase)
+ 		snprintf(panel_id, sizeof(panel_id), "0x%06X", lcd_id);
+ 		env_set("panel-id", panel_id);
+ 		set_bootcmd("k510.dtb");
++
++		if (read_display_status() < 0) {
++			printf("display init error !!!!!!!!\n");
++			sysctl_boot_reset_soc();
++		}
+ 	} else {
+ 		*(uint32_t *)0x92700118 = 0x80;
+ 		set_bootcmd("k510-hdmi.dtb");
+-- 
+2.25.1
+

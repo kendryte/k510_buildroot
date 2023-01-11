@@ -23,7 +23,6 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-
 #include <stdio.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -55,10 +54,10 @@ using namespace std;
 #include "media_ctl.h"
 #include "IRtspServer.h"
 #include "alsa/asoundlib.h"
+#include "G711Codec.h"
 
 //#define ISP_OUTPUT_DUMP 1
 #define TEST_ISP        1
-#define AUDIO_OUTPUT_DUMP 1
 
 #define ISP_ADDR_BUFFER_CNT  22
 #define V4L2_INVALID_INDEX 0xffff
@@ -116,6 +115,7 @@ typedef struct
   int *isp_wp;
   long (*isp_addr)[ISP_ADDR_BUFFER_CNT];
   int *isp_pic_cnt;
+  int *overflow;
   V4L2_BUF **v4l2_buf;
   V4L2_REV **v4l2_rev;
   sem_t *    pSemGetData;
@@ -155,8 +155,6 @@ typedef struct
   long *shared_phyAddr;
   void **shared_vAddr;
   unsigned int *shared_size;
-  unsigned int *exp;
-  unsigned int *agc;
   int *stride;
   int *width;
   int *height;
@@ -187,9 +185,14 @@ typedef struct
   int isp_enabled;
   int v4l2_enabled;
   uint32_t *repeat;
+  uint32_t *repeat_en;
   uint32_t *drop;
+  uint32_t *drop_en;
+  uint32_t *framerate_mod;
   unsigned char *out_framerate;
   int video_enabled;
+  uint32_t *ae_disable;
+  int setQos;
 
   /* audio */
   snd_pcm_t *pcmp;
@@ -197,14 +200,11 @@ typedef struct
   int audio_sample_rate;
   snd_pcm_uframes_t period_size;
   snd_pcm_format_t audio_format;
+  int audioEncType;
   char *audio_buffer;
   int audio_frame_size;
   int audio_size;
   char *audio_device;
-#if AUDIO_OUTPUT_DUMP
-  FILE *fp_audio_dump;
-  int audio_output_frames;
-#endif
   int audio_processing;
   int audio_enabled;
   pthread_t audio_thread;
@@ -214,7 +214,7 @@ MainContext Ctx;
 MainContext *pCtx=&Ctx;
 
 static unsigned int alloc_memory(int fd_share_memory, unsigned int size);
-static void get_yuv(MainContext *pCtx, char *infilename, int channel);
+static int get_yuv(MainContext *pCtx, char *infilename, int channel);
 static void write_output(MainContext *pCtx, FILE *out_file, EncOutputStream *src);
 static unsigned long int get_time();
 static void *isp_output(void *arg);
@@ -226,10 +226,10 @@ static void endof_encode();
 static void exit_handler(int sig);
 static void set_QoS();
 #if TEST_ISP
-static void init_isp();
+static int init_isp();
 #endif
 int init_v4l2();
-int init_audio();
+int init_audio(int nSampleRate);
 static void *audio_process(void *arg);
 int parse_conf();
 int alloc_context(void *arg);
@@ -253,7 +253,7 @@ static unsigned int alloc_memory(int fd_share_memory, unsigned int size)
   return allocAlignMem.phyAddr;
 }
 
-static void get_yuv(MainContext *pCtx, char *infilename, int channel)
+static int get_yuv(MainContext *pCtx, char *infilename, int channel)
 {
   FILE *fp;
   char ch;
@@ -266,7 +266,7 @@ static void get_yuv(MainContext *pCtx, char *infilename, int channel)
 
   if( (fp=fopen(infilename,"r+b")) == NULL ){
       printf("Cannot open yuv file!\n");
-      return;
+      return -1;
   }
 
   fseek(fp,0L,SEEK_END);
@@ -284,6 +284,11 @@ static void get_yuv(MainContext *pCtx, char *infilename, int channel)
   size = (size + 0xfff) & (~0xfff);
 
   phyAddr = alloc_memory(pCtx->fd_share_memory, size);
+  if(phyAddr == -1)
+  {
+    printf("Not enough memory for input data.\n");
+    return -1;
+  }
  
   map_src_pic = mmap(NULL, size, PROT_READ|PROT_WRITE, MAP_SHARED, pCtx->fd_ddr, (uint64_t)phyAddr|0x100000000);
 
@@ -311,7 +316,7 @@ static void get_yuv(MainContext *pCtx, char *infilename, int channel)
   pCtx->yuv_vAddr[channel] = map_src_pic;
   pCtx->yuv_size[channel] = size;
   printf("%s>yuv paddr = 0x%x, vaddr 0x%x, yuv_size %d, filesize %d\n", __FUNCTION__, pCtx->yuv_phyAddr, pCtx->yuv_vAddr, pCtx->yuv_size, filesize);
-  return;
+  return 0;
 }
 
 static void write_output(MainContext *pCtx, FILE *out_file, EncOutputStream *src)
@@ -475,8 +480,36 @@ static void *v4l2_output(void *arg)
   	iRet = poll(tFds, 1, /*-1*/3000);//3000ms
   	if (iRet <= 0)
     {
-      printf("poll error!\n");
-      continue;
+      if(received_sigterm == 1)
+      {
+        sem_post(&pCtx->pSemGetData[channel]);
+        break;
+      }
+      else
+      {        
+        int fullness;
+        if(pCtx->v4l2_wp[channel] > pCtx->v4l2_rp[channel])
+        {
+          fullness = pCtx->v4l2_wp[channel] - pCtx->v4l2_rp[channel];
+        }
+        else
+        {
+          fullness = ISP_ADDR_BUFFER_CNT - (pCtx->v4l2_rp[channel] - pCtx->v4l2_wp[channel]);
+        }
+        printf("ch %d, out_pic %d, fullness %d\n", channel,pCtx->out_pic[channel], fullness);
+
+        for(int i=0; i<ISP_ADDR_BUFFER_CNT; i++)
+        {
+          if(pCtx->v4l2_rev[channel][i].addr != V4L2_INVALID_INDEX)
+          {
+            enqueue_buf(pCtx->v4l2_rev[channel][i].addr, channel);
+            pCtx->v4l2_rev[channel][i].addr = V4L2_INVALID_INDEX;
+          }
+        }
+        pCtx->v4l2_wp[channel] = 0;
+        pCtx->v4l2_rp[channel] = 0;  //fixme: need mutex
+        continue;
+      }
     }
   
     struct v4l2_buffer buf;
@@ -507,8 +540,17 @@ static void *v4l2_output(void *arg)
       
       if(pCtx->v4l2_rev[channel][pCtx->v4l2_wp[channel]].addr != V4L2_INVALID_INDEX)
       {
-          printf("v4l2 buffer overflow\n");
+        pCtx->overflow[channel]++;
           enqueue_buf(buf.index, channel);
+        if(pCtx->overflow[channel] % 100 == 1)
+          printf("ch %d: v4l2 buffer overflow\n", channel);         
+      }
+      else if(time - start_time < 1000000000)
+      {
+          if(pCtx->v4l2_pic_cnt[channel] == 0)
+          {
+            enqueue_buf(buf.index, channel);
+          }
       }
       else
       {
@@ -573,6 +615,19 @@ static void *v4l2_output(void *arg)
   }
 }
 
+uint32_t queue_frame(int channel)
+{
+  if((pCtx->v4l2_rev[channel][pCtx->v4l2_rp[channel]].addr & V4L2_REPEAT_FLAG) == 0)
+  {
+    enqueue_buf(pCtx->v4l2_rev[channel][pCtx->v4l2_rp[channel]].addr, channel);
+  }
+  pCtx->v4l2_rev[channel][pCtx->v4l2_rp[channel]].addr = V4L2_INVALID_INDEX;
+  pCtx->v4l2_rp[channel]++;
+  pCtx->v4l2_rp[channel] %= ISP_ADDR_BUFFER_CNT; 
+
+  return 0;
+}
+
 static void *encode_ch(void *arg)
 {
   // printf("%s\n", __FUNCTION__);
@@ -586,7 +641,30 @@ static void *encode_ch(void *arg)
   int frame_size = stride*pCtx->Cfg[channel].height*3/2;
 
   uint32_t repeated = 0;
-  uint32_t droped = 0;
+  int32_t droped = 0;
+  uint32_t framerate_tail = 0;
+  uint32_t framerate_tail_cnt = 0;
+  uint32_t framerate_tail_gap = 0;
+  uint32_t in_framecnt = 0;
+  uint32_t out_framecnt = 0;
+  int tail_flag = 0;
+  int common_drop_flag = 0;
+
+  if(pCtx->framerate_mod[channel])
+  {
+    if(pCtx->drop_en[channel])
+    {
+      framerate_tail = (pCtx->framerate[channel]/(pCtx->drop[channel]+1))%pCtx->out_framerate[channel];
+      framerate_tail_cnt = framerate_tail;
+      framerate_tail_gap = (pCtx->framerate[channel]/framerate_tail) - 1;
+    }
+    else if(pCtx->repeat_en[channel])
+    {
+      framerate_tail = pCtx->framerate_mod[channel];
+      framerate_tail_cnt = framerate_tail;
+      framerate_tail_gap = pCtx->framerate[channel]/framerate_tail;
+    }
+  }
 
   pCtx->encoding[channel] = 1;
   while(pCtx->start)
@@ -601,7 +679,7 @@ static void *encode_ch(void *arg)
       input.height = pCtx->height[channel];
       input.stride = stride;
       input.data = (unsigned char *)pCtx->yuv_phyAddr[channel] + frame_size*(src_index % pCtx->input_frames[channel]);
-      printf("%s>src_index %d, addr 0x%x\n", __FUNCTION__, src_index, input.data);
+      //printf("%s>src_index %d, addr 0x%x\n", __FUNCTION__, src_index, input.data);
       src_index++;
     }
 
@@ -625,6 +703,40 @@ static void *encode_ch(void *arg)
       input.stride = stride;
       index = pCtx->v4l2_rev[channel][pCtx->v4l2_rp[channel]].addr & V4L2_INVALID_INDEX;
       input.data = (unsigned char *)pCtx->v4l2_buf[channel][index].paddr;
+      
+#ifdef ISP_OUTPUT_DUMP      
+      static FILE *dump_file=NULL;      
+
+      if(dump_file == NULL)
+      {
+        unsigned char *pSrc;
+        unsigned int size;
+        int i;
+      
+        size = input.stride*input.height*3/2;
+        pSrc = (unsigned char * )mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, pCtx->fd_ddr, pCtx->v4l2_buf[channel][index].paddr);
+        
+        if((dump_file=fopen("isp_dump.yuv","w+b")) == NULL )
+        {
+          printf("Cannot open output file!\n");
+        }        
+        //write Y
+        for(i=0; i<input.height; i++)
+        {
+          fwrite(pSrc, 1, input.width, dump_file);
+          pSrc += input.stride;
+        }
+        //write UV
+        for(i=0; i<input.height/2; i++)
+        {
+          fwrite(pSrc, 1, input.width, dump_file);
+          pSrc += input.stride;
+        }
+        fclose(dump_file);
+        munmap(pSrc, size);
+        printf("dump input yuv\n");
+      }
+#endif    
     }
     else
     {
@@ -634,7 +746,7 @@ static void *encode_ch(void *arg)
 
     if(input.data)
     {
-      unsigned long int time;
+      unsigned long int time, time1, time2;
 
       time = get_time();
 
@@ -643,26 +755,73 @@ static void *encode_ch(void *arg)
         pCtx->start_time[channel] = time;
       }
 
-      if(pCtx->drop[channel])
+      if(pCtx->drop_en[channel])
       {
-        if(droped < pCtx->drop[channel])
+        if(pCtx->framerate_mod[channel]) //with framerate tail
         {
-          if((pCtx->v4l2_rev[channel][pCtx->v4l2_rp[channel]].addr & V4L2_REPEAT_FLAG) == 0)
+          if((in_framecnt % (framerate_tail_gap+1) == 0)  || tail_flag)
           {
-            enqueue_buf(pCtx->v4l2_rev[channel][pCtx->v4l2_rp[channel]].addr, channel);
+              tail_flag = 1;
+              queue_frame(channel);
+              in_framecnt++;
+              framerate_tail_cnt--;
+              if(in_framecnt >= pCtx->framerate[channel])
+              {
+                in_framecnt = 0;
+                framerate_tail_cnt = framerate_tail;
+              }
+              droped++;
+              if(droped >= pCtx->drop[channel] + 1)
+              {
+                droped = 0;
+                tail_flag = 0;
+              }
+              continue;
           }
-          pCtx->v4l2_rev[channel][pCtx->v4l2_rp[channel]].addr = V4L2_INVALID_INDEX;
-          pCtx->v4l2_rp[channel]++;
-          pCtx->v4l2_rp[channel] %= ISP_ADDR_BUFFER_CNT; 
-          droped++;
-          continue;
+          else if((pCtx->drop[channel] && (in_framecnt % (pCtx->drop[channel]+1) == 0)) || common_drop_flag)
+          {
+            common_drop_flag = 1;
+            queue_frame(channel);
+            in_framecnt++;
+            if(in_framecnt >= pCtx->framerate[channel])
+            {
+              in_framecnt = 0;
+              framerate_tail_cnt = framerate_tail;
+            }
+            droped++;
+            if(droped >= pCtx->drop[channel])
+            {
+              droped = 0;
+              common_drop_flag = 0;
+            }
+            continue;
+          }
+          else
+          {
+            in_framecnt++;
+            if(in_framecnt >= pCtx->framerate[channel])
+            {
+              in_framecnt = 0;
+              framerate_tail_cnt = framerate_tail;
+            }
+            droped = 0;
+          }
+          
         }
-        else
+        else //without framerate tail
         {
-          droped = 0;
+          if(droped < pCtx->drop[channel])
+          {
+            queue_frame(channel);
+            droped++;
+            continue;
+          }
+          else
+          {
+            droped = 0;
+          }
         }
       }
-
       //set LTR
       if (pCtx->Cfg[channel].bEnableLTR && pCtx->nLTRFreq[channel] > 0)
       {
@@ -682,12 +841,14 @@ static void *encode_ch(void *arg)
 
       VideoEncoder_GetStream(pCtx->hEnc[channel], &output);
 
+      time1 = get_time();
       if (1 == pCtx->enable_rtsp[channel])
       {
          if (NULL != pCtx->pRtspServer[channel])
          {
            pCtx->pRtspServer[channel]->PushVideoData(output.bufAddr, output.bufSize,0);
          }
+         time2 = get_time();
       }
 	
       // printf("%s>bufAddr %p, bufSize %d\n", __FUNCTION__, output.bufAddr, output.bufSize);
@@ -709,33 +870,74 @@ static void *encode_ch(void *arg)
 
         if(pCtx->enable_v4l2[channel] == 1)
         {
-          if(pCtx->repeat[channel])
+          if(pCtx->repeat_en[channel])
           {
-            if(repeated < pCtx->repeat[channel])
+            if(framerate_tail) // with framerate tail 
             {
-              repeated++;
-            }
-            else
-            {
-              repeated = 0;
-              if((pCtx->v4l2_rev[channel][pCtx->v4l2_rp[channel]].addr & V4L2_REPEAT_FLAG) == 0)
+              if(((in_framecnt % framerate_tail_gap) == 0) && framerate_tail_cnt)
               {
-                enqueue_buf(pCtx->v4l2_rev[channel][pCtx->v4l2_rp[channel]].addr, channel);
+
+                if(repeated < pCtx->repeat[channel] + 1)
+                {
+                  repeated++;
+                }
+                else
+                {
+                  repeated = 0;
+                  framerate_tail_cnt--;
+                  queue_frame(channel);
+                  in_framecnt++;
+                  if(in_framecnt >= pCtx->framerate[channel])
+                  {
+                    in_framecnt = 0;
+                    framerate_tail_cnt = framerate_tail;
+                  }
+                  
+                }
               }
-              pCtx->v4l2_rev[channel][pCtx->v4l2_rp[channel]].addr = V4L2_INVALID_INDEX;
-              pCtx->v4l2_rp[channel]++;
-              pCtx->v4l2_rp[channel] %= ISP_ADDR_BUFFER_CNT;
+              else
+              {
+                if(repeated < pCtx->repeat[channel])
+                {
+                  repeated++;
+                }
+                else
+                {
+                  repeated = 0;
+                  queue_frame(channel);
+                  in_framecnt++;
+                  if(in_framecnt >= pCtx->framerate[channel])
+                  {
+                    in_framecnt = 0;
+                    framerate_tail_cnt = framerate_tail;
+                  }
+                }
               }
-          }
-          else
-          {
-            if((pCtx->v4l2_rev[channel][pCtx->v4l2_rp[channel]].addr & V4L2_REPEAT_FLAG) == 0)
-            {
-              enqueue_buf(pCtx->v4l2_rev[channel][pCtx->v4l2_rp[channel]].addr, channel);
             }
-            pCtx->v4l2_rev[channel][pCtx->v4l2_rp[channel]].addr = V4L2_INVALID_INDEX;
-            pCtx->v4l2_rp[channel]++;
-            pCtx->v4l2_rp[channel] %= ISP_ADDR_BUFFER_CNT; 
+            else //without framerate tail
+            {
+              if(repeated < pCtx->repeat[channel])
+              {
+                repeated++;
+              }
+              else
+              {
+                repeated = 0;
+                queue_frame(channel);
+                in_framecnt++;
+                in_framecnt %= pCtx->framerate[channel];
+              }
+            }
+          }
+          else if(pCtx->drop_en[channel])
+          {
+            queue_frame(channel);
+          }
+          else if(!pCtx->drop_en[channel])// without repeate and drop
+          {
+            queue_frame(channel);
+            in_framecnt++;
+            in_framecnt %= pCtx->framerate[channel];
           }
         }
 
@@ -821,8 +1023,6 @@ int free_context(void *arg)
   free(pCtx->shared_phyAddr  );
   free(pCtx->shared_vAddr    );
   free(pCtx->shared_size     );
-  free(pCtx->exp             );
-  free(pCtx->agc             );
   free(pCtx->stride          );
   free(pCtx->width           );
   free(pCtx->height          );
@@ -843,14 +1043,18 @@ int free_context(void *arg)
   free(pCtx->encoding        );
   free(pCtx->ch              );
   free(pCtx->repeat          );
+  free(pCtx->repeat_en       );
   free(pCtx->drop            );
+  free(pCtx->drop_en         );
   free(pCtx->out_framerate   );
+  free(pCtx->ae_disable      );
+  free(pCtx->overflow        );
 
   return 0;
 }
 
 static void endof_encode()
-{
+{ 
   printf("endof_encode\n");
   // pCtx->start = 0;
   for(int i = 0; i < pCtx->ch_cnt; i++)
@@ -864,20 +1068,6 @@ static void endof_encode()
             pCtx->out_pic[i], (pCtx->out_pic[i] * 1000.0) / ((get_time()-pCtx->start_time[i])/1000000.0));
   
     printf("total_out_size %d\n", pCtx->total_out_size[i]);
-    if( pCtx->enable_rtsp[i] == 0){  
-      if(pCtx->total_out_size[i] > 0)
-      {
-        if(pCtx->total_out_size[i] <= pCtx->stream_size[i])
-        {
-          fwrite(pCtx->out_buffer[i], 1, pCtx->total_out_size[i], pCtx->out_file[i]);
-        }
-        else
-        {
-          printf("out_buffer is too small\n");
-          fwrite(pCtx->out_buffer[i], 1, pCtx->stream_size[i], pCtx->out_file[i]);
-        }
-      }  
-    }
 
     if(pCtx->out_file[i])
       fclose(pCtx->out_file[i]);
@@ -946,24 +1136,24 @@ static void endof_encode()
       sem_destroy(&pCtx->pSemGetData[i]);
     }
   }
-
-  if(pCtx->video_enabled)
+  
+  if(pCtx->setQos)
   {
     unsigned char *reg;
     
-    reg=(unsigned char * )mmap(NULL, MEMORY_TEST_BLOCK_ALIGN, PROT_READ | PROT_WRITE, MAP_SHARED, pCtx->fd_ddr, MAILBOX_REG_BASE);
+    reg=(unsigned char * )mmap(NULL, MEMORY_TEST_BLOCK_ALIGN, PROT_READ | PROT_WRITE, MAP_SHARED, pCtx->fd_ddr, (uint64_t)MAILBOX_REG_BASE|0x100000000);
   	*(volatile unsigned int *)(reg+0xf4) = pCtx->reg_QoS_ctrl0;
   	*(volatile unsigned int *)(reg+0xf8) = pCtx->reg_QoS_ctrl1;
   	*(volatile unsigned int *)(reg+0xfc) = pCtx->reg_QoS_ctrl2;
   	munmap(reg, MEMORY_TEST_BLOCK_ALIGN);
-  	reg=(unsigned char * )mmap(NULL, MEMORY_TEST_BLOCK_ALIGN, PROT_READ | PROT_WRITE, MAP_SHARED, pCtx->fd_ddr, NOC_QOS_REG_BASE);
+  	reg=(unsigned char * )mmap(NULL, MEMORY_TEST_BLOCK_ALIGN, PROT_READ | PROT_WRITE, MAP_SHARED, pCtx->fd_ddr, (uint64_t)NOC_QOS_REG_BASE|0x100000000);
   	*(volatile unsigned int *)(reg+0x290) = pCtx->reg_h264_bw;
   	*(volatile unsigned int *)(reg+0x28c) = pCtx->reg_h264_mode;
   	*(volatile unsigned int *)(reg+0x388) = pCtx->reg_isp_pri;
   	*(volatile unsigned int *)(reg+0x38c) = pCtx->reg_isp_mode;
   	*(volatile unsigned int *)(reg+0x390) = pCtx->reg_isp_bw;
   	munmap(reg, MEMORY_TEST_BLOCK_ALIGN);
-  	reg=(unsigned char * )mmap(NULL, MEMORY_TEST_BLOCK_ALIGN, PROT_READ | PROT_WRITE, MAP_SHARED, pCtx->fd_ddr, DDR_CTRL_REG_BASE);
+  	reg=(unsigned char * )mmap(NULL, MEMORY_TEST_BLOCK_ALIGN, PROT_READ | PROT_WRITE, MAP_SHARED, pCtx->fd_ddr, (uint64_t)DDR_CTRL_REG_BASE|0x100000000);
   	*(volatile unsigned int *)(reg+0x504) = pCtx->reg_ddr_cli;
     munmap(reg, MEMORY_TEST_BLOCK_ALIGN);
     printf("QoS restore\n");
@@ -984,12 +1174,6 @@ static void endof_encode()
 #endif
 
   free_context(pCtx);
-  if(pCtx->audio_enabled)
-  {
-#if AUDIO_OUTPUT_DUMP
-  fclose(pCtx->fp_audio_dump);
-#endif
-  }
   close(pCtx->fd_share_memory);
   close(pCtx->fd_ddr);
   if(pCtx->v4l2_enabled)
@@ -1046,16 +1230,23 @@ static void set_QoS()
   *(volatile unsigned int *)(reg+0x504) = 0x00010303;
   printf("0x98000504: from 0x%08x to 0x%08x\n", pCtx->reg_ddr_cli, *(volatile unsigned int *)(reg+0x504));
   munmap(reg, MEMORY_TEST_BLOCK_ALIGN);
+
+  pCtx->setQos = 1;
 }
 
 #if TEST_ISP
-static void init_isp()
+static int init_isp()
 {
     int src_index=0;
     
 #ifdef ISP_OUTPUT_DUMP
     pCtx->yuv_size = frame_size*pCtx->input_frames;
     pCtx->yuv_phyAddr = alloc_memory(pCtx->fd_share_memory, pCtx->yuv_size);  
+    if(pCtx->yuv_phyAddr)
+    {
+      printf("Not enough memory for isp init.\n");
+      return -1;
+    }
     pCtx->yuv_vAddr = mmap(NULL, pCtx->yuv_size, PROT_READ|PROT_WRITE, MAP_SHARED, pCtx->fd_ddr, pCtx->yuv_phyAddr); 
     printf("%s>yuv_vAddr 0x%x, yuv_phyAddr 0x%x, yuv_size %d\n", __FUNCTION__, pCtx->yuv_vAddr, pCtx->yuv_phyAddr, pCtx->yuv_size);
 #endif  
@@ -1086,23 +1277,17 @@ static void init_isp()
 
     pCtx->isp_buf_size[0] =(1920 *1080 *3 /2) * ISP_ADDR_BUFFER_CNT;// frame_size * 22;
     ds1_info.y_addr = alloc_memory(pCtx->fd_share_memory, pCtx->isp_buf_size[0]);
+    if(ds1_info.y_addr == -1)
+    {
+      printf("Not enough memory for ds1 info.\n");
+      return -1;
+    }
 
     pCtx->isp_buf_vaddr[0] = mmap(NULL, pCtx->isp_buf_size[0], PROT_READ|PROT_WRITE, MAP_SHARED, pCtx->fd_ddr, ds1_info.y_addr);
     pCtx->isp_buf_paddr[0] = ds1_info.y_addr;
     printf("%s>isp_buf_paddr 0x%x, isp_buf_vaddr 0x%x, isp_buf_size %d\n", __FUNCTION__, ds1_info.y_addr, pCtx->isp_buf_vaddr, pCtx->isp_buf_size);
 
     pCtx->fd_isp = isp_video(&ds1_info, sensor_type, lcd_type);
-
-    if(pCtx->exp[0] > 0)
-    {
-      printf("isp exp = %d\n", pCtx->exp[0]);
-      video_set_ae_dgain_cfg(pCtx->exp[0]);
-    }
-    if(pCtx->agc[0] > 0)
-    {
-      printf("isp agc = %d\n", pCtx->agc[0]);
-      video_set_ae_again_cfg(pCtx->agc[0]);
-    }
 
     printf("%s>fd_isp: 0x%x\n", __FUNCTION__, pCtx->fd_isp);
 
@@ -1160,6 +1345,8 @@ int init_v4l2()
     struct v4l2_requestbuffers req;
     struct v4l2_format fmt;
     int i;
+    int f2k=0, r2k=0;
+    int ae_disabled[2] = {0};
 
     for(int j = 0; j < pCtx->ch_cnt; j++)
     {
@@ -1174,7 +1361,24 @@ int init_v4l2()
     {
       sem_init(&pCtx->pSemGetData[i],0,0);
     }
-    
+
+    for(i = 0; i < pCtx->ch_cnt; i++)
+    {
+      if(pCtx->ae_disable[i])
+      {
+        if((pCtx->dev_name[i][10] >= '2') && (pCtx->dev_name[i][10] <= '5') && (!ae_disabled[0]))
+        {
+          mediactl_disable_ae(ISP_F2K_PIPELINE);
+          ae_disabled[0] = 1;
+        }
+        else if((pCtx->dev_name[i][10] >= '6') && (pCtx->dev_name[i][10] <= '9') && (!ae_disabled[1]))
+        {
+          mediactl_disable_ae(ISP_R2K_PIPELINE);
+          ae_disabled[1] = 1;
+        }
+      }
+    }
+
     if(mediactl_init(REAL_CONF_FILENAME, &(pCtx->dev_info[0])) < 0)
     {
         printf("mediactl_init error!\n");
@@ -1261,6 +1465,11 @@ int init_v4l2()
 
           pCtx->v4l2_buf[j][i].length = (buf.length + 0xfff) & (~0xfff);
           pCtx->v4l2_buf[j][i].paddr = alloc_memory(pCtx->fd_share_memory, pCtx->v4l2_buf[j][i].length);
+          if(pCtx->v4l2_buf[j][i].paddr == -1)
+          {
+            printf("Not enough memory for v4l2 buf.\n");
+            return -1;
+          }
           pCtx->v4l2_buf[j][i].vaddr = mmap(NULL, pCtx->v4l2_buf[j][i].length, PROT_READ|PROT_WRITE, MAP_SHARED, pCtx->fd_ddr, pCtx->v4l2_buf[j][i].paddr);
 
           if(pCtx->v4l2_buf[j][i].vaddr == MAP_FAILED)
@@ -1297,14 +1506,14 @@ int init_v4l2()
           printf("ioctl(VIDIOC_STREAMON): fail\n");
           close(pCtx->fd_v4l2[j]);
           return 0;
-      }
+      }      
       
       pthread_create(&pCtx->v4l2_thread[j], NULL, v4l2_output, &pCtx->ch[j]);
 
     }
 }
 
-int init_audio()
+int init_audio(int nSampleRate)
 {
   int ret;
   int flags;
@@ -1361,9 +1570,10 @@ int init_audio()
       printf("Cannot set channel count to %d\n", pCtx->audio_ch_cnt);
       goto fail;
   }
-
+#if 0
   snd_pcm_hw_params_get_buffer_size_max(hw_params, &buffer_size);
   buffer_size = MIN(buffer_size, ALSA_BUFFER_SIZE_MAX);
+  printf("========snd_pcm_hw_params_set_buffer_size_near buffersize:%d\n",buffer_size);
 
   ret = snd_pcm_hw_params_set_buffer_size_near(h, hw_params, &buffer_size);
   if (ret < 0) {
@@ -1371,9 +1581,13 @@ int init_audio()
     goto fail;
   }
 
+
   snd_pcm_hw_params_get_period_size_min(hw_params, &period_size, NULL);
   if (!period_size)
     period_size = buffer_size / 4;
+#else
+  period_size = nSampleRate/25;
+#endif
   ret = snd_pcm_hw_params_set_period_size_near(h, hw_params, &period_size, NULL);
   if (ret < 0) {
     printf("Cannot set ALSA period size\n");
@@ -1389,13 +1603,6 @@ int init_audio()
 
   snd_pcm_hw_params_free(hw_params);
 
-#if AUDIO_OUTPUT_DUMP
-  pCtx->fp_audio_dump = fopen("auido_dump.pcm", "wb");
-  if(pCtx->fp_audio_dump == NULL)
-  {
-    printf("Open audio_dump.pcm error\n");
-  }
-#endif
   pCtx->audio_frame_size = snd_pcm_format_width(pCtx->audio_format)/8 * pCtx->audio_ch_cnt; 
   pCtx->audio_buffer = (char*)malloc(sizeof(char) * pCtx->period_size * pCtx->audio_frame_size * pCtx->audio_ch_cnt);
   pthread_create(&pCtx->audio_thread, NULL, audio_process, pCtx);
@@ -1436,7 +1643,8 @@ static void *audio_process(void *arg)
   MainContext *pCtx = (MainContext *)arg;
   int ret = 0;
   int audio_out_frames = 0;
-  
+  unsigned char sEncAudioBuf[5000] = {0};
+  int nG711Len = 0;
   while(pCtx->start)
   {
     pCtx->audio_size = 0;
@@ -1459,17 +1667,12 @@ read_pcm:
       pCtx->audio_size += ret * pCtx->audio_frame_size;
     }while (pCtx->audio_size < pCtx->period_size * pCtx->audio_frame_size);
 
-#if AUDIO_OUTPUT_DUMP
-    fwrite(pCtx->audio_buffer, pCtx->audio_size, 1, pCtx->fp_audio_dump);
-    audio_out_frames++; 
-    printf("\r%s>fwrite: %d", __FUNCTION__, audio_out_frames);
-    // if(audio_out_frames >= pCtx->audio_output_frames)
-    // {
-    //   break;
-    // }
-#else
-    // pCtx->pRtspServer[channel]->PushAudioData(pCtx->audio_buffer, pCtx->audio_size, 0);
-#endif
+    nG711Len = encode(pCtx->audio_buffer,(char*)sEncAudioBuf,pCtx->audio_size,G711_A_LAW);
+    if(nG711Len > 0)
+    {
+      for(int i =0;i <pCtx->ch_cnt; i++)
+          pCtx->pRtspServer[i]->PushAudioData(sEncAudioBuf, nG711Len, 0);
+    }
 
     if(received_sigterm == 1)
       break;
@@ -1672,7 +1875,6 @@ int parse_conf()
         }
         item = cJSON_GetObjectItem(video, video_used_name);
         cJSON_SetIntValue(item, 1);
-
         item = cJSON_GetObjectItem(video, video_width_name);
         cJSON_SetIntValue(item, pCtx->width[i]);
 
@@ -1757,8 +1959,6 @@ int alloc_context(void *arg)
   pCtx->shared_phyAddr  = (long*)malloc(sizeof(long) * pCtx->ch_cnt);
   pCtx->shared_vAddr    = (void**)malloc(sizeof(void*) * pCtx->ch_cnt);
   pCtx->shared_size     = (unsigned int*)malloc(sizeof(unsigned int) * pCtx->ch_cnt);
-  pCtx->exp             = (unsigned int*)malloc(sizeof(unsigned int) * pCtx->ch_cnt);
-  pCtx->agc             = (unsigned int*)malloc(sizeof(unsigned int) * pCtx->ch_cnt);
   pCtx->stride          = (int*)malloc(sizeof(int) * pCtx->ch_cnt);
   pCtx->width           = (int*)malloc(sizeof(int) * pCtx->ch_cnt);
   pCtx->height          = (int*)malloc(sizeof(int) * pCtx->ch_cnt);
@@ -1779,8 +1979,22 @@ int alloc_context(void *arg)
   pCtx->encoding        = (int*)malloc(sizeof(int) * pCtx->ch_cnt);
   pCtx->ch              = (int*)malloc(sizeof(int) * pCtx->ch_cnt);
   pCtx->repeat          = (uint32_t*)malloc(sizeof(uint32_t) * pCtx->ch_cnt);
+  pCtx->repeat_en       = (uint32_t*)malloc(sizeof(uint32_t) * pCtx->ch_cnt);
   pCtx->drop            = (uint32_t*)malloc(sizeof(uint32_t) * pCtx->ch_cnt);
+  pCtx->drop_en         = (uint32_t*)malloc(sizeof(uint32_t) * pCtx->ch_cnt);
+  pCtx->framerate_mod   = (uint32_t*)malloc(sizeof(uint32_t) * pCtx->ch_cnt);
+  pCtx->ae_disable      = (uint32_t*)malloc(sizeof(uint32_t) * pCtx->ch_cnt);
   pCtx->out_framerate   = (unsigned char*)malloc(sizeof(unsigned char) * pCtx->ch_cnt);
+  pCtx->overflow        = (int*)malloc(sizeof(int) * pCtx->ch_cnt);
+
+  memset(pCtx->Cfg, 0, sizeof(EncSettings)*pCtx->ch_cnt);
+
+  for(int i = 0; i < pCtx->ch_cnt; i++)
+  {
+    pCtx->Cfg[i].profile     = (AVC_Profile)0xff;
+    pCtx->Cfg[i].rcMode      = (RateCtrlMode)0xff; 
+    pCtx->Cfg[i].AspectRatio = (AVC_AspectRatio)0xff;
+  }
 
   return 0;
 }
@@ -1803,14 +2017,12 @@ int parse_cmd(int argc, char *argv[])
       printf("-o: output file name or rtsp\n");
       printf("-w: width\n");
       printf("-h: height\n");
-      printf("-e: set sensor exposure rate\n");
-      printf("-ag: analog gain\n");
       printf("-fps: sensor input framerate\n");
       printf("-r: encoder output framrate\n");
       printf("-inframes: input frames for input file\n");
       printf("-outframes: output frames for output file\n");
       printf("-gop: gop length in frames including the I picture,use in IDR\n");
-      printf("-rcmode: 0:CONST_QP  1:CBR  2:VBR 3:jpg\n");
+      printf("-rcmode: 0:CONST_QP  1:CBR  2:VBR\n");
       printf("-bitrate: bitrate(Kb)\n");
       printf("-maxbitrate: max bitrate(Kb),use in vbr\n");
       printf("-profile: 0: base  1:main 2:high\n");
@@ -1822,6 +2034,7 @@ int parse_cmd(int argc, char *argv[])
       printf("-GDRMode: GDR mode 0:GDR_VERTICAL 1:GDR_HORIZONTAL\n");
       printf("-enableLTR: enbale long term reference picture and specifies LTR refresh frequency in number of frames,0 to disable use refresh frequency\n");
       printf("-roi: roi config file\n");
+      printf("-disableAE: disable ae\n");
       printf("-conf: v4l2 config file\n");
       /* audio */
       printf("-alsa: enable audio\n");
@@ -1847,7 +2060,6 @@ int parse_cmd(int argc, char *argv[])
       }
       pCtx->ch_en[cur_ch] = 1;
       printf("-ch%d: %d\n", cur_ch, pCtx->ch_en[cur_ch]);
-      memset(&pCtx->Cfg[cur_ch],0,sizeof(EncSettings));
     }
     else if(strcmp(argv[i], "-i") == 0)
     {      
@@ -1889,9 +2101,6 @@ int parse_cmd(int argc, char *argv[])
       if(strcmp(argv[i+1], "rtsp") == 0)
       {
         pCtx->enable_rtsp[cur_ch] = 1;
-        pCtx->pRtspServer[cur_ch] = IRtspServerEX::CreateRTSPServerEX();
-        pCtx->pRtspServer[cur_ch]->Init(8554 + cur_ch*2);
-        pCtx->pRtspServer[cur_ch]->CreateStreamUrl("testStream");
       }
       else
       {
@@ -1902,16 +2111,7 @@ int parse_cmd(int argc, char *argv[])
           printf("Cannot open output file!\n");
           return -1;
         }
-        pCtx->outfilename[cur_ch] = argv[i+1];
-#if 0
-        char *ptr=strchr(pCtx->outfilename[cur_ch], '.');
-        if(strcmp(ptr, ".jpg") == 0 || strcmp(ptr, ".mjpeg") == 0)
-        {
-          pCtx->Cfg[cur_ch].profile = JPEG;
-          pCtx->Cfg[cur_ch].rcMode = CONST_QP; 
-          printf("JPEG encode\n");
-        }
-#endif 
+        pCtx->outfilename[cur_ch] = argv[i+1]; 
       }
     }
     else if(strcmp(argv[i], "-w") == 0)
@@ -1923,27 +2123,6 @@ int parse_cmd(int argc, char *argv[])
     {
       pCtx->Cfg[cur_ch].height = atoi(argv[i+1]);
       printf("height %d\n", pCtx->Cfg[cur_ch].height);
-    }
-    else if(strcmp(argv[i], "-e") == 0)
-    {
-      pCtx->exp[cur_ch] = atoi(argv[i+1]);
-      printf("exp = %d\n", pCtx->exp[cur_ch]);
-      if(pCtx->exp[cur_ch] <= 0 || pCtx->exp[cur_ch] > 128)
-      {
-        printf("wrong exp = %d\n", pCtx->exp[cur_ch]);
-        return -1;
-      }
-      pCtx->exp[cur_ch] *= 8;
-    }
-    else if(strcmp(argv[i], "-ag") == 0)
-    {
-      pCtx->agc[cur_ch] = atoi(argv[i+1]);
-      printf("agc = %d\n", pCtx->agc[cur_ch]);
-      if(pCtx->agc[cur_ch] < 0 || pCtx->agc[cur_ch] > 232)
-      {
-        printf("wrong agc = %d\n", pCtx->agc[cur_ch]);
-        return -1;
-      }
     }
     else if(strcmp(argv[i], "-fps") == 0)
     {
@@ -1989,7 +2168,7 @@ int parse_cmd(int argc, char *argv[])
     else if (strcmp(argv[i],"-profile") == 0 )
     {
       int nProfile = atoi(argv[i+1]);
-      if (nProfile > 2 || nProfile < 0)
+      if (nProfile > 3 || nProfile < 0)
       {
         printf("profile:%d error\n",nProfile);
         return -1;
@@ -2039,15 +2218,20 @@ int parse_cmd(int argc, char *argv[])
     }
     else if(strcmp(argv[i], "-enableGDR") == 0)
     {
-      pCtx->Cfg[cur_ch].bEnableGDR = true;
-      pCtx->Cfg[cur_ch].FreqIDR = atoi(argv[i+1]);
-      if (pCtx->Cfg[cur_ch].FreqIDR <= 0)
+      int nFreqIDR = atoi(argv[i+1]);
+      if (nFreqIDR < 0)
       {
         printf("gdr fresh period error\n");
         return -1;
       }
+      else if (nFreqIDR > 0)
+      {
+        pCtx->Cfg[cur_ch].bEnableGDR = true;
+        pCtx->Cfg[cur_ch].FreqIDR = nFreqIDR;
 
-      printf("enable gdr and fresh peroid %d\n", pCtx->Cfg[cur_ch].FreqIDR);
+
+        printf("enable gdr and fresh peroid %d\n", nFreqIDR);
+      }
     }
     else if (strcmp(argv[i], "-GDRMode") == 0)
     {
@@ -2081,6 +2265,10 @@ int parse_cmd(int argc, char *argv[])
         printf("roi_parse_conf ok\n");
       }
     }
+    else if(strcmp(argv[i], "-disableAE") == 0)
+    {
+      pCtx->ae_disable[cur_ch] = atoi(argv[i+1]);
+    }
     else if(strcmp(argv[i], "-conf") == 0)
     {
       pCtx->conf_filename = (char*)malloc(strlen(argv[i+1])+1);
@@ -2109,12 +2297,6 @@ int parse_cmd(int argc, char *argv[])
       pCtx->audio_device = (char*)malloc(strlen(argv[i+1])+1);
       memcpy(pCtx->audio_device, argv[i+1], strlen(argv[i+1])+1);
     }
-#if AUDIO_OUTPUT_DUMP
-    // else if(strcmp(argv[i], "-aof") == 0)
-    // {
-    //   pCtx->audio_output_frames = atoi(argv[i+1]);
-    // }
-#endif
     else
     {
       printf("Error :Invalid arguments %s\n", argv[i]);      
@@ -2170,23 +2352,29 @@ int main(int argc, char *argv[])
     {
       pCtx->ch[i] = i;
       pCtx->Cfg[i].channel     = i;
-      if(!pCtx->framerate[i])             pCtx->framerate[i]       = 30;
-      if(!pCtx->out_framerate[i])         pCtx->out_framerate[i]   = 30;
-      if(!pCtx->Cfg[i].width)             pCtx->Cfg[i].width       = 1920;
-      if(!pCtx->Cfg[i].height)            pCtx->Cfg[i].height      = 1080;
-      if(!pCtx->Cfg[i].BitRate)           pCtx->Cfg[i].BitRate     = 4000000;
-      if(!pCtx->Cfg[i].MaxBitRate)        pCtx->Cfg[i].MaxBitRate  = 4000000;
-      if(!pCtx->Cfg[i].level)             pCtx->Cfg[i].level       = 42;
-      if(!pCtx->Cfg[i].profile)           pCtx->Cfg[i].profile     = AVC_HIGH;
-      if(!pCtx->Cfg[i].rcMode)            pCtx->Cfg[i].rcMode      = CBR; 
-      if(!pCtx->Cfg[i].SliceQP)           pCtx->Cfg[i].SliceQP     = 25;
-      if(!pCtx->Cfg[i].FreqIDR)           pCtx->Cfg[i].FreqIDR     = 25;
-      if(!pCtx->Cfg[i].gopLen)            pCtx->Cfg[i].gopLen      = 25;
-      if(!pCtx->Cfg[i].AspectRatio)       pCtx->Cfg[i].AspectRatio = ASPECT_RATIO_AUTO;
-      if(!pCtx->Cfg[i].MinQP)             pCtx->Cfg[i].MinQP       = 0;//from 0 to SliceQP
-      if(!pCtx->Cfg[i].MaxQP)             pCtx->Cfg[i].MaxQP       = 51;//from SliceQP to 51
-      if(!pCtx->Cfg[i].roiCtrlMode)       pCtx->Cfg[i].roiCtrlMode = ROI_QP_TABLE_NONE;
-      
+      if(!pCtx->framerate[i])               pCtx->framerate[i]       = 30;
+      if(!pCtx->out_framerate[i])           pCtx->out_framerate[i]   = pCtx->framerate[i];
+      if(!pCtx->Cfg[i].width)               pCtx->Cfg[i].width       = 1920;
+      if(!pCtx->Cfg[i].height)              pCtx->Cfg[i].height      = 1080;
+      if(!pCtx->Cfg[i].BitRate)             pCtx->Cfg[i].BitRate     = 4000000;
+      if(!pCtx->Cfg[i].MaxBitRate)          pCtx->Cfg[i].MaxBitRate  = 4000000;
+      if(!pCtx->Cfg[i].level)               pCtx->Cfg[i].level       = 42;
+      if(pCtx->Cfg[i].profile == 0xff)      pCtx->Cfg[i].profile     = AVC_HIGH;
+      if(pCtx->Cfg[i].rcMode == 0xff)       pCtx->Cfg[i].rcMode      = CBR; 
+      if(!pCtx->Cfg[i].SliceQP)             pCtx->Cfg[i].SliceQP     = 25;
+      if(!pCtx->Cfg[i].FreqIDR)             pCtx->Cfg[i].FreqIDR     = 25;
+      if(!pCtx->Cfg[i].gopLen)              pCtx->Cfg[i].gopLen      = 25;
+      if(pCtx->Cfg[i].AspectRatio == 0xff)  pCtx->Cfg[i].AspectRatio = ASPECT_RATIO_AUTO;
+      if(!pCtx->Cfg[i].MinQP)               pCtx->Cfg[i].MinQP       = 0;//from 0 to SliceQP
+      if(!pCtx->Cfg[i].MaxQP)               pCtx->Cfg[i].MaxQP       = 51;//from SliceQP to 51
+      if(!pCtx->Cfg[i].roiCtrlMode)         pCtx->Cfg[i].roiCtrlMode = ROI_QP_TABLE_NONE;
+
+      pCtx->Cfg[i].encDblkCfg.disable_deblocking_filter_idc        = 0;
+      pCtx->Cfg[i].encDblkCfg.slice_beta_offset_div2               = 1;
+      pCtx->Cfg[i].encDblkCfg.slice_alpha_c0_offset_div2           = 1;
+      pCtx->Cfg[i].entropyMode                                     = ENTROPY_MODE_CABAC;
+      pCtx->Cfg[i].sliceSplitCfg.bSplitEnable                      = false;
+
     }
 
     for(int i =0;i < pCtx->ch_cnt; i++)
@@ -2197,7 +2385,7 @@ int main(int argc, char *argv[])
         if(strcmp(ptr, ".jpg") == 0 || strcmp(ptr, ".mjpeg") == 0)
         {
           pCtx->Cfg[i].profile = JPEG;
-          pCtx->Cfg[i].rcMode = CONST_QP; 
+          pCtx->Cfg[i].rcMode = CONST_QP;          
           printf("JPEG encode\n");
         }
       }
@@ -2218,6 +2406,8 @@ int main(int argc, char *argv[])
           printf("slice qp error\n");
           return -1;
         }
+	if (pCtx->Cfg[i].SliceQP > pCtx->Cfg[i].MaxQP)
+	    pCtx->Cfg[i].MaxQP = pCtx->Cfg[i].SliceQP;
       }
       else
       {
@@ -2244,28 +2434,43 @@ int main(int argc, char *argv[])
         pCtx->Cfg[i].FrameRate = pCtx->out_framerate[i];
         printf("ch%d-Cfg.Framerate: %d\n", i, pCtx->Cfg[i].FrameRate);
         pCtx->hEnc[i] = VideoEncoder_Create(&pCtx->Cfg[i]);
+        if (NULL == pCtx->hEnc[i])
+        {
+          printf("[%s] VideoEncoder_Create failed\n",__FUNCTION__);
+          return -1;
+        }
 
         if (ROI_QP_TABLE_NONE != pCtx->Cfg[i].roiCtrlMode)
         {
           DoEncRoi(pCtx->hEnc[i],pCtx->aryEncRoiCfg[i]);
         }
 
-        if((pCtx->out_framerate[i] % pCtx->framerate[i] == 0) || (pCtx->framerate[i] % pCtx->out_framerate[i] == 0))
+        if((JPEG == pCtx->Cfg[i].profile) && (pCtx->out_framerate[i] != pCtx->framerate[i]))
         {
-          if(pCtx->out_framerate[i] > pCtx->framerate[i])
-          {
-            pCtx->repeat[i] = pCtx->out_framerate[i]/pCtx->framerate[i] - 1;
-            printf("ch%d: repeat %d\n", i, pCtx->repeat[i]);
-          }
-          else if(pCtx->out_framerate[i] < pCtx->framerate[i])
-          {
-            pCtx->drop[i] = pCtx->framerate[i]/pCtx->out_framerate[i] - 1;
-            printf("ch%d: drop %d\n", i, pCtx->drop[i]);
-          }
+          pCtx->repeat_en[i] = 0;
+          pCtx->drop_en[i] = 0;
+          printf("WARNING: NOT SUPPORT RC CONTROL IN JPEG MODE, OUTPUT WITH INPUT FRAMERATE.\n");
+          pCtx->out_framerate[i] = pCtx->framerate[i];
         }
         else
         {
-          printf("ch%d: Cannot handle -r: %d\n", i, pCtx->out_framerate[i]);
+          if(pCtx->out_framerate[i] > pCtx->framerate[i])
+          {
+            pCtx->repeat_en[i] = 1;
+            pCtx->repeat[i] = pCtx->out_framerate[i]/pCtx->framerate[i] - 1;
+            printf("ch%d: repeat %d\n", i, pCtx->repeat[i]);
+            pCtx->framerate_mod[i] = pCtx->out_framerate[i]%pCtx->framerate[i];
+            printf("ch%d: framerate_mod %d\n", i, pCtx->framerate_mod[i]);
+          }
+          else if(pCtx->out_framerate[i] < pCtx->framerate[i])
+          {
+            pCtx->drop_en[i] = 1;
+            pCtx->drop[i] = pCtx->framerate[i]/pCtx->out_framerate[i] - 1;
+            printf("ch%d: drop %d\n", i, pCtx->drop[i]);
+            pCtx->framerate_mod[i] = pCtx->framerate[i]%pCtx->out_framerate[i];
+            // pCtx->framerate_mod[i] = pCtx->out_framerate[i]%pCtx->framerate[i];
+            printf("ch%d: framerate_mod %d\n", i, pCtx->framerate_mod[i]);
+          }
         }
       }
     }
@@ -2277,6 +2482,91 @@ int main(int argc, char *argv[])
     if(!pCtx->audio_ch_cnt)               pCtx->audio_ch_cnt       = 2;
     if(!pCtx->audio_sample_rate)          pCtx->audio_sample_rate  = 44100;
     if(!pCtx->audio_format)               pCtx->audio_format       = SND_PCM_FORMAT_S16_LE;
+    if (!pCtx->audioEncType)              pCtx->audioEncType       = (RTSP_AUDIO_TYPE)em_audio_type_g711a;
+  }
+
+  //create rtsp server
+  for(int cur_ch = 0; cur_ch < pCtx->ch_cnt; cur_ch++)
+  {
+    if (1 == pCtx->enable_rtsp[cur_ch])
+    {
+      pCtx->pRtspServer[cur_ch] = IRtspServerEX::CreateRTSPServerEX();
+      if(pCtx->audio_enabled)
+      {
+        pCtx->pRtspServer[cur_ch]->Init(8554 + cur_ch*2,true);
+        RTSP_AUDIO_INFO audioInfo;
+        audioInfo.audioType              = (RTSP_AUDIO_TYPE)pCtx->audioEncType;
+        audioInfo.nBitsPerSample        = 16;
+        audioInfo.nSamplingFrequency    = pCtx->audio_sample_rate;
+        audioInfo.nNumChannels              = pCtx->audio_ch_cnt;
+        pCtx->pRtspServer[cur_ch]->SetAudioInfo(audioInfo);	
+        
+      }
+      else
+      {
+        pCtx->pRtspServer[cur_ch]->Init(8554 + cur_ch*2,false);
+      }
+      pCtx->pRtspServer[cur_ch]->CreateStreamUrl("testStream");
+    }
+  }
+
+  FILE *fp=NULL;
+
+  fp = fopen("/proc/cmdline", "rb");
+	if (fp == NULL)
+	{
+		printf("can not find /proc/cmdline\n");
+	}
+	else
+	{
+	  char ch;
+	  int isolcpus=0;
+	  int index=0;
+	  char name[10];
+
+	  sprintf(name, "isolcpus=1");
+	  while(1)
+  	{  
+  	  ch = fgetc(fp);
+  	  if(ch == EOF || ch == 0xff)
+  	    break;
+  	  
+  	  if(ch == name[index])
+  	  {
+  	    index++;
+  	    if(index >= 10)
+  	    {
+  	      isolcpus = 1;
+  	      break;
+  	    }
+  	  }
+  	  else
+  	  {
+  	    if(index > 0)
+  	      index--;
+  	  }
+  	}
+	  fclose(fp);
+
+	  printf("isolcpus = %d\n", isolcpus);
+	
+    if(isolcpus == 1 && pCtx->enable_rtsp[pCtx->ch_cnt-1] == 1)
+    {   
+      cpu_set_t cpuset;
+      int ret;
+      pthread_t tid;
+
+      CPU_ZERO(&cpuset);
+      CPU_SET(1, &cpuset);
+
+      pCtx->pRtspServer[pCtx->ch_cnt-1]->GetThreadId(&tid);
+
+      ret = pthread_setaffinity_np(tid, sizeof(cpu_set_t), &cpuset);
+      if (ret != 0)
+        printf("rtsp:pthread_setaffinity_np: fail\n");
+      else
+        printf("rtsp:pthread_setaffinity_np: ok\n");  
+    }
   }
   
   pCtx->fd_share_memory = open(SHARE_MEMORY_DEV,O_RDWR | O_SYNC);
@@ -2310,7 +2600,11 @@ int main(int argc, char *argv[])
     {
       if(pCtx->ch_en[i] && (pCtx->enable_isp[i] == 0) && (pCtx->enable_v4l2[i] == 0))
       {
-        get_yuv(pCtx, pCtx->infilename[i], i);
+        if(get_yuv(pCtx, pCtx->infilename[i], i) < 0)
+        {
+          endof_encode();
+          return -1;
+        }
       }
     }
   }
@@ -2319,7 +2613,11 @@ int main(int argc, char *argv[])
   if(pCtx->isp_enabled == 1)
   { 
     set_QoS();  
-    init_isp();
+    if(init_isp() < 0)
+    {
+      endof_encode();
+      return -1;
+    }
   }
 #endif
   if(pCtx->v4l2_enabled == 1)
@@ -2330,12 +2628,16 @@ int main(int argc, char *argv[])
       printf("parse_conf error\n");
       return -1;
     }
-    init_v4l2();
+    if(init_v4l2() < 0)
+    {
+      endof_encode();
+      return -1;
+    }
   }
 
   if(pCtx->audio_enabled == 1)
   {
-    init_audio();
+    init_audio(pCtx->audio_sample_rate);
   }
 
   signal(SIGINT, exit_handler);

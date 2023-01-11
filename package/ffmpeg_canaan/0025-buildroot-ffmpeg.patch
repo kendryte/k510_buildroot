@@ -1,0 +1,42 @@
+Index: b/libavdevice/v4l2.c
+===================================================================
+--- a/libavdevice/v4l2.c
++++ b/libavdevice/v4l2.c
+@@ -907,9 +907,14 @@ static int mmap_read_frame_usrptr(AVForm
+       ret = isp_sync(ctx);
+       if(ret == -1)
+       {
+-        struct buff_data *buf_descriptor;
+-        
+-        pkt->size = 0;
++      /*
++      drop video 时return 0会导致AVInputFormat::read_packet函数返回0，pkt->size为0;此操作会导致ffmpeg内部音视频同步混乱，长时间return 0 导致
++      audio在ffmpeg内部数据缓存严重，音频延迟越来越大，进而导致alsa底层因不能及时读走数据而报错。
++      修改方法:video帧不再drop，该帧不再增加时间戳，与上一帧共用相同时间戳来避免return 0 导致的问题。
++      */
++      #if 0
++        struct buff_data *buf_descriptor; 
++        pkt->size = 0;  
+         s->repeat_index = ISP_ADDR_BUFFER_CNT;
+ 
+         buf_descriptor = av_malloc(sizeof(struct buff_data));
+@@ -918,6 +923,7 @@ static int mmap_read_frame_usrptr(AVForm
+         mmap_release_buffer(buf_descriptor, NULL);
+         //printf("%s>drop index %d\n", __FUNCTION__, buf.index);
+         return 0;
++      #endif
+       }
+       else if(ret == 1)
+       {
+@@ -975,7 +981,11 @@ static int mmap_read_frame_usrptr(AVForm
+ 
+     if(pkt->size > 0)
+     {
++#if 0
+         s->pts += 1;
++#else
++        s->pts += (-1 == ret)?0:1;//需要drop的帧时间戳 与上一帧相同，避免return pkt为0.
++#endif
+         pkt->pts = s->pts;
+         pkt->dts = s->pts;   
+     }

@@ -1,0 +1,99 @@
+Index: b/libavdevice/v4l2.c
+===================================================================
+--- a/libavdevice/v4l2.c
++++ b/libavdevice/v4l2.c
+@@ -108,8 +108,8 @@ struct video_data {
+     int fd_ddr;
+     int fd_share_memory;
+     int pts;
+-	  int repeat_index;
+-	  unsigned int buf_bytesused;
++    int repeat_index;
++    unsigned int buf_bytesused;
+     unsigned int reg_QoS_ctrl0;
+     unsigned int reg_QoS_ctrl1;
+     unsigned int reg_QoS_ctrl2;
+@@ -176,7 +176,12 @@ int parse_conf(char* dev_name, char* fil
+   cJSON *newitem;
+   cJSON *object;
+   cJSON *sensor0;
++  cJSON *sensor1;
+   cJSON *video;
++
++  char video_used_name[20];
++  char video_width_name[20];
++  char video_height_name[20];
+   int i = 0;
+ 
+   fp=fopen(filename,"rb");
+@@ -203,44 +208,39 @@ int parse_conf(char* dev_name, char* fil
+     out=cJSON_Print(root);
+ 
+     sensor0 = cJSON_GetObjectItem(root,"sensor0");
+-    if(sensor0 != NULL)
++    sensor1 = cJSON_GetObjectItem(root,"sensor1");
++    if(sensor0 != NULL && sensor1 != NULL)
+     {
+-      // int size=cJSON_GetArraySize(arrayItem);
+-      if(strcmp(dev_name, "/dev/video3") == 0)
++      snprintf(video_used_name, sizeof(video_used_name), "video%c_used", dev_name[10]);
++      snprintf(video_width_name, sizeof(video_width_name), "video%c_width", dev_name[10]);
++      snprintf(video_height_name, sizeof(video_height_name), "video%c_height", dev_name[10]);
++      printf("dev_name: %s\n", dev_name);
++      printf("video_used_name: %s\n", video_used_name);
++      printf("video_width_name: %s\n", video_width_name);
++      printf("video_height_name: %s\n", video_height_name);
++    
++      if((dev_name[10] >= '2') && (dev_name[10] <= '5'))
+       {
+-        video = cJSON_GetObjectItem(sensor0,"/dev/video3");
+-        item = cJSON_GetObjectItem(video, "video3_used");
+-        cJSON_SetIntValue(item, 1);
+-
+-        item = cJSON_GetObjectItem(video, "video3_width");
+-        cJSON_SetIntValue(item, width);
+-
+-        item = cJSON_GetObjectItem(video, "video3_height");
+-        cJSON_SetIntValue(item, height);
++        video = cJSON_GetObjectItem(sensor0,dev_name);
+       }
+-      else if(strcmp(dev_name, "/dev/video5") == 0)
++      else if((dev_name[10] >= '6') && (dev_name[10] <= '9'))
+       {
+-        video = cJSON_GetObjectItem(sensor0,"/dev/video5");
+-        item = cJSON_GetObjectItem(video, "video5_used");
+-        cJSON_SetIntValue(item, 1);
+-
+-        item = cJSON_GetObjectItem(video, "video5_width");
+-        cJSON_SetIntValue(item, width);
+-
+-        item = cJSON_GetObjectItem(video, "video5_height");
+-        cJSON_SetIntValue(item, height);
++        video = cJSON_GetObjectItem(sensor1,dev_name);
+       }
+-      else if(strcmp(dev_name, "/dev/video9") == 0)
++      else
+       {
+-        video = cJSON_GetObjectItem(sensor0,"/dev/video9");
+-        item = cJSON_GetObjectItem(video, "video9_used");
+-        cJSON_SetIntValue(item, 1);
+-        item = cJSON_GetObjectItem(video, "video9_width");
+-        cJSON_SetIntValue(item, width);
+-        item = cJSON_GetObjectItem(video, "video9_height");
+-        cJSON_SetIntValue(item, height);
+-      }      
++        printf("dev name error!\n");
++        return -1;
++      }
++
++      item = cJSON_GetObjectItem(video, video_used_name);
++      cJSON_SetIntValue(item, 1);
++
++      item = cJSON_GetObjectItem(video, video_width_name);
++      cJSON_SetIntValue(item, width);
+ 
++      item = cJSON_GetObjectItem(video, video_height_name);
++      cJSON_SetIntValue(item, height);    
+     }
+   }
+ 

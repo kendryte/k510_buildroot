@@ -23,6 +23,7 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 #include "cv2_utils.h"
+#include "k510_drm.h"
 
 float minf(float v1, float v2)
 {
@@ -72,22 +73,23 @@ box_t get_box_from_landmarks(cv::Mat mat, int valid_width, int valid_height, flo
 	return dest;
 }
 
-frame_coordinate_info get_frame_coord(box_t r, int valid_width, int valid_height)
+frame_coordinate_info get_frame_coord(box_t r, int valid_width, int valid_height, int display_width, int display_height)
 {
-    frame_coordinate_info frame_coordinate;
-    int32_t x0 = (r.x - r.w / 2) * DISP_WIDTH;
-    int32_t y0 = (r.y - r.h / 2) * valid_width / valid_height * DISP_HEIGHT;
-    int32_t x1 = (r.x + r.w / 2) * DISP_WIDTH;
-    int32_t y1 = (r.y + r.h / 2) * valid_width / valid_height * DISP_HEIGHT;
+    frame_coordinate_info frame_coordinate;	
+	int long_side = valid_width > valid_height ? valid_width : valid_height;
+    int32_t x0 = (r.x - r.w / 2) * long_side / valid_width * display_width;
+    int32_t y0 = (r.y - r.h / 2) * long_side / valid_height *  display_height;
+    int32_t x1 = (r.x + r.w / 2) * long_side / valid_width *  display_width;
+    int32_t y1 = (r.y + r.h / 2) * long_side / valid_height *  display_height;
 
-    x0 = std::max(0, std::min(x0, DISP_WIDTH));
-    y0 = std::max(0, std::min(y0, DISP_HEIGHT));
-    x1 = std::max(0, std::min(x1, DISP_WIDTH));
-    y1 = std::max(0, std::min(y1, DISP_HEIGHT));
+    x0 = std::max(0, std::min(x0, display_width));
+    y0 = std::max(0, std::min(y0, display_height));
+    x1 = std::max(0, std::min(x1, display_width));
+    y1 = std::max(0, std::min(y1, display_height));
     
-    frame_coordinate.startx = x0 + OFFSET_X;
-    frame_coordinate.starty = y0 + OFFSET_Y;
-    frame_coordinate.endx = x1 + OFFSET_X;
-    frame_coordinate.endy = y1 + OFFSET_Y;
+    frame_coordinate.startx = x0;
+    frame_coordinate.starty = y0;
+    frame_coordinate.endx = x1;
+    frame_coordinate.endy = y1;
     return frame_coordinate;
 }

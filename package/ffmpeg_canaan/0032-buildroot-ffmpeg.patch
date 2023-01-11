@@ -1,0 +1,64 @@
+Index: b/libavcodec/libk510_h264.c
+===================================================================
+--- a/libavcodec/libk510_h264.c
++++ b/libavcodec/libk510_h264.c
+@@ -177,9 +177,9 @@ static av_cold int k510_h264_encode_init
+     Cfg.MaxQP    = 51;//from SliceQP to 51
+     Cfg.roiCtrlMode = ROI_QP_TABLE_NONE;
+     Cfg.encDblkCfg.disable_deblocking_filter_idc        = 0;
+-    Cfg.encDblkCfg.slice_beta_offset_div2               = 1;
+-    Cfg.encDblkCfg.slice_alpha_c0_offset_div2           = 1;
+-    Cfg.entropyMode                                     = ENTROPY_MODE_CAVLC;
++    Cfg.encDblkCfg.slice_beta_offset_div2               = 1;
++    Cfg.encDblkCfg.slice_alpha_c0_offset_div2           = 1;
++    Cfg.entropyMode                                     = ENTROPY_MODE_CAVLC;
+     Cfg.sliceSplitCfg.bSplitEnable                      = false;
+     
+     printf("Encoder Settings:\n");
+@@ -421,10 +421,10 @@ static const AVOption options[] =
+   {     "main",               "",  0, AV_OPT_TYPE_CONST, { .i64 = AVC_MAIN },     0, 0, FLAGS, "profile_flags" },
+   {     "high",               "",  0, AV_OPT_TYPE_CONST, { .i64 = AVC_HIGH },   0, 0, FLAGS, "profile_flags" },
+   { "level",                "Specify level",                                  OFFSET(level),           AV_OPT_TYPE_INT,  {.i64 = 42}, 10, 42, FLAGS, "level_flags"},
+-  { "ar",                   "Set aspect ratio",                               OFFSET(ar),         AV_OPT_TYPE_INT,  {.i64 = ASPECT_RATIO_AUTO}, ASPECT_RATIO_AUTO, ASPECT_RATIO_16_9, FLAGS, "profile_flags"},
+-  {     "auto",               "",  0, AV_OPT_TYPE_CONST, { .i64 = ASPECT_RATIO_AUTO },     0, 0, FLAGS, "profile_flags" },
+-  {     "4:3",                "",  0, AV_OPT_TYPE_CONST, { .i64 = ASPECT_RATIO_4_3 },     0, 0, FLAGS, "profile_flags" },
+-  {     "16:9",               "",  0, AV_OPT_TYPE_CONST, { .i64 = ASPECT_RATIO_16_9 },   0, 0, FLAGS, "profile_flags" },
++  { "ar",                   "Set aspect ratio",                               OFFSET(ar),         AV_OPT_TYPE_INT,  {.i64 = ASPECT_RATIO_AUTO}, ASPECT_RATIO_AUTO, ASPECT_RATIO_16_9, FLAGS, "ar_flags"},
++  {     "auto",               "",  0, AV_OPT_TYPE_CONST, { .i64 = ASPECT_RATIO_AUTO },     0, 0, FLAGS, "ar_flags" },
++  {     "4:3",                "",  0, AV_OPT_TYPE_CONST, { .i64 = ASPECT_RATIO_4_3 },     0, 0, FLAGS, "ar_flags" },
++  {     "16:9",               "",  0, AV_OPT_TYPE_CONST, { .i64 = ASPECT_RATIO_16_9 },   0, 0, FLAGS, "ar_flags" },
+   { "framesToEncode",       "set the libk510_h264 framesToEncode",            OFFSET(framesToEncode),   AV_OPT_TYPE_INT,  { .i64 = -1 }, -1, INT_MAX, FLAGS },
+   {NULL}
+ };
+Index: b/libavcodec/libk510_jpeg.c
+===================================================================
+--- a/libavcodec/libk510_jpeg.c
++++ b/libavcodec/libk510_jpeg.c
+@@ -141,9 +141,9 @@ static av_cold int k510_jpeg_encode_init
+     Cfg.MaxQP    = 51;//from SliceQP to 51
+     Cfg.roiCtrlMode = ROI_QP_TABLE_NONE;
+     Cfg.encDblkCfg.disable_deblocking_filter_idc        = 0;
+-    Cfg.encDblkCfg.slice_beta_offset_div2               = 1;
+-    Cfg.encDblkCfg.slice_alpha_c0_offset_div2           = 1;
+-    Cfg.entropyMode                                     = ENTROPY_MODE_CAVLC;
++    Cfg.encDblkCfg.slice_beta_offset_div2               = 1;
++    Cfg.encDblkCfg.slice_alpha_c0_offset_div2           = 1;
++    Cfg.entropyMode                                     = ENTROPY_MODE_CAVLC;
+     Cfg.sliceSplitCfg.bSplitEnable                      = false;
+ 
+     printf("Encoder Settings:\n");
+@@ -312,10 +312,10 @@ static const AVOption options[] =
+   { "b",                    "Set video bitrate",                              OFFSET(bit_rate),        AV_OPT_TYPE_INT,  {.i64 = 4000000}, 0, 100000000, FLAGS },
+   { "ch",                   "Set encode channel ",                            OFFSET(channel),         AV_OPT_TYPE_INT,  {.i64 = 0}, 0, (VENC_MAX_CHANNELS-1), FLAGS },
+   { "maxrate",              "Maximum bitrate. (0=ignore)",                    OFFSET(maxrate),         AV_OPT_TYPE_INT,  {.i64 = 4000000}, 0, 100000000, FLAGS },
+-  { "ar",                   "Set aspect ratio",                               OFFSET(ar),         AV_OPT_TYPE_INT,  {.i64 = ASPECT_RATIO_AUTO}, ASPECT_RATIO_AUTO, ASPECT_RATIO_16_9, FLAGS, "profile_flags"},
+-  {     "auto",               "",  0, AV_OPT_TYPE_CONST, { .i64 = ASPECT_RATIO_AUTO },     0, 0, FLAGS, "profile_flags" },
+-  {     "4:3",                "",  0, AV_OPT_TYPE_CONST, { .i64 = ASPECT_RATIO_4_3 },     0, 0, FLAGS, "profile_flags" },
+-  {     "16:9",               "",  0, AV_OPT_TYPE_CONST, { .i64 = ASPECT_RATIO_16_9 },   0, 0, FLAGS, "profile_flags" },
++  { "ar",                   "Set aspect ratio",                               OFFSET(ar),         AV_OPT_TYPE_INT,  {.i64 = ASPECT_RATIO_AUTO}, ASPECT_RATIO_AUTO, ASPECT_RATIO_16_9, FLAGS, "ar_flags"},
++  {     "auto",               "",  0, AV_OPT_TYPE_CONST, { .i64 = ASPECT_RATIO_AUTO },     0, 0, FLAGS, "ar_flags" },
++  {     "4:3",                "",  0, AV_OPT_TYPE_CONST, { .i64 = ASPECT_RATIO_4_3 },     0, 0, FLAGS, "ar_flags" },
++  {     "16:9",               "",  0, AV_OPT_TYPE_CONST, { .i64 = ASPECT_RATIO_16_9 },   0, 0, FLAGS, "ar_flags" },
+   {NULL}
+ };
+ 

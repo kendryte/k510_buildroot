@@ -1,0 +1,86 @@
+From 296ede17fa4deefed492c000e43e519a9809c0d7 Mon Sep 17 00:00:00 2001
+From: wycwyhwyq <5f20.6d9b@gmail.com>
+Date: Tue, 26 Jul 2022 19:10:11 +0800
+Subject: [PATCH] fix vo driver
+
+---
+ drivers/gpu/drm/canaan/kendryte_dsi.c | 19 +++++++++++++++++--
+ drivers/gpu/drm/canaan/kendryte_vo.c  |  4 ++++
+ drivers/gpu/drm/canaan/kendryte_vo.h  |  1 +
+ 3 files changed, 22 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/canaan/kendryte_dsi.c b/drivers/gpu/drm/canaan/kendryte_dsi.c
+index 6f52013d..98661bbe 100755
+--- a/drivers/gpu/drm/canaan/kendryte_dsi.c
++++ b/drivers/gpu/drm/canaan/kendryte_dsi.c
+@@ -86,6 +86,8 @@
+ #define   TVG_STS_OFFSET                   0x114  //0x00000000 TVG status register
+ #define   CMD_MODE_STS_CTL_OFFSET           0x134 //0x00000000 Controls the enabling and edge detection of command status bits EDGE = 0
+ #define   VID_MODE_STS_CTL_OFFSET           0x140 //0x00000000 Control the enabling and edge detection of VSG status bits
++#define   VID_MODE_STS_CLR_OFFSET           0x160
++#define   VID_MODE_STS_OFFSET               0x180
+ #define   DPI_IRQ_EN_OFFSET                 0x1a0 //0x00000000 DPI interrupt enable
+ 
+ // config dsi timing 
+@@ -616,7 +618,7 @@ static void kendryte_dsi_init(struct kendryte_dsi *dsi, struct drm_display_mode
+ 
+     kendryte_dsi_dcs_write_reg(dsi, MCTL_DPHY_TIMEOUT1_OFFSET, 0xed8afffb);
+     kendryte_dsi_dcs_write_reg(dsi, MCTL_DPHY_TIMEOUT2_OFFSET, 0xf30fffff);
+-    kendryte_dsi_dcs_write_reg(dsi, MCTL_MAIN_DATA_CTL_OFFSET, 0x2e027); //[6] tvg_sel = 1  test video generator enabled   //default 0x27                         0x2e067
++    kendryte_dsi_dcs_write_reg(dsi, MCTL_MAIN_DATA_CTL_OFFSET, 0x2e007); //[6] tvg_sel = 1  test video generator enabled   //default 0x27                         0x2e067
+                                                         //[5] vid_en = 1   enable the video stream generator
+                                                         //[3:2] vid_if_select =2'b00  00:sdi;01:dpi��10:DSC
+                                                         //[1] sdi_if_vid_mode = 1  select video mode
+@@ -731,7 +733,20 @@ static void kendryte_dsi_encoder_enable(struct drm_encoder *encoder)
+     kendryte_dsi_setup_format(dsi, mode);
+ 
+ //    kendryte_dsi_get_reg_val(dsi);
+-
++    int try_count = 5;
++    msleep(50);
++    kendryte_dsi_dcs_write_reg(dsi, MCTL_MAIN_DATA_CTL_OFFSET, 0x2e027);
++    while (try_count--) {
++        kendryte_dsi_dcs_write_reg(dsi, VID_MODE_STS_CLR_OFFSET, 0xfff);
++        msleep(1);
++        if ((kendryte_dsi_dcs_read_reg(dsi, VID_MODE_STS_OFFSET) & 1))
++            break;
++        kendryte_dsi_dcs_write_reg(dsi, MCTL_MAIN_DATA_CTL_OFFSET, 0x2e007);
++        msleep(50);
++        kendryte_dsi_dcs_write_reg(dsi, MCTL_MAIN_DATA_CTL_OFFSET, 0x2e027);
++        msleep(50);
++    }
++    printk("try_count %d\n", try_count);
+ }
+ 
+ 
+diff --git a/drivers/gpu/drm/canaan/kendryte_vo.c b/drivers/gpu/drm/canaan/kendryte_vo.c
+index 6ab76124..4c800402 100755
+--- a/drivers/gpu/drm/canaan/kendryte_vo.c
++++ b/drivers/gpu/drm/canaan/kendryte_vo.c
+@@ -182,7 +182,11 @@ void kendryte_vo_set_mode(struct kendryte_vo *vo, struct drm_display_mode *mode)
+ 
+     reg_val = yzone_start + ((yzone_stop -1) << 16);
+     writel(reg_val, vo->base + VO_DISP_YZONE_CTL);
++    // update draw frame
++    reg_val = ((hdisplay - 1) & 0x1FFF) | (((vdisplay - 1) & 0x1FFF) << 16) | (1UL << 15);
++    writel(reg_val, vo->base + ADDR_VO_DISP_DRAW_FRAME_CMD);
+ 
++    writel(0x11, vo->base + VO_REG_LOAD_CTL);
+ }
+ 
+ void kendryte_vo_timing_init(struct kendryte_vo *vo, struct kendryte_vo_timing *vo_timing)
+diff --git a/drivers/gpu/drm/canaan/kendryte_vo.h b/drivers/gpu/drm/canaan/kendryte_vo.h
+index 0de2eb9e..81776815 100755
+--- a/drivers/gpu/drm/canaan/kendryte_vo.h
++++ b/drivers/gpu/drm/canaan/kendryte_vo.h
+@@ -176,6 +176,7 @@
+ #define ADDR_VO_DISP_IRQ_STATUS                                   0x3ec
+ 
+ #define ADDR_VO_DISP_DRAW_FRAME                                   0x600
++#define ADDR_VO_DISP_DRAW_FRAME_CMD                               0x780
+ 
+ #define KENDRYTE_VO_NUM_LAYERS		        7 
+ 
+-- 
+2.17.1
+

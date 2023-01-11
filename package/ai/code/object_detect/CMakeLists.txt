@@ -1,9 +1,11 @@
-set(SRC main.cc cv2_utils.cc object_detect.cc ../drm/k510_drm.c)
+set(SRC main.cc cv2_utils.cc object_detect.cc ../common/k510_drm.c ../common/v4l2.c ../common/buf_mgt.cc)
 set(bin object_detect)
 set(script ../shell/object_detect.sh)
 set(input ../imx219_0.conf ../imx219_1.conf ../video_object_detect_320.conf ../video_object_detect_640.conf)
 
-include_directories ("../drm")
+add_definitions(-DFULL_SCREEN)
+
+include_directories ("../common")
 include_directories(${DEMO_ROOT}/riscv64/include)
 include_directories(${DEMO_ROOT}/riscv64/opencv_4.5.1/include/opencv4)
 include_directories(${DEMO_ROOT}/riscv64/video_zt)
