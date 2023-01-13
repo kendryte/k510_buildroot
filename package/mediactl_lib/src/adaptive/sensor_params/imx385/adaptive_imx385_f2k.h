@@ -644,7 +644,7 @@ static ADAPTIVE_ISP_PIPELINE_PARAM_T adap_imx385_f2k =
                     {
                         {256, 0, 0},
                         {83, 341, 2},
-                        {1, 129, 386},
+                        {1, 159, 416},
                     },
                 },
             },
