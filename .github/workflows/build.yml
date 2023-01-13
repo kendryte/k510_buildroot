@@ -100,8 +100,8 @@ jobs:
           md5_dtb=$(md5sum $TFTP_ROOT/k510-$FILE_SUFFIX.dtb | awk '{print $1}')
           echo $md5_bbl
           echo $md5_dtb
-          echo "::set-output name=md5_bbl::$md5_bbl"
-          echo "::set-output name=md5_dtb::$md5_dtb"
+          echo "md5_bbl=$md5_bbl" >> $GITHUB_OUTPUT
+          echo "md5_dtb=$md5_dtb" >> $GITHUB_OUTPUT
       
       - name: Save image to NFS
         id: save_nfs
