@@ -19,7 +19,7 @@ Index: b/testProgs/DataBufCtrlEX.cpp
  	pthread_mutex_lock(&m_FrameMutex);
  	//if (m_nBufferLen + nSize > HI_MAX_DATA_SIZE)
 -	if (m_nPushIndex - m_nPopIndex > 100)
-+	if (m_nPushIndex - m_nPopIndex > 15)
++	if (m_nPushIndex - m_nPopIndex > 100)
  	{
  		m_nBufferLen = 0;
  		char sInfo[1000] = { 0 };

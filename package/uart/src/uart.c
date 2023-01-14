@@ -54,7 +54,7 @@ int OpenUart(char *UART_DEV)
     {
         return -1;
     }
-    SetOpt(fd);
+    // SetOpt(fd);
     return fd;
 }
 
@@ -113,9 +113,14 @@ void main(int argc, char **argv)
         printf(" COM Open Fail !");
         return;
     }
-    SetOpt(fd);
+    // SetOpt(fd);
     int TxLen = UartSend(fd, send_str, strlen(send_str));
     printf("\nTxLen = %d\n", TxLen);
+    if (TxLen < 0)
+    {
+        printf("send error\n");
+        goto exit;
+    }
     while (1)
     {
         while (((RxLen = UartRead(fd, RxBuff, TxLen)) > 0))
@@ -127,6 +132,7 @@ void main(int argc, char **argv)
         if (flag == 1)
             break;
     }
-
+exit:
+    tcflush(fd, TCIFLUSH);
     UartClose(fd);
 }

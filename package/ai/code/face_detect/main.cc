@@ -207,7 +207,7 @@ void ai_worker(ai_worker_args ai_args)
 
             for (auto p : points_to_clear[index])
             {
-                cv::circle(img_argb, p, 8, cv::Scalar(0, 0, 0, 0), -1);
+                cv::circle(img_argb, p, 4, cv::Scalar(0, 0, 0, 0), -1);
             }
         }
 
@@ -242,7 +242,7 @@ void ai_worker(ai_worker_args ai_args)
                     {
                         int32_t x0 = l.points[2 * ll + 0] * screen_width * net_len / valid_width;
                         int32_t y0 = l.points[2 * ll + 1] * net_len / valid_height * screen_height;
-                        cv::circle(img_argb, cv::Point(x0, y0), 8, cv::Scalar(0, 0, 255, 255), -1); 
+                        cv::circle(img_argb, cv::Point(x0, y0), 4, cv::Scalar(0, 0, 255, 255), -1);
                         points_to_clear[index].push_back(cv::Point(x0, y0));
                     }
                 }
@@ -629,7 +629,9 @@ int main(int argc, char *argv[])
 
     thread_ds0.join();
     thread_ds2.join();
-
+    memset(drm_dev.drm_bufs_argb[0].map, 0xff, screen_width * screen_height * 4);
+    usleep(100000);
+    drm_dmabuf_set_plane(&drm_dev.drm_bufs[0], &drm_dev.drm_bufs_argb[0]);
     /****fixed operation for drm deinit****/
     for(uint32_t i = 0; i < DRM_BUFFERS_COUNT; i++) 
     {

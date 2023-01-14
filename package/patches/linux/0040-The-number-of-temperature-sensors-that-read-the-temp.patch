@@ -1,0 +1,26 @@
+From 832b1aa92c0ca62127151ceef2c2c78690f1822b Mon Sep 17 00:00:00 2001
+From: liusuntao <1528681067@qq.com>
+Date: Mon, 21 Nov 2022 19:44:17 +0800
+Subject: [PATCH] The number of temperature sensors that read the temperature
+ was reduced from five to three.
+
+---
+ drivers/thermal/canaan_thermal.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/thermal/canaan_thermal.c b/drivers/thermal/canaan_thermal.c
+index 78cdd60..cc014d9 100755
+--- a/drivers/thermal/canaan_thermal.c
++++ b/drivers/thermal/canaan_thermal.c
+@@ -89,7 +89,7 @@ static int read_temp_single(struct canaan_thermal_data *data,
+     val = ioread32(data->base + TS_STATUS);
+     if(val == 0)
+         return -EAGAIN;
+-    for(bit = 0; bit < 5; bit++)
++    for(bit = 2; bit < 5; bit++)
+     {
+         if((val>>bit) & 0x1)
+         {
+-- 
+2.36.1
+

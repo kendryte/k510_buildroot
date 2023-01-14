@@ -22,6 +22,7 @@
  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+#include <media_ctl.h>
 #include "k510_drm.h"
 
 #  define DRM_CARD          "/dev/dri/card0"
@@ -55,7 +56,9 @@ struct  drm_dev drm_dev;
 
 int draw_frame(struct vo_draw_frame *frame)
 {
-	return drmIoctl(drm_dev.fd, DRM_IOCTL_KENDRYTE_DRAW_FRAME, frame);
+	unsigned color = frame->draw_en ? 0xff0000 : 0xff000000;
+	mediactl_rect(ISP_F2K_PIPELINE, 1, frame->frame_num, frame->line_x_start, frame->line_y_start, frame->line_x_end - frame->line_x_start, frame->line_y_end - frame->line_y_start, 4, color, 0);
+	return 0;
 }
 
 static uint32_t get_plane_property_id(const char *name)
@@ -644,7 +647,7 @@ static int drm_allocate_dumb_argb(struct drm_buffer *buf)
 
 	/* create dumb buffer */
 	memset(&creq, 0, sizeof(creq));
-	creq.width = (drm_dev.width+15)/16*16;
+	creq.width = (drm_dev.width+7)/8*8;
 	creq.height = drm_dev.height;  //* 4;
 	creq.bpp = 32;  //8
 

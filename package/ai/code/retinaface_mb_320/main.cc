@@ -142,7 +142,9 @@ void ai_worker()
     while(quit.load()) 
     {
         bool ret = false;
+#if PROFILING
         ScopedTiming st("total");
+#endif
         mtx.lock();
         ret = capture.read(rgb24_img_for_ai);
         mtx.unlock();
@@ -252,6 +254,7 @@ void ai_worker()
                     frame.line_x_end = frame.line_x_end > screen_width ? screen_width : frame.line_x_end;
                     frame.line_y_end = frame.line_y_end > screen_height ? screen_height : frame.line_y_end;
                     draw_frame(&frame);
+                    std::cout << obj_cnt << ":" << frame.line_x_start <<":"<< frame.line_y_start <<":"<< frame.line_x_end <<":"<< frame.line_y_end << std::endl;
                 }
                 obj_cnt += 1;
             }
@@ -263,7 +266,7 @@ void ai_worker()
                 draw_frame(&frame);
             }
         }
-        printf("obj_cnt = %d \n", obj_cnt);
+
         {
 #if PROFILING
             ScopedTiming st("draw point");
@@ -280,8 +283,10 @@ void ai_worker()
 
                         cv::circle(img_argb, cv::Point(x0, y0), 4, cv::Scalar(0, 0, 255, 255), -1);
                         point[index][obj_point[index]][ll] =  cv::Point(x0, y0);
+                        std::cout << ":" << x0 <<","<< y0;
                     }
                 }
+                std::cout << std::endl;
                 obj_point[index] += 1;
             }
         }
@@ -616,6 +621,9 @@ int main(int argc, char *argv[])
     thread_ds0.join();
     thread_ds2.join();
 
+    memset(drm_dev.drm_bufs_argb[0].map, 0xff, screen_width * screen_height * 4);
+    usleep(100000);
+    drm_dmabuf_set_plane(&drm_dev.drm_bufs[0], &drm_dev.drm_bufs_argb[0]);
     for(int i = 0; i < DRM_BUFFERS_COUNT; i++) {
         drm_destory_dumb(&drm_dev.drm_bufs[i]);
     }

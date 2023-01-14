@@ -1,0 +1,300 @@
+From 7d424c9545e71b51085ad6bf64b4a236193cf815 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=E9=BB=84=E5=AD=90=E6=87=BF?=
+ <huangziyi@canaan-creative.com>
+Date: Mon, 31 Oct 2022 14:56:07 +0800
+Subject: [PATCH] Align IMX219 width to 16
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Signed-off-by: 黄子懿 <huangziyi@canaan-creative.com>
+---
+ .../i2c/soc_camera/canaanchip/imx219_0.c      | 123 ++++++++++++++++++
+ .../i2c/soc_camera/canaanchip/imx219_1.c      | 123 ++++++++++++++++++
+ 2 files changed, 246 insertions(+)
+
+diff --git a/drivers/media/i2c/soc_camera/canaanchip/imx219_0.c b/drivers/media/i2c/soc_camera/canaanchip/imx219_0.c
+index 32062927..14040bd7 100644
+--- a/drivers/media/i2c/soc_camera/canaanchip/imx219_0.c
++++ b/drivers/media/i2c/soc_camera/canaanchip/imx219_0.c
+@@ -293,6 +293,118 @@ static const struct imx219_reg imx219_init_tab_1920_1080_30fps[] = {
+ 	{IMX219_TABLE_END, 0x00}
+ };
+ 
++/* MCLK:24MHz  1088x1920  30fps   MIPI LANE2 */
++static const struct imx219_reg imx219_init_tab_1088_1920_30fps[] = {
++	//Access command sequence
++	{0x30eb, 0x05},
++	{0x30eb, 0x0c},
++	{0x300a, 0xff},
++	{0x300b, 0xff},
++	{0x30eb, 0x05},
++	{0x30eb, 0x09},
++	//
++	{0x0114, 0x01}, //REG_CSI_LANE 01 -2lanes 03-4lanes
++	{0x0128, 0x00}, //REG_DPHY_CTRL
++	{0x012a, 0x18}, //REG_EXCK_FREQ_MSB
++	{0x012b, 0x00}, //REG_EXCK_FREQ_LSB
++
++	{0x0160, 0x07},//FRM_LENGTH_A[15:8] 1977
++	{0x0161, 0xb9},//FRM_LENGTH_A[7:0] 1977
++	{0x0162, 0x0d},//0x0d},//LINE_LENGTH_A[15:8] 3453
++	{0x0163, 0x7d},//0x78},//LINE_LENGTH_A[7:0]
++
++	{0x0164, 0x04}, //X_ADD_STA_A[11:8]
++	{0x0165, 0x48},//X_ADD_STA_A[7:0]
++	{0x0166, 0x08}, //X_ADD_END_A[11:8]
++	{0x0167, 0x87}, //X_ADD_END_A[7:0]
++
++	//
++	{0x0168, 0x01},//Y_ADD_STA_A[11:8]
++	{0x0169, 0x10},//Y_ADD_STA_A[7:0]
++	{0x016a, 0x08},//Y_ADD_END_A[11:8]  		2175
++	{0x016b, 0x8f},//Y_ADD_END_A[7:0]
++	//
++	{0x016c, 0x04},//x_output_size[11:8]
++	{0x016d, 0x40},//x_output_size[7:0]
++	{0x016e, 0x07},//y_output_size[11:8]
++	{0x016f, 0x80},// y_output_size[7:0]
++	//
++	{0x0170, 0x01},//X_ODD_INC_A
++	{0x0171, 0x01},//Y_ODD_INC_A
++	//
++	{0x0172, 0x00},//IMG_ORIENTATION_A
++	//BINNING
++	{0x0174, 0x00},//BINNING_MODE_H_A
++	{0x0175, 0x00},//BINNING_MODE_V_A
++	//{0x0176, 0x00},//BINNING_CAL_MODE_H_A
++	//{0x0177, 0x00},//BINNING_CAL_MODE_V_A
++	//
++	//{0x0189,0x00},//ANA_GAIN_GLOBAL_SHORT_A
++	//{0x018A,0x00},//COARSE_INTEG_TIME_SHORT_A
++	//{0x018B,0x00},//COARSE_INTEG_TIME_SHORT_A
++	//
++	//{0x018C,0x00},//CSI_DATA_FORMAT_A [15:8]
++	//{0x018D,0x00},//CSI_DATA_FORMAT_A [7:0]
++	//LSC
++	//{0x0190,0x00},//LSC_ENABLE_A
++	//{0x0191,0x00},//LSC_COLOR_MODE_A
++	//{0x0192,0x00},//LSC_SELECT_TABLE_A
++	//{0x0193,0x00},//LSC_TUNING_ENABLE_A
++	//{0x0194,0x00},//LSC_WHITE_BALANCE_RG_A[15:8]
++	//{0x0195,0x00},//LSC_WHITE_BALANCE_RG_A[7:0]
++	//{0x0198,0x00), //LSC_TUNING_COEF_R_A
++	//{0x0199,0x00), //LSC_TUNING_COEF_GR_A
++	//{0x019A,0x00), //LSC_TUNING_COEF_GB_A
++	//{0x019B,0x00), //LSC_TUNING_COEF_B_A
++	//{0x019C,0x00), //LSC_TUNING_R_A[12:8]
++	//{0x019D,0x00), //LSC_TUNING_R_A[7:0]
++	//{0x019E,0x00), //LSC_TUNING_GR_A[12:8]
++	//{0x019F,0x00), //LSC_TUNING_GR_A[7:0]
++	//{0x01A0,0x00), //LSC_TUNING_GB_A[12:8]
++	//{0x01A1,0x00), //LSC_TUNING_GB_A[7:0]
++	//{0x01A2,0x00), //LSC_TUNING_B_A[12:8]
++	//{0x01A3,0x00), //LSC_TUNING_B_A[7:0]
++	//{0x01A4,0x00), //LSC_KNOT_POINT_FORMAT_A
++	//
++	{0x0301, 0x05},//VTPXCK_DIV
++	{0x0303, 0x01},//VTSYCK_DIV
++	//
++	{0x0304, 0x03},//PREPLLCK_VT_DIV
++	{0x0305, 0x03},//PREPLLCK_OP_DIV
++	//
++	{0x0306, 0x00},//PLL_VT_MPY[10:8]
++	{0x0307, 0x40},//0x25},//PLL_VT_MPY[7:0] 0x39
++
++	//
++	//{0x0309, 0x00},//OPPXCK_DIV
++	//
++	{0x030b, 0x01},//OPSYCK_DIV
++	//
++	{0x030c, 0x00},//PLL_OP_MPY[10:8]
++	{0x030d, 0x2c},//PLL_OP_MPY[7:0] 0x72  0x56  0x51  0x40
++	//
++	{0x0624, 0x07},
++	{0x0625, 0x80},
++	{0x0626, 0x04},
++	{0x0627, 0x38},
++	{0x455e, 0x00},
++	{0x471e, 0x4b},
++	{0x4767, 0x0f},
++	{0x4750, 0x14},
++	{0x4540, 0x00},
++	{0x47b4, 0x14},
++	{0x4713, 0x30},
++	{0x478b, 0x10},
++	{0x478f, 0x10},
++	{0x4793, 0x10},
++	{0x4797, 0x0e},
++	{0x479b, 0x0e},
++	{0x0157, 0x00},
++	{0x015a, 0x03},
++	{0x015b, 0xe8},
++	{IMX219_TABLE_END, 0x00}
++};
++
+ /* MCLK:24MHz  1080x1920  30fps   MIPI LANE2 */
+ static const struct imx219_reg imx219_init_tab_1080_1920_30fps[] = {
+ 	//Access command sequence
+@@ -682,6 +794,17 @@ static const struct imx219_mode supported_modes[] = {
+ 		.vts_def = 0x048e,
+ 		.reg_list = imx219_init_tab_1920_1080_30fps,
+ 	},
++	{
++		.width = 1088,
++		.height = 1920,
++		.max_fps = {
++			.numerator = 10000,
++			.denominator = 300000,
++		},
++		.hts_def = 0x0d7d - IMX219_EXP_LINES_MARGIN,
++		.vts_def = 0x07b9,
++		.reg_list = imx219_init_tab_1088_1920_30fps,
++	},
+ 	{
+ 		.width = 1080,
+ 		.height = 1920,
+diff --git a/drivers/media/i2c/soc_camera/canaanchip/imx219_1.c b/drivers/media/i2c/soc_camera/canaanchip/imx219_1.c
+index ce0e31de..e988297c 100644
+--- a/drivers/media/i2c/soc_camera/canaanchip/imx219_1.c
++++ b/drivers/media/i2c/soc_camera/canaanchip/imx219_1.c
+@@ -291,6 +291,118 @@ static const struct imx219_reg imx219_init_tab_1920_1080_30fps[] = {
+ 	{IMX219_TABLE_END, 0x00}
+ };
+ 
++/* MCLK:24MHz  1088x1920  30fps   MIPI LANE2 */
++static const struct imx219_reg imx219_init_tab_1088_1920_30fps[] = {
++	//Access command sequence
++	{0x30eb, 0x05},
++	{0x30eb, 0x0c},
++	{0x300a, 0xff},
++	{0x300b, 0xff},
++	{0x30eb, 0x05},
++	{0x30eb, 0x09},
++	//
++	{0x0114, 0x01}, //REG_CSI_LANE 01 -2lanes 03-4lanes
++	{0x0128, 0x00}, //REG_DPHY_CTRL
++	{0x012a, 0x18}, //REG_EXCK_FREQ_MSB
++	{0x012b, 0x00}, //REG_EXCK_FREQ_LSB
++
++	{0x0160, 0x07},//FRM_LENGTH_A[15:8] 1977
++	{0x0161, 0xb9},//FRM_LENGTH_A[7:0] 1977
++	{0x0162, 0x0d},//0x0d},//LINE_LENGTH_A[15:8] 3453
++	{0x0163, 0x7d},//0x78},//LINE_LENGTH_A[7:0]
++
++	{0x0164, 0x04}, //X_ADD_STA_A[11:8]
++	{0x0165, 0x48},//X_ADD_STA_A[7:0]
++	{0x0166, 0x08}, //X_ADD_END_A[11:8]
++	{0x0167, 0x87}, //X_ADD_END_A[7:0]
++
++	//
++	{0x0168, 0x01},//Y_ADD_STA_A[11:8]
++	{0x0169, 0x10},//Y_ADD_STA_A[7:0]
++	{0x016a, 0x08},//Y_ADD_END_A[11:8]  		2175
++	{0x016b, 0x8f},//Y_ADD_END_A[7:0]
++	//
++	{0x016c, 0x04},//x_output_size[11:8]
++	{0x016d, 0x40},//x_output_size[7:0]
++	{0x016e, 0x07},//y_output_size[11:8]
++	{0x016f, 0x80},// y_output_size[7:0]
++	//
++	{0x0170, 0x01},//X_ODD_INC_A
++	{0x0171, 0x01},//Y_ODD_INC_A
++	//
++	{0x0172, 0x00},//IMG_ORIENTATION_A
++	//BINNING
++	{0x0174, 0x00},//BINNING_MODE_H_A
++	{0x0175, 0x00},//BINNING_MODE_V_A
++	//{0x0176, 0x00},//BINNING_CAL_MODE_H_A
++	//{0x0177, 0x00},//BINNING_CAL_MODE_V_A
++	//
++	//{0x0189,0x00},//ANA_GAIN_GLOBAL_SHORT_A
++	//{0x018A,0x00},//COARSE_INTEG_TIME_SHORT_A
++	//{0x018B,0x00},//COARSE_INTEG_TIME_SHORT_A
++	//
++	//{0x018C,0x00},//CSI_DATA_FORMAT_A [15:8]
++	//{0x018D,0x00},//CSI_DATA_FORMAT_A [7:0]
++	//LSC
++	//{0x0190,0x00},//LSC_ENABLE_A
++	//{0x0191,0x00},//LSC_COLOR_MODE_A
++	//{0x0192,0x00},//LSC_SELECT_TABLE_A
++	//{0x0193,0x00},//LSC_TUNING_ENABLE_A
++	//{0x0194,0x00},//LSC_WHITE_BALANCE_RG_A[15:8]
++	//{0x0195,0x00},//LSC_WHITE_BALANCE_RG_A[7:0]
++	//{0x0198,0x00), //LSC_TUNING_COEF_R_A
++	//{0x0199,0x00), //LSC_TUNING_COEF_GR_A
++	//{0x019A,0x00), //LSC_TUNING_COEF_GB_A
++	//{0x019B,0x00), //LSC_TUNING_COEF_B_A
++	//{0x019C,0x00), //LSC_TUNING_R_A[12:8]
++	//{0x019D,0x00), //LSC_TUNING_R_A[7:0]
++	//{0x019E,0x00), //LSC_TUNING_GR_A[12:8]
++	//{0x019F,0x00), //LSC_TUNING_GR_A[7:0]
++	//{0x01A0,0x00), //LSC_TUNING_GB_A[12:8]
++	//{0x01A1,0x00), //LSC_TUNING_GB_A[7:0]
++	//{0x01A2,0x00), //LSC_TUNING_B_A[12:8]
++	//{0x01A3,0x00), //LSC_TUNING_B_A[7:0]
++	//{0x01A4,0x00), //LSC_KNOT_POINT_FORMAT_A
++	//
++	{0x0301, 0x05},//VTPXCK_DIV
++	{0x0303, 0x01},//VTSYCK_DIV
++	//
++	{0x0304, 0x03},//PREPLLCK_VT_DIV
++	{0x0305, 0x03},//PREPLLCK_OP_DIV
++	//
++	{0x0306, 0x00},//PLL_VT_MPY[10:8]
++	{0x0307, 0x40},//0x25},//PLL_VT_MPY[7:0] 0x39
++
++	//
++	//{0x0309, 0x00},//OPPXCK_DIV
++	//
++	{0x030b, 0x01},//OPSYCK_DIV
++	//
++	{0x030c, 0x00},//PLL_OP_MPY[10:8]
++	{0x030d, 0x2c},//PLL_OP_MPY[7:0] 0x72  0x56  0x51  0x40
++	//
++	{0x0624, 0x07},
++	{0x0625, 0x80},
++	{0x0626, 0x04},
++	{0x0627, 0x38},
++	{0x455e, 0x00},
++	{0x471e, 0x4b},
++	{0x4767, 0x0f},
++	{0x4750, 0x14},
++	{0x4540, 0x00},
++	{0x47b4, 0x14},
++	{0x4713, 0x30},
++	{0x478b, 0x10},
++	{0x478f, 0x10},
++	{0x4793, 0x10},
++	{0x4797, 0x0e},
++	{0x479b, 0x0e},
++	{0x0157, 0x00},
++	{0x015a, 0x03},
++	{0x015b, 0xe8},
++	{IMX219_TABLE_END, 0x00}
++};
++
+ static const struct imx219_reg imx219_init_tab_1080_1920_30fps[] = {
+ 	//Access command sequence
+ 	{0x30eb, 0x05},
+@@ -679,6 +791,17 @@ static const struct imx219_mode supported_modes[] = {
+ 		.vts_def = 0x048e,
+ 		.reg_list = imx219_init_tab_1920_1080_30fps,
+ 	},
++	{
++		.width = 1088,
++		.height = 1920,
++		.max_fps = {
++			.numerator = 10000,
++			.denominator = 300000,
++		},
++		.hts_def = 0x0d7d - IMX219_EXP_LINES_MARGIN,
++		.vts_def = 0x07b9,
++		.reg_list = imx219_init_tab_1088_1920_30fps,
++	},
+ 	{
+ 		.width = 1080,
+ 		.height = 1920,
+-- 
+2.36.1
+

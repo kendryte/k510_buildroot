@@ -1,0 +1,39 @@
+From 1e4d86025a823583c263f02a78ea85547ee52964 Mon Sep 17 00:00:00 2001
+From: xubaikun <xubaikun@canaan-creative.com>
+Date: Mon, 5 Dec 2022 09:52:37 +0800
+Subject: [PATCH] set RPL to default value when wdt reset
+
+---
+ drivers/watchdog/dw_wdt.c | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/drivers/watchdog/dw_wdt.c b/drivers/watchdog/dw_wdt.c
+index 23418a9b..756c1f38 100755
+--- a/drivers/watchdog/dw_wdt.c
++++ b/drivers/watchdog/dw_wdt.c
+@@ -40,6 +40,10 @@
+ #define WDOG_CURRENT_COUNT_REG_OFFSET	    0x08
+ #define WDOG_COUNTER_RESTART_REG_OFFSET     0x0c
+ #define WDOG_COUNTER_RESTART_KICK_VALUE	    0x76
++/*for RPL(rest pulse length) */
++#define WDOG_CONTROL_REG_RPL_MASK			0x1C
++#define WDOG_CONTROL_REG_RPL_SHIFT			2
++#define WDOG_CONTROL_REG_RPL_DEFVAL			0x02
+ 
+ /* The maximum TOP (timeout period) value that can be set in the watchdog. */
+ #define DW_WDT_MAX_TOP		15
+@@ -133,6 +137,11 @@ static void dw_wdt_arm_system_reset(struct dw_wdt *dw_wdt)
+ 	val &= ~WDOG_CONTROL_REG_RESP_MODE_MASK;
+ 	/* Enable watchdog. */
+ 	val |= WDOG_CONTROL_REG_WDT_EN_MASK;
++
++	/* set RPL(rest pulse length) to default value */
++	val &= ~WDOG_CONTROL_REG_RPL_MASK;
++	val |= (WDOG_CONTROL_REG_RPL_DEFVAL << WDOG_CONTROL_REG_RPL_SHIFT);
++
+ 	writel(val, dw_wdt->regs + WDOG_CONTROL_REG_OFFSET);
+ }
+ 
+-- 
+2.17.1
+

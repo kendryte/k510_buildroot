@@ -5,7 +5,7 @@ TARGET = v4l2_drm.out
 OBJS = v4l2_drm.cc drm/k510_drm.c
 
 all:
-	${CC} ${OBJS} -I. -L. -L../ -fpermissive -Idrm -ldrm -lmediactl -lpthread -lstdc++ -g -o ${TARGET}
+	${CC} ${OBJS} -I. -I../ -L. -L../ -fpermissive -Idrm -ldrm -lmediactl -ladaptive -l3actl -lpthread -lstdc++ -g -o ${TARGET}
 	@echo "Compile done."
 clean:
 	@rm -f *.o ${TARGET}

@@ -1,0 +1,2213 @@
+From 566df5d37d07373c0c7ffe6b2396a807fb401d72 Mon Sep 17 00:00:00 2001
+From: "Chenggen.Wang" <wangchenggen@canaan-creative.com>
+Date: Tue, 18 Oct 2022 16:30:32 +0800
+Subject: [PATCH] camera: support imx385 wdr mode.
+
+Signed-off-by: Chenggen.Wang <wangchenggen@canaan-creative.com>
+---
+ .../dts/canaan/k510_common/camera-imx385.dtsi |  121 +-
+ .../boot/dts/canaan/k510_crb_lp3_v1_2.dts     |    2 +
+ .../media/i2c/soc_camera/canaanchip/imx385.c  | 1463 +++++++++++------
+ .../platform/canaan-isp/isp_2k/isp_f2k.c      |   23 +-
+ include/uapi/linux/canaan-camera-module.h     |   73 +
+ 5 files changed, 1084 insertions(+), 598 deletions(-)
+ mode change 100755 => 100644 arch/riscv/boot/dts/canaan/k510_common/camera-imx385.dtsi
+ mode change 100755 => 100644 arch/riscv/boot/dts/canaan/k510_crb_lp3_v1_2.dts
+ mode change 100755 => 100644 drivers/media/i2c/soc_camera/canaanchip/imx385.c
+ mode change 100755 => 100644 include/uapi/linux/canaan-camera-module.h
+
+diff --git a/arch/riscv/boot/dts/canaan/k510_common/camera-imx385.dtsi b/arch/riscv/boot/dts/canaan/k510_common/camera-imx385.dtsi
+old mode 100755
+new mode 100644
+index 8c61a34d..c925d5cd
+--- a/arch/riscv/boot/dts/canaan/k510_common/camera-imx385.dtsi
++++ b/arch/riscv/boot/dts/canaan/k510_common/camera-imx385.dtsi
+@@ -1,65 +1,56 @@
+-//RGB
+-&i2c1 {
+-	status = "okay";
+-	imx385: imx385@1a {
+-		compatible = "sony,imx385";
+-		reg = <0x1a>;
+-		//
+-		reset-gpios = <&porta 49 GPIO_ACTIVE_HIGH>;
+-		//powerdown-gpios = <&porta 1 GPIO_ACTIVE_HIGH>;
+-
+-		canaanchip,camera-module-index = <0>;
+-        canaanchip,camera-module-facing = "front";
+-		canaanchip,camera-module-name = "BFC105-DUAL-L";
+-		canaanchip,camera-module-lens-name = "RGB";
+-		//ir-cut = <&cam_ircut0>;
+-		hflip = <1>;
+-		
+-		port {
+-			ucam_out0: endpoint {
+-				remote-endpoint = <&mipi_in_ucam0>;
+-				data-lanes = <1 2>;
+-			};
+-		};
+-	}; 
+-};
+-
+-&isp1{
+-	status = "okay";
+-	sensor_num =<1>;
+-	dphy_speed =<1>; //0-RXDPHY_SPEED_MODE_2500M,1-RXDPHY_SPEED_MODE_1500M
+-	dphy_mode = <0>;//0-TWO_LANES_MODE,1-FOUR_LANES_MODE
+-	sony_mode = <0>;//0-SONY_POL_MODE_DIS,1-SONY_POL_MODE_EN
+-	ports {
+-		//port@0 {
+-		//	dvp_in_ucam2: endpoint@2 {
+-		//		//status = "okay";
+-		//		//remote-endpoint = <&ucam_out1>;
+-		//		//data-lanes = <3 4>;
+-		//		data-type = <0x2b>; //0x1E-MIPI_YUV422,0x2A-MIPI_RAW8,0x2B-MIPI_RAW10,0x2C-MIPI_RAW12
+-		//		tpg_r_en = <0>;
+-		//		tpg_w_en = <0>;
+-		//		wdr_sensor_vendor =<0>;//0-"SONY_WDR_SENSOR", 1=OTHERS_WDR_SENSOR
+-		//		wdr_mode = <0>;//0-none wdr mode, 1-2frame wdr mode, 2-3frame wdr mode
+-		//		mipi_csi_mode = <0>; //0- normal mode, 1 -debug mode
+-		//		isp_pipeline = <3>;//1 -ISP_F_2K, 2 -ISP_R_2K,3-ISP_TOF
+-		//	};
+-		//};
+-		port@1 {
+-			reg = <1>;
+-			mipi_in_ucam0: endpoint@0 {
+-				status = "okay";
+-				remote-endpoint = <&ucam_out0>;
+-				clock-lanes = <0>;
+-				data-lanes = <1 2>;
+-				data-type = <0x2c>; //0x1E-MIPI_YUV422,0x2A-MIPI_RAW8,0x2B-MIPI_RAW10,0x2C-MIPI_RAW12
+-				tpg_r_en = <0>;
+-				tpg_w_en = <0>;
+-				wdr_sensor_vendor =<0>;//0-"SONY_WDR_SENSOR", 1=OTHERS_WDR_SENSOR
+-				wdr_mode = <0>;//0-none wdr mode ,1-2frame wdr mode, 2-3frame wdr mode
+-				mipi_csi_mode = <0>; //0- normal mode ,1 -debug mode
+-				isp_pipeline = <1>;//1 -ISP_F_2K, 2 -ISP_R_2K, 3-ISP_TOF
+-			};
+-		};
+-	};
+-};
++//RGB
++&i2c1 {
++    status = "okay";
++    #address-cells  = <1>;
++    #size-cells     = <0>;
++    imx385: imx385@1a {
++        compatible = "sony,imx385";
++        reg = <0x1a>;
++        reset-gpios = <&porta 25 GPIO_ACTIVE_LOW>;
++
++        canaanchip,camera-module-index = <0>;
++        canaanchip,camera-module-facing = "front";
++        canaanchip,camera-module-name = "BFC105-DUAL-L";
++        canaanchip,camera-module-lens-name = "RGB";
++        //ir-cut = <&cam_ircut0>;
++        hflip = <1>;
++
++        port {
++            ucam_out0: endpoint {
++                remote-endpoint = <&mipi_in_ucam0>;
++                data-lanes = <1 2>;
++            };
++        };
++    };
++};
++
++&isp1{
++    status = "okay";
++    sensor_num =<1>;
++    dphy_speed =<1>; //0-RXDPHY_SPEED_MODE_2500M,1-RXDPHY_SPEED_MODE_1500M
++    dphy_mode = <0>;//0-TWO_LANES_MODE,1-FOUR_LANES_MODE
++    sony_mode = <0>;//0-SONY_POL_MODE_DIS,1-SONY_POL_MODE_EN
++    ports {
++        #address-cells = <1>;
++        #size-cells = <0>;
++        port@1 {
++            reg = <1>;
++            #address-cells = <1>;
++            #size-cells = <0>;
++            mipi_in_ucam0: endpoint@0 {
++                status = "okay";
++                reg = <1>;
++                remote-endpoint = <&ucam_out0>;
++                clock-lanes = <0>;
++                data-lanes = <1 2>;
++                data-type = <0x2c>; //0x1E-MIPI_YUV422,0x2A-MIPI_RAW8,0x2B-MIPI_RAW10,0x2C-MIPI_RAW12
++                tpg_r_en = <0>;
++                tpg_w_en = <0>;
++                wdr_sensor_vendor =<0>;//0-"SONY_WDR_SENSOR", 1=OTHERS_WDR_SENSOR
++                wdr_mode = <0>;//0-none wdr mode ,1-2frame wdr mode, 2-3frame wdr mode
++                mipi_csi_mode = <0>; //0- normal mode ,1 -debug mode
++                isp_pipeline = <1>;//1 -ISP_F_2K, 2 -ISP_R_2K, 3-ISP_TOF
++            };
++        };
++    };
++};
+diff --git a/arch/riscv/boot/dts/canaan/k510_crb_lp3_v1_2.dts b/arch/riscv/boot/dts/canaan/k510_crb_lp3_v1_2.dts
+old mode 100755
+new mode 100644
+index 81a478b6..ac557475
+--- a/arch/riscv/boot/dts/canaan/k510_crb_lp3_v1_2.dts
++++ b/arch/riscv/boot/dts/canaan/k510_crb_lp3_v1_2.dts
+@@ -25,6 +25,7 @@
+ //#include "k510_common/camera-gc2093_gc2145.dtsi"          /* camera gc2093/gc2145 */
+ //#include "k510_common/camera-gc2145_gc2093.dtsi"          /* camera gc2093/gc2145 */
+ //#include "k510_common/camera-sc035hgs.dtsi"          /* camera sc035hgs*/
++//#include "k510_common/camera-imx385.dtsi"          /* camera imx385*/
+ 
+ #include <dt-bindings/display/drm_mipi_dsi.h>
+ 
+@@ -213,6 +214,7 @@
+         pinctrl-k510,pins = <
+             (32) (FUNC_GPIO22) /*OEB*/
+             (34) (FUNC_GPIO21) /*SEL*/
++            (49) (FUNC_GPIO25)
+             (67) (FUNC_GPIO9)
+             (68) (FUNC_GPIO23)
+             (69) (FUNC_GPIO2) /*WIFI_WAKE_OUT*/
+diff --git a/drivers/media/i2c/soc_camera/canaanchip/imx385.c b/drivers/media/i2c/soc_camera/canaanchip/imx385.c
+old mode 100755
+new mode 100644
+index 4d5078a8..200cd6a7
+--- a/drivers/media/i2c/soc_camera/canaanchip/imx385.c
++++ b/drivers/media/i2c/soc_camera/canaanchip/imx385.c
+@@ -22,6 +22,8 @@
+ #include <linux/videodev2.h>
+ #include <linux/version.h>
+ #include <linux/canaan-camera-module.h>
++#include <linux/k510isp.h>
++
+ #include <media/v4l2-ctrls.h>
+ #include <media/v4l2-device.h>
+ #include <media/v4l2-fwnode.h>
+@@ -54,6 +56,8 @@
+ #define IMX385_DIGITAL_EXPOSURE_MAX		1125
+ #define IMX385_DIGITAL_EXPOSURE_DEFAULT	560
+ 
++#define IMX385_VTS_MAX			0x7fff
++
+ /*
+  * Constants for sensor reset delay
+  */
+@@ -64,7 +68,7 @@
+ 
+ #define IMX385_NAME						"IMX385"
+ 
+-#define IMX385_LANES					4 //2
++#define IMX385_LANES					2
+ 
+ static const s64 link_freq_menu_items[] = {
+ 	456000000,
+@@ -76,11 +80,15 @@ struct imx385_reg {
+ };
+ 
+ struct imx385_mode {
++	u32 bus_fmt;
+ 	u32 width;
+ 	u32 height;
+ 	struct v4l2_fract max_fps;
+ 	u32 hts_def;
+ 	u32 vts_def;
++	u32 exp_def;
++	u32 bpp;
++	u32 hdr_mode;
+ 	const struct imx385_reg *reg_list;
+ };
+ 
+@@ -89,74 +97,254 @@ static const struct imx385_reg imx385_init_tab_1920_1080_30fps[] = {
+ 	{0x3000,0x01},
+ 	{0x3001,0x00},
+ 	{0x3002,0x01},
+-    {0x3004,0x10},
+-    {0x3005,0x01},
+-    {0x3007,0x03},
+-    {0x3009,0x02},
+-    {0x300a,0x00},
+-    {0x300b,0x00},
+-    {0x3012,0x2c},
+-    {0x3013,0x01},
+-    {0x3014,0x80},
+-    {0x3015,0x00},
+-    {0x3016,0x09},
+-    {0x3018,0x65},
+-    {0x3019,0x04},
+-    {0x301a,0x00},
+-    {0x301b,0x30},
+-    {0x301c,0x11},
+-    {0x3020,0x02},
+-    {0x3021,0x00},
+-    {0x3022,0x00},
+-    {0x303a,0x0c},
+-    {0x303b,0x00},
+-    {0x303c,0x00},
+-    {0x303d,0x00},
+-    {0x303e,0x49},
+-    {0x303f,0x04},
+-    {0x3044,0x01},
+-    {0x3046,0x30},
+-    {0x3047,0x38},
+-    {0x3049,0x0a},
+-    {0x3054,0x66},
+-    {0x305c,0x18},
+-    {0x305d,0x10},
+-    {0x305e,0x20},
+-    {0x305f,0x10},
+-    {0x310b,0x07},
+-    {0x3110,0x12},
+-    {0x31ed,0x38},
+-    {0x3338,0xd4},
+-    {0x3339,0x40},
+-    {0x333a,0x10},
+-    {0x333b,0x00},
+-    {0x333c,0xd4},
+-    {0x333d,0x40},
+-    {0x333e,0x10},
+-    {0x333f,0x00},
+-    {0x3344,0x00},
+-    {0x3346,0x01},
+-    {0x3357,0x49},
+-    {0x3358,0x04},
+-    {0x336b,0x3f},
+-    {0x336c,0x1f},
+-    {0x337d,0x0c},
+-    {0x337e,0x0c},
+-    {0x337f,0x01},
+-    {0x3380,0x40},
+-    {0x3381,0x4a},
+-    {0x3382,0x67},
+-    {0x3383,0x1F},
+-    {0x3384,0x3f},
+-    {0x3385,0x27},
+-    {0x3386,0x1F},
+-    {0x3387,0x17},
+-    {0x3388,0x77},
+-    {0x3389,0x27},
+-    {0x338d,0x67},
+-    {0x338e,0x03},
++	{0x3004,0x10},
++	{0x3005,0x01},
++	{0x3007,0x03},
++	{0x3009,0x02},
++	{0x300a,0x00},
++	{0x300b,0x00},
++	{0x3012,0x2c},
++	{0x3013,0x01},
++	{0x3014,0x80},
++	{0x3015,0x00},
++	{0x3016,0x08},
++	{0x3018,0x65},
++	{0x3019,0x04},
++	{0x301a,0x00},
++	{0x301b,0x30},
++	{0x301c,0x11},
++	{0x3020,0x02},
++	{0x3021,0x00},
++	{0x3022,0x00},
++	{0x303a,0x0c},
++	{0x303b,0x00},
++	{0x303c,0x00},
++	{0x303d,0x00},
++	{0x303e,0x49},
++	{0x303f,0x04},
++	{0x3044,0x01},
++	{0x3046,0x30},
++	{0x3047,0x38},
++	{0x3049,0x0a},
++	{0x3054,0x66},
++	{0x305c,0x18},
++	{0x305d,0x10},
++	{0x305e,0x20},
++	{0x305f,0x10},
++	{0x310b,0x07},
++	{0x3110,0x12},
++	{0x31ed,0x38},
++	{0x3338,0xd4},
++	{0x3339,0x40},
++	{0x333a,0x10},
++	{0x333b,0x00},
++	{0x333c,0xd4},
++	{0x333d,0x40},
++	{0x333e,0x10},
++	{0x333f,0x00},
++	{0x3344,0x00},
++	{0x3346,0x01},
++	{0x3357,0x49},
++	{0x3358,0x04},
++	{0x336b,0x3f},
++	{0x336c,0x1f},
++	{0x337d,0x0c},
++	{0x337e,0x0c},
++	{0x337f,0x01},
++	{0x3380,0x40},
++	{0x3381,0x4a},
++	{0x3382,0x67},
++	{0x3383,0x1F},
++	{0x3384,0x3f},
++	{0x3385,0x27},
++	{0x3386,0x1F},
++	{0x3387,0x17},
++	{0x3388,0x77},
++	{0x3389,0x27},
++	{0x338d,0x67},
++	{0x338e,0x03},
+ 	{0x3000,0x00},//
+-    {0x3002,0x00},
++	{0x3002,0x00},
++	{IMX385_TABLE_END, 0x00}
++};
++
++static const struct imx385_reg imx385_wdr2f_12p5fps_12bit_2lane[] = {
++	{0x3000,0x01},
++	{0x3001,0x00},
++	{0x3002,0x01},
++	{0x3005,0x01},
++	{0x3007,0x13},
++	{0x3009,0x02},
++	{0x300a,0x00},
++	{0x300b,0x00},
++	{0x300c,0x11},
++	{0x3012,0x2c},
++	{0x3013,0x01},
++	{0x3014,0x80},
++	{0x3015,0x00},
++	{0x3016,0x08},
++	{0x3018,0x65},
++	{0x3019,0x04},
++	{0x301a,0x00},
++	{0x301b,0xa0},
++	{0x301c,0x14},
++	{0x3020,0x03},  //SHS1 = 0x04 = 4, SEF1max =  RHS1 - 3 -1  = 37 - 4 = 33, SEF1 = 37 - 3 -1 = 33
++	{0x3021,0x00},  //0x00
++	{0x3022,0x00},  //0x00
++	{0x3023,0x89},  //SHS2 = 0x89 = 137, LEFmax = 2250 - 37 - 4 = 2209, LEF = 2250 - 137 -1 = 2122
++	{0x3024,0x00},  //0x00
++	{0x3025,0x00},
++	{0x302c,0x25}, //RHS1 = 0x25 = 37, VBP1 = (RHS1 - 1)/2 = 18
++	{0x302d,0x00},
++	{0x302e,0x00},
++	{0x303a,0x0c},
++	{0x303b,0x00},
++	{0x303c,0x00},
++	{0x303d,0x00},
++	{0x303e,0x49},
++	{0x303f,0x04},
++	{0x3043,0x05},
++	{0x3044,0x01},
++	{0x3046,0x30},
++	{0x3047,0x38},
++	{0x3049,0x0a},
++	{0x3054,0x66},
++	{0x305c,0x18},
++	{0x305d,0x10},
++	{0x305e,0x20},
++	{0x305f,0x10},
++	{0x3108,0x11},
++	{0x3109,0x01},
++	{0x310A,0x00},
++	{0x310b,0x07},
++	{0x3110,0x12},
++	{0x31ed,0x38},
++	{0x3338,0xd4},
++	{0x3339,0x40},
++	{0x333a,0x10},
++	{0x333b,0x00},
++	{0x333c,0xd4},
++	{0x333d,0x40},
++	{0x333e,0x10},
++	{0x333f,0x00},
++	{0x3344,0x00},
++	{0x3346,0x01},
++	{0x3354,0x00},
++	{0x3357,0xb2},	//PIC_SIZE_V = 0x8b8 = 2232 , = (1097 +VBP1)*2 = (1097 +19) * 2 = 2232 (0x8b8)
++	{0x3358,0x08},
++	{0x336b,0x3f},
++	{0x336c,0x1f},
++	{0x337d,0x0c},
++	{0x337e,0x0c},
++	{0x337f,0x01},
++	{0x3380,0x40},
++	{0x3381,0x4a},
++	{0x3382,0x67},
++	{0x3383,0x1f},
++	{0x3384,0x3f},
++	{0x3385,0x27},
++	{0x3386,0x1F},
++	{0x3387,0x17},
++	{0x3388,0x77},
++	{0x3389,0x27},
++	{0x338d,0x67},
++	{0x338e,0x03},
++	{0x3000,0x00},
++	{0x3002,0x00},
++	{0x308c,0x00},
++	{IMX385_TABLE_END, 0x00}
++};
++
++static const struct imx385_reg imx385_wdr3f_12p5fps_12bit_2lane[] = {
++	{0x3000,0x01},
++	{0x3001,0x00},
++	{0x3002,0x01},
++	{0x3005,0x01},
++	{0x3007,0x03},
++	{0x3009,0x02},	//FRSEL: CSI-2 2lane, 2 lane
++	{0x300a,0x00},
++	{0x300b,0x00},
++	{0x300c,0x21},	// WDMODE: 1, DOL mode; WDSEL: DOL 3frame
++	{0x3012,0x2c},
++	{0x3013,0x01},
++	{0x3014,0x80},
++	{0x3015,0x00},
++	{0x3016,0x08},
++	{0x3018,0x65},
++	{0x3019,0x04},
++	{0x301a,0x00},
++	{0x301b,0xa0},
++	{0x301c,0x14},
++	{0x3020,0x0d},	// SHS1 = 10, SEF1max = 46 - 5 = 41; SEF1 = 46 - 13 - 1 = 32
++	{0x3021,0x00},
++	{0x3022,0x00},
++	{0x3023,0x36},   //SHS2 = 54, SEF2max = 59 - 46 - 5 = 8; SEF2 = 59 - 54 - 1 = 4
++	{0x3024,0x00},
++	{0x3025,0x00},
++	{0x3026,0x93},  //SHS3 = 2451, LEFmax = 4500 - 59 - 4 -1 = 4436, LEF = 4500 - 2451 -1 = 2048
++	{0x3027,0x09},
++	{0x3028,0x00},
++	{0x302c,0x2e},	//RHS1 = 0x2e = 46, VBP1 = (RHS1 - 1)/3 = 15
++	{0x302d,0x00},
++	{0x302e,0x00},
++	{0x302f,0x3b},	 //RHS2 = 0x3b = 59, VBP2 = (RHS2 - 2)/3 = 19 <20,  VBP2 - VBP1 = 19 - 15 = 4 <6
++	{0x3030,0x00},
++	{0x3031,0x00},
++	{0x303a,0x0c},
++	{0x303b,0x00},
++	{0x303c,0x00},
++	{0x303d,0x00},
++	{0x303e,0x49},
++	{0x303f,0x04},
++	{0x3043,0x05},
++	{0x3044,0x01},	//OPORTSEL, ODBIT, 12bit, CSI-2
++	{0x3046,0x30},
++	{0x3047,0x38},
++	{0x3049,0x0a},
++	{0x3054,0x66},
++	{0x305c,0x18},
++	{0x305d,0x10},
++	{0x305e,0x20},
++	{0x305f,0x10},
++	{0x3108,0x23},
++	{0x3109,0x03},
++	{0x310A,0x00},
++	{0x310b,0x07},
++	{0x3110,0x12},
++	{0x31ed,0x38},
++	{0x3338,0xd4},
++	{0x3339,0x40},
++	{0x333a,0x10},
++	{0x333b,0x00},
++	{0x333c,0xd4},
++	{0x333d,0x40},
++	{0x333e,0x10},
++	{0x333f,0x00},
++	{0x3344,0x00},
++	{0x3346,0x01},
++	{0x3354,0x00},
++	{0x3357,0x44},	//PIC_SIZE_V = 3396
++	{0x3358,0x0d},
++	{0x336b,0x3f},
++	{0x336c,0x1f},
++	{0x337d,0x0c},
++	{0x337e,0x0c},
++	{0x337f,0x01},
++	{0x3380,0x40},
++	{0x3381,0x4a},
++	{0x3382,0x67},
++	{0x3383,0x1f},
++	{0x3384,0x3f},
++	{0x3385,0x27},
++	{0x3386,0x1F},
++	{0x3387,0x17},
++	{0x3388,0x77},
++	{0x3389,0x27},
++	{0x338d,0x67},
++	{0x338e,0x03},
++	{0x3000,0x00},
++	{0x3002,0x00},
++	{0x308c,0x00},
+ 	{IMX385_TABLE_END, 0x00}
+ };
+ 
+@@ -181,7 +369,7 @@ enum {
+ 	TEST_PATTERN_GRADATION_PATTERN2,
+ 	TEST_PATTERN_000_555_TOGGLE_PATTERN,
+ 	TEST_PATTERN_4PIXEL_PATTERN,
+- 	TEST_PATTERN_HORIZONTAL1_ROW,
++	TEST_PATTERN_HORIZONTAL1_ROW,
+ 	TEST_PATTERN_VERTICAL1_COLUMN,
+ 	TEST_PATTERN_1ROW_AND_1_COLUMN,
+ 	TEST_PATTERN_STRIPE_PATTERN,
+@@ -214,6 +402,8 @@ static const char *const tp_qmenu[] = {
+ #define SIZEOF_I2C_TRANSBUF 32
+ 
+ struct imx385 {
++	struct i2c_client	*client;
++
+ 	struct v4l2_subdev subdev;
+ 	struct media_pad pad;
+ 	struct v4l2_ctrl_handler ctrl_handler;
+@@ -252,13 +442,19 @@ struct imx385 {
+ 	struct gpio_desc *imx385_powerdown;
+ 	struct gpio_desc *imx385_reset;
+ 	struct mutex lock; /* mutex lock for operations */
++	bool			power_on;
++	bool		    streaming;
++	bool			has_init_exp;
++	struct cnmodule_hdr_ae_cfg init_hdrae_exp;
+ };
++
+ /**
+  * @brief
+  *
+  */
+ static const struct imx385_mode supported_modes[] = {
+ 	{
++		.bus_fmt = MEDIA_BUS_FMT_SRGGB12_1X12,
+ 		.width = 1920,
+ 		.height = 1080,
+ 		.max_fps = {
+@@ -267,9 +463,40 @@ static const struct imx385_mode supported_modes[] = {
+ 		},
+ 		.hts_def = 0x0898 - IMX385_EXP_LINES_MARGIN,
+ 		.vts_def = 0x0465,
++		.hdr_mode = NO_HDR,
+ 		.reg_list = imx385_init_tab_1920_1080_30fps,
++		.bpp = 12,
++	},
++	{
++		.bus_fmt = MEDIA_BUS_FMT_SRGGB12_1X12,
++		.width = 1920,
++		.height = 1080,
++		.max_fps = {
++			.numerator = 10000,
++			.denominator = 300000,
++		},
++		.hts_def = 0x0898 - IMX385_EXP_LINES_MARGIN,
++		.vts_def = 0x0465,
++		.hdr_mode = HDR_X2,
++		.reg_list = imx385_wdr2f_12p5fps_12bit_2lane,
++		.bpp = 12,
++	},
++	{
++		.bus_fmt = MEDIA_BUS_FMT_SRGGB12_1X12,
++		.width = 1920,
++		.height = 1080,
++		.max_fps = {
++			.numerator = 10000,
++			.denominator = 300000,
++		},
++		.hts_def = 0x0898 - IMX385_EXP_LINES_MARGIN,
++		.vts_def = 0x0465,
++		.hdr_mode = HDR_X3,
++		.reg_list = imx385_wdr3f_12p5fps_12bit_2lane,
++		.bpp = 12,
+ 	},
+ };
++
+ /**
+  * @brief
+  *
+@@ -280,6 +507,7 @@ static struct imx385 *to_imx385(const struct i2c_client *client)
+ {
+ 	return container_of(i2c_get_clientdata(client), struct imx385, subdev);
+ }
++
+ /**
+  * @brief
+  *
+@@ -329,6 +557,85 @@ static int reg16_write(struct i2c_client *client, const u16 addr, const u16 data
+ 	return ret == 1 ? 0 : -EIO;
+ }
+ 
++static int imx385_set_2frame_dol_hdr_et(struct i2c_client *client, const u16 l_exp_time)
++{
++	int ret;
++	u16 efl, shs2;
++	u16 sef1, shs1;
++	u16 rhs1 = 37;
++	u16 fsc = 2250;	//1125 x 2
++	u16 efl_max = 2209;	// FSC - ((RHS1+3)+1) = 2250 - 37 - 4 = 2209
++	u16 sef1_max = 33;		// RHS1 - £¨SHS1_min +1£©= 37 - 3 -1 = 33;
++	u16 exp_time;
++
++	efl = l_exp_time;
++	if (efl > efl_max)
++		efl = efl_max;
++
++	sef1 = efl >> 5;	//1/32,  SEF1 = EFL>>6;	//1/64
++	if (sef1 > sef1_max)
++		sef1 = sef1_max;
++	else if (sef1 < 1)
++		sef1 = 1;
++
++	shs2 = fsc - efl -1;
++	shs1 = rhs1 - sef1 -1;
++	//long ET
++	exp_time = ((shs2 & 0xff) <<8 ) + ((shs2 & 0xff00) >> 8);
++	ret = reg16_write(client, 0x3023, exp_time);
++	//short ET
++	exp_time = ((shs1 & 0xff) << 8) + ((shs1 & 0xff00) >> 8);
++	ret |= reg16_write(client, 0x3020, exp_time);
++
++	return ret;
++}
++
++static int imx385_set_3frame_dol_hdr_et(struct i2c_client *client, const u16 l_exp_time)
++{
++	int ret;
++	u16 efl, shs3;
++	u16 sef1, shs1;
++	u16 sef2, shs2;
++	u16 rhs1 = 46;
++	u16 rhs2 = 59;
++	u16 fsc = 4500;	//1125 x 4
++	u16 efl_max = 4436;	// FSC - ((RHS2+4)+1) = 4500 - 59 - 5 = 4436
++	u16 sef1_max = 38;		// RHS1 - £¨SHS1_min +1£©= 46 - 4 -1 = 41;
++	u16 sef2_max = 8;		// RHS2 - (SHS2_min +1) = 59 - (RHS1 + 4 +1£©= 59 - 46 - 5 = 8;
++	u16 exp_time;
++
++	efl = l_exp_time;
++	if (efl > efl_max)
++		efl = efl_max;
++
++	sef1 = efl >> 5;	//1/32,  SEF1 = EFL>>6;	//1/64
++	if (sef1 > sef1_max)
++		sef1 = sef1_max;
++	else if (sef1 < 1)
++		sef1 = 1;
++
++	sef2 = efl >> 9;	//1/512
++	if (sef2 > sef2_max)
++		sef2 = sef2_max;
++	else if (sef2 < 1)
++		sef2 = 1;
++
++	shs3 = fsc - efl -1;
++	shs1 = rhs1 - sef1 -1;
++	shs2 = rhs2 - sef2 -1;
++	//long ET
++	exp_time = ((shs3 & 0xff) << 8) + ((shs3 &0xff00) >> 8);
++	ret = reg16_write(client, 0x3026, exp_time);
++	//short ET
++	exp_time = ((shs1 & 0xff) << 8) + ((shs1 & 0xff00) >> 8);
++	ret |= reg16_write(client, 0x3020, exp_time);
++	//the shortest ET
++	exp_time = ((shs2 & 0xff) << 8) + ((shs2 & 0xff00) >> 8);
++	ret |= reg16_write(client, 0x3023, exp_time);
++
++	return ret;
++}
++
+ static int reg_read(struct i2c_client *client, const u16 addr)
+ {
+ 	u8 buf[2] = {addr >> 8, addr & 0xff};
+@@ -350,7 +657,7 @@ static int reg_read(struct i2c_client *client, const u16 addr)
+ 	ret = i2c_transfer(client->adapter, msgs, ARRAY_SIZE(msgs));
+ 	if (ret < 0) {
+ 		dev_warn(&client->dev, "Reading register %x from %x failed\n",
+-			 addr, client->addr);
++				addr, client->addr);
+ 		return ret;
+ 	}
+ 
+@@ -364,7 +671,7 @@ static int reg_read(struct i2c_client *client, const u16 addr)
+  * @return int
+  */
+ static int reg_write_table(struct i2c_client *client,
+-			   const struct imx385_reg table[])
++		const struct imx385_reg table[])
+ {
+ 	const struct imx385_reg *reg;
+ 	int ret;
+@@ -385,10 +692,9 @@ static int reg_write_table(struct i2c_client *client,
+  * @return int
+  */
+ static int reg_read_table(struct i2c_client *client,
+-			   const struct imx385_reg table[])
++		const struct imx385_reg table[])
+ {
+ 	const struct imx385_reg *reg;
+-	int ret;
+ 
+ 	for (reg = table; reg->addr != IMX385_TABLE_END; reg++) {
+ 		dev_info(&client->dev,"%s:addr(0x%x),val(0x%x)\n",__func__,reg->addr,reg_read(client,reg->addr));
+@@ -396,93 +702,34 @@ static int reg_read_table(struct i2c_client *client,
+ 
+ 	return 0;
+ }
+-/**
+- * @brief
+- *
+- */
+-/* V4L2 subdev video operations */
+-static int imx385_s_stream(struct v4l2_subdev *sd, int enable)
++
++static int __imx385_power_on(struct imx385 *imx385)
+ {
+-	struct i2c_client *client = v4l2_get_subdevdata(sd);
+-	struct imx385 *priv = to_imx385(client);
+-	u8 reg = 0x00;
+-	int ret;
++	dev_dbg(&imx385->client->dev, "__imx385_power_on\n");
+ 
+-	dev_info(&client->dev,"%s:imx385-0 start\n",__func__);
+-	if (!enable)
+-	{
+-		dev_err(&client->dev,"%s:enable(%d)\n",__func__,enable);
+-		return reg_write_table(client, stop);
++	if (!IS_ERR(imx385->imx385_reset)) {
++		gpiod_set_value_cansleep(imx385->imx385_reset, 1);
++		usleep_range(IMX385_RESET_DELAY1, IMX385_RESET_DELAY2);
+ 	}
+ 
+-	ret = reg_write_table(client, priv->cur_mode->reg_list);
+-	if (ret)
+-	{
+-		dev_err(&client->dev,"%s:reg_write_table failed,ret(%d)\n",__func__,ret);
+-		return ret;
+-	}
+-	//
+-	//reg_read_table(client, priv->cur_mode->reg_list);
+-	/* Handle flip/mirror */
+-	if (priv->vflip)
+-		reg |= 0x1;
+-	if (priv->hflip)
+-		reg |= 0x2;
++	if (!IS_ERR(imx385->imx385_reset))
++		gpiod_set_value_cansleep(imx385->imx385_reset, 0);
+ 
+-	ret = reg_write(client, 0x3007, reg);
+-	if (ret)
+-	{
+-		dev_err(&client->dev,"%s:reg(0x3007) failed,ret(%d)\n",__func__,ret);
+-		return ret;
+-	}
+-	/* Handle test pattern */
+-	if (priv->test_pattern) {
+-		ret = reg_write(client, 0x300a, 0x00); //Black level offset value setting Set to “000h” when using Pattern Generator
+-		ret = reg_write(client, 0x300b, 0x00);
+-		ret = reg_write(client, 0x300e, 0x00);
+-		ret = reg_write(client, 0x3089, 0x00);
+-		reg = (priv->test_pattern &0x1)|((priv->test_pattern_pgthru &0x1)<<1)|((priv->test_pattern_colorwidth &0x3)<<2)|((priv->test_pattern_pg_mode &0xf)<<4);
+-		ret = reg_write(client, 0x308c, reg);//0x2d);
+-		ret = reg_write(client, 0x308d, priv->test_pattern_pghpos & 0xff);
+-		ret = reg_write(client, 0x308e, (priv->test_pattern_pghpos >>8) & 0xf);
+-		ret = reg_write(client, 0x308f, priv->test_pattern_pgvpos & 0xff);
+-		ret = reg_write(client, 0x3090, (priv->test_pattern_pgvpos >>8) & 0xf);
+-		ret = reg_write(client, 0x3091, priv->test_pattern_pghpstep & 0xff);
+-		ret = reg_write(client, 0x3092, priv->test_pattern_pgvpstep & 0xff);
+-		ret = reg_write(client, 0x3093, priv->test_pattern_pghpnum & 0xff);
+-		ret = reg_write(client, 0x3094, priv->test_pattern_pgvpnum & 0xff);
+-		ret = reg_write(client, 0x3095, priv->test_pattern_pghprm & 0xf);
+-		ret = reg_write(client, 0x3096, priv->test_pattern_pgdata1 & 0xff);
+-		ret = reg_write(client, 0x3097, (priv->test_pattern_pgdata1 >>8) & 0xf);
+-		ret = reg_write(client, 0x3098, priv->test_pattern_pgdata2 & 0xff);
+-		ret = reg_write(client, 0x3099, (priv->test_pattern_pgdata2 >>8) & 0xf);
+-
+-		ret |= reg_write(client, 0x303c, priv->crop_rect.left >> 8);
+-		ret |= reg_write(client, 0x303d, priv->crop_rect.left & 0xff);
+-		ret |= reg_write(client, 0x3038, priv->crop_rect.top >> 8);
+-		ret |= reg_write(client, 0x3039, priv->crop_rect.top & 0xff);
+-
+-		ret |= reg_write(client, 0x303e, priv->crop_rect.width >> 8);
+-		ret |= reg_write(client, 0x303f, priv->crop_rect.width & 0xff);
+-		ret |= reg_write(client, 0x303a, priv->crop_rect.height >> 8);
+-		ret |= reg_write(client, 0x303b, priv->crop_rect.height & 0xff);
+-	} else {
+-		ret = reg_write(client, 0x300a, 0xf0);
+-		ret = reg_write(client, 0x300b, 0x00);
+-		ret = reg_write(client, 0x300e, 0x01);
+-		ret = reg_write(client, 0x3089, 0xff);
+-		ret = reg_write(client, 0x308c, 0x00);
+-	}
++	usleep_range(IMX385_RESET_DELAY1, IMX385_RESET_DELAY2);
++	return 0;
++}
+ 
+-	priv->cur_vts = priv->cur_mode->vts_def - IMX385_EXP_LINES_MARGIN;
+-	if (ret)
+-	{
+-		dev_err(&client->dev,"%s:ret(%d)\n",__func__,ret);
+-		return ret;
+-	}
+-//	dev_info(&client->dev,"%s:end\n",__func__);
+-	return reg_write_table(client, start);
++static void __imx385_power_off(struct imx385 *imx385)
++{
++	dev_dbg(&imx385->client->dev, "__imx385_power_off\n");
++
++	//if (!IS_ERR(imx385->pwdn_gpio))
++	//	gpiod_set_value_cansleep(imx385->pwdn_gpio, 1);
++
++	if (!IS_ERR(imx385->imx385_reset))
++		gpiod_set_value_cansleep(imx385->imx385_reset, 1);
+ }
++
+ /**
+  * @brief
+  *
+@@ -491,139 +738,147 @@ static int imx385_s_stream(struct v4l2_subdev *sd, int enable)
+ static int imx385_s_power(struct v4l2_subdev *sd, int on)
+ {
+ 	struct i2c_client *client = v4l2_get_subdevdata(sd);
+-	struct imx385 *priv = to_imx385(client);
++	struct imx385 *imx385 = to_imx385(client);
++	int ret = 0;
++
++	mutex_lock(&imx385->lock);
+ 
+-	if (on)	{
+-		dev_dbg(&client->dev, "imx385 power on\n");
+-		//gpiod_set_value_cansleep(priv->imx385_powerdown, 0);
+-		gpiod_set_value_cansleep(priv->imx385_reset, 1);
+-	} else if (!on) {
+-		dev_dbg(&client->dev, "imx385 power off\n");
+-		//gpiod_set_value_cansleep(priv->imx385_powerdown, 1);
+-		gpiod_set_value_cansleep(priv->imx385_reset, 0);
++	/* If the power state is not modified - no work to do. */
++	if (imx385->power_on == !!on)
++		goto unlock_and_return;
++
++	if (on) {
++		__imx385_power_on(imx385);
++		imx385->power_on = true;
++	} else {
++		__imx385_power_off(imx385);
++		imx385->power_on = false;
+ 	}
+ 
+-	return 0;
++unlock_and_return:
++	mutex_unlock(&imx385->lock);
++
++	return ret;
+ }
+ 
+ /* V4L2 ctrl operations */
+ static int imx385_s_ctrl_test_pattern(struct v4l2_ctrl *ctrl)
+ {
+ 	struct imx385 *priv =
+-	    container_of(ctrl->handler, struct imx385, ctrl_handler);
++		container_of(ctrl->handler, struct imx385, ctrl_handler);
+ 
+ 	switch (ctrl->val) {
+-	case TEST_PATTERN_DISABLED:
+-		priv->test_pattern = 0x0000;
+-		break;
+-	case TEST_PATTERN_MULTI_PIXELS:
+-		priv->test_pattern = 0x0001;
+-		priv->test_pattern_pg_mode = 0;
+-		priv->test_pattern_pgdata1 = 0xf;
+-		priv->test_pattern_pgdata2 = 0xf;
+-		priv->test_pattern_pghpos = 0;
+-		priv->test_pattern_pgvpos = 0;
+-		priv->test_pattern_pghpstep = 1;
+-		priv->test_pattern_pgvpstep = 1;
+-		priv->test_pattern_pghpnum = 1;
+-		priv->test_pattern_pgvpnum = 1;
+-		break;
+-	case TEST_PATTERN_SEQUENCE1:
+-		priv->test_pattern = 0x0001;
+-		priv->test_pattern_pg_mode = 1;
+-		break;
+-	case TEST_PATTERN_HORIZONTAL_COLOR_BAR:
+-		priv->test_pattern = 0x0001;
+-		priv->test_pattern_pg_mode = 2;
+-		priv->test_pattern_colorwidth = 0;
+-		break;
+-	case TEST_PATTERN_VERTICAL_COLOR_BAR:
+-		priv->test_pattern = 0x0001;
+-		priv->test_pattern_pg_mode = 3;
+-		priv->test_pattern_colorwidth = 0;
+-		break;
+-	case TEST_PATTERN_SEQUENCE2:
+-		priv->test_pattern = 0x0001;
+-		priv->test_pattern_pg_mode = 4;
+-		break;
+-	case TEST_PATTERN_GRADATION_PATTERN1:
+-		priv->test_pattern = 0x0001;
+-		priv->test_pattern_pg_mode = 5;
+-		break;
+-	case TEST_PATTERN_GRADATION_PATTERN2:
+-		priv->test_pattern = 0x0001;
+-		priv->test_pattern_pg_mode = 6;
+-		break;
+-	case TEST_PATTERN_000_555_TOGGLE_PATTERN:
+-		priv->test_pattern = 0x0001;
+-		priv->test_pattern_pg_mode = 7;
+-		break;
+-	case TEST_PATTERN_4PIXEL_PATTERN:
+-		priv->test_pattern = 0x0001;
+-		priv->test_pattern_pg_mode = 8;
+-		priv->test_pattern_pgdata1 = 0xf;
+-		priv->test_pattern_pgdata2 = 0xf;
+-		priv->test_pattern_pghpos = 0;
+-		priv->test_pattern_pgvpos = 0;
+-		priv->test_pattern_pgthru = 1;
+-		break;
+-	case TEST_PATTERN_HORIZONTAL1_ROW:
+-		priv->test_pattern = 0x0001;
+-		priv->test_pattern_pg_mode = 9;
+-		priv->test_pattern_pgdata1 = 0xf;
+-		priv->test_pattern_pgdata2 = 0xf;
+-		priv->test_pattern_pgvpos = 0;
+-		priv->test_pattern_pgthru = 1;
+-		break;
+-	case TEST_PATTERN_VERTICAL1_COLUMN:
+-		priv->test_pattern = 0x0001;
+-		priv->test_pattern_pg_mode = 0xa;
+-		priv->test_pattern_pgdata1 = 0xf;
+-		priv->test_pattern_pgdata2 = 0xf;
+-		priv->test_pattern_pghpos = 0;
+-		priv->test_pattern_pgthru = 1;
+-		break;
+-	case TEST_PATTERN_1ROW_AND_1_COLUMN:
+-		priv->test_pattern = 0x0001;
+-		priv->test_pattern_pg_mode = 0xb;
+-		priv->test_pattern_pgdata1 = 0xf;
+-		priv->test_pattern_pgdata2 = 0xf;
+-		priv->test_pattern_pghpos = 0;
+-		priv->test_pattern_pgthru = 1;
+-		break;
+-	case TEST_PATTERN_STRIPE_PATTERN:
+-		priv->test_pattern = 0x0001;
+-		priv->test_pattern_pg_mode = 0xc;
+-		priv->test_pattern_pgdata1 = 0xf;
+-		priv->test_pattern_pgdata2 = 0xf;
+-		break;
+-	case TEST_PATTERN_CHECKER_PATTERN:
+-		priv->test_pattern = 0x0001;
+-		priv->test_pattern_pg_mode = 0xd;
+-		priv->test_pattern_pgdata1 = 0xf;
+-		priv->test_pattern_pgdata2 = 0xf;
+-		break;
+-	case TEST_PATTERN_1_PIXEL_PATTERN:
+-		priv->test_pattern = 0x0001;
+-		priv->test_pattern_pg_mode = 0xe;
+-		priv->test_pattern_pgdata1 = 0xf;
+-		priv->test_pattern_pgdata2 = 0xf;
+-		priv->test_pattern_pghpos = 0;
+-		priv->test_pattern_pgvpos = 0;
+-		priv->test_pattern_pgthru = 1;
+-		break;
+-	case TEST_PATTERN_HORIZONTAL_2PIXEL_PATTERN:
+-		priv->test_pattern = 0x0001;
+-		priv->test_pattern_pg_mode = 0xf;
+-		priv->test_pattern_pgdata1 = 0xf;
+-		priv->test_pattern_pgdata2 = 0xf;
+-		priv->test_pattern_pghpos = 0;
+-		priv->test_pattern_pgvpos = 0;
+-		priv->test_pattern_pghprm = 1;
+-		priv->test_pattern_pgthru = 1;
+-		break;
+-	default:
+-		return -EINVAL;
++		case TEST_PATTERN_DISABLED:
++			priv->test_pattern = 0x0000;
++			break;
++		case TEST_PATTERN_MULTI_PIXELS:
++			priv->test_pattern = 0x0001;
++			priv->test_pattern_pg_mode = 0;
++			priv->test_pattern_pgdata1 = 0xf;
++			priv->test_pattern_pgdata2 = 0xf;
++			priv->test_pattern_pghpos = 0;
++			priv->test_pattern_pgvpos = 0;
++			priv->test_pattern_pghpstep = 1;
++			priv->test_pattern_pgvpstep = 1;
++			priv->test_pattern_pghpnum = 1;
++			priv->test_pattern_pgvpnum = 1;
++			break;
++		case TEST_PATTERN_SEQUENCE1:
++			priv->test_pattern = 0x0001;
++			priv->test_pattern_pg_mode = 1;
++			break;
++		case TEST_PATTERN_HORIZONTAL_COLOR_BAR:
++			priv->test_pattern = 0x0001;
++			priv->test_pattern_pg_mode = 2;
++			priv->test_pattern_colorwidth = 0;
++			break;
++		case TEST_PATTERN_VERTICAL_COLOR_BAR:
++			priv->test_pattern = 0x0001;
++			priv->test_pattern_pg_mode = 3;
++			priv->test_pattern_colorwidth = 0;
++			break;
++		case TEST_PATTERN_SEQUENCE2:
++			priv->test_pattern = 0x0001;
++			priv->test_pattern_pg_mode = 4;
++			break;
++		case TEST_PATTERN_GRADATION_PATTERN1:
++			priv->test_pattern = 0x0001;
++			priv->test_pattern_pg_mode = 5;
++			break;
++		case TEST_PATTERN_GRADATION_PATTERN2:
++			priv->test_pattern = 0x0001;
++			priv->test_pattern_pg_mode = 6;
++			break;
++		case TEST_PATTERN_000_555_TOGGLE_PATTERN:
++			priv->test_pattern = 0x0001;
++			priv->test_pattern_pg_mode = 7;
++			break;
++		case TEST_PATTERN_4PIXEL_PATTERN:
++			priv->test_pattern = 0x0001;
++			priv->test_pattern_pg_mode = 8;
++			priv->test_pattern_pgdata1 = 0xf;
++			priv->test_pattern_pgdata2 = 0xf;
++			priv->test_pattern_pghpos = 0;
++			priv->test_pattern_pgvpos = 0;
++			priv->test_pattern_pgthru = 1;
++			break;
++		case TEST_PATTERN_HORIZONTAL1_ROW:
++			priv->test_pattern = 0x0001;
++			priv->test_pattern_pg_mode = 9;
++			priv->test_pattern_pgdata1 = 0xf;
++			priv->test_pattern_pgdata2 = 0xf;
++			priv->test_pattern_pgvpos = 0;
++			priv->test_pattern_pgthru = 1;
++			break;
++		case TEST_PATTERN_VERTICAL1_COLUMN:
++			priv->test_pattern = 0x0001;
++			priv->test_pattern_pg_mode = 0xa;
++			priv->test_pattern_pgdata1 = 0xf;
++			priv->test_pattern_pgdata2 = 0xf;
++			priv->test_pattern_pghpos = 0;
++			priv->test_pattern_pgthru = 1;
++			break;
++		case TEST_PATTERN_1ROW_AND_1_COLUMN:
++			priv->test_pattern = 0x0001;
++			priv->test_pattern_pg_mode = 0xb;
++			priv->test_pattern_pgdata1 = 0xf;
++			priv->test_pattern_pgdata2 = 0xf;
++			priv->test_pattern_pghpos = 0;
++			priv->test_pattern_pgthru = 1;
++			break;
++		case TEST_PATTERN_STRIPE_PATTERN:
++			priv->test_pattern = 0x0001;
++			priv->test_pattern_pg_mode = 0xc;
++			priv->test_pattern_pgdata1 = 0xf;
++			priv->test_pattern_pgdata2 = 0xf;
++			break;
++		case TEST_PATTERN_CHECKER_PATTERN:
++			priv->test_pattern = 0x0001;
++			priv->test_pattern_pg_mode = 0xd;
++			priv->test_pattern_pgdata1 = 0xf;
++			priv->test_pattern_pgdata2 = 0xf;
++			break;
++		case TEST_PATTERN_1_PIXEL_PATTERN:
++			priv->test_pattern = 0x0001;
++			priv->test_pattern_pg_mode = 0xe;
++			priv->test_pattern_pgdata1 = 0xf;
++			priv->test_pattern_pgdata2 = 0xf;
++			priv->test_pattern_pghpos = 0;
++			priv->test_pattern_pgvpos = 0;
++			priv->test_pattern_pgthru = 1;
++			break;
++		case TEST_PATTERN_HORIZONTAL_2PIXEL_PATTERN:
++			priv->test_pattern = 0x0001;
++			priv->test_pattern_pg_mode = 0xf;
++			priv->test_pattern_pgdata1 = 0xf;
++			priv->test_pattern_pgdata2 = 0xf;
++			priv->test_pattern_pghpos = 0;
++			priv->test_pattern_pgvpos = 0;
++			priv->test_pattern_pghprm = 1;
++			priv->test_pattern_pgthru = 1;
++			break;
++		default:
++			return -EINVAL;
+ 	}
+ 
+ 	return 0;
+@@ -636,7 +891,7 @@ static int imx385_s_ctrl_test_pattern(struct v4l2_ctrl *ctrl)
+  * @return int
+  */
+ static int imx385_g_frame_interval(struct v4l2_subdev *sd,
+-				   struct v4l2_subdev_frame_interval *fi)
++		struct v4l2_subdev_frame_interval *fi)
+ {
+ 	struct i2c_client *client = v4l2_get_subdevdata(sd);
+ 	struct imx385 *priv = to_imx385(client);
+@@ -646,23 +901,7 @@ static int imx385_g_frame_interval(struct v4l2_subdev *sd,
+ 
+ 	return 0;
+ }
+-/*
+- * imx385_reset - Function called to reset the sensor
+- * @priv: Pointer to device structure
+- * @rst: Input value for determining the sensor's end state after reset
+- *
+- * Set the senor in reset and then
+- * if rst = 0, keep it in reset;
+- * if rst = 1, bring it out of reset.
+- *
+- */
+-static void imx385_reset(struct imx385 *priv, int rst)
+-{
+-	gpiod_set_value_cansleep(priv->imx385_reset, 0);
+-	usleep_range(IMX385_RESET_DELAY1, IMX385_RESET_DELAY2);
+-	gpiod_set_value_cansleep(priv->imx385_reset, !!rst);
+-	usleep_range(IMX385_RESET_DELAY1, IMX385_RESET_DELAY2);
+-}
++
+ /**
+  * @brief
+  *
+@@ -673,13 +912,13 @@ static void imx385_reset(struct imx385 *priv, int rst)
+ 
+ static int IMX385_GaindB[481] =
+ {
+-	0,     3,     5,     8,   10,   13,   15,   17,   19,   22,
+-	24,   26,   28,   30,   32,   33,   35,   37,   39,   40,
+-	42,   44,   45,   47,   49,   50,   52,   53,   55,   56,
+-	57,   59,   60,   62,   63,   64,   65,   67,   68,   69,
+-	70,   72,   73,   74,   75,   76,   77,   78,   80,   81,
+-	82,   83,   84,   85,   86,   87,   88,   89,   90,   91,
+-	92,   93,   94,   95,   95,   96,   97,   98,   99, 100,
++	0,   3,   5,   8,   10,  13,  15,  17,  19,  22,
++	24,  26,  28,  30,  32,  33,  35,  37,  39,  40,
++	42,  44,  45,  47,  49,  50,  52,  53,  55,  56,
++	57,  59,  60,  62,  63,  64,  65,  67,  68,  69,
++	70,  72,  73,  74,  75,  76,  77,  78,  80,  81,
++	82,  83,  84,  85,  86,  87,  88,  89,  90,  91,
++	92,  93,  94,  95,  95,  96,  97,  98,  99,  100,
+ 	101, 102, 102, 103, 104, 105, 106, 106, 107, 108,
+ 	109, 110, 110, 111, 112, 113, 113, 114, 115, 116,
+ 	116, 117, 118, 118, 119, 120, 120, 121, 122, 122,
+@@ -727,86 +966,73 @@ static int IMX385_GaindB[481] =
+ static int imx385_s_ctrl(struct v4l2_ctrl *ctrl)
+ {
+ 	struct imx385 *priv =
+-	    container_of(ctrl->handler, struct imx385, ctrl_handler);
++		container_of(ctrl->handler, struct imx385, ctrl_handler);
+ 	struct i2c_client *client = v4l2_get_subdevdata(&priv->subdev);
+-	u8 reg;
++	u16 d_gain;
++	u16 exp_time;
+ 	int ret;
+-	u16 tempGain;
+-	u16 tempET;
+ 
+ 	dev_dbg(&client->dev,"%s:ctrl->id(0x%x),ctrl->val(%d)\n",__func__,ctrl->id,ctrl->val);
+ 
+ 	switch (ctrl->id) {
+-	case V4L2_CID_HFLIP:
+-		priv->hflip = ctrl->val;
+-		break;
+-
+-	case V4L2_CID_VFLIP:
+-		priv->vflip = ctrl->val;
+-		break;
+-
+-	case V4L2_CID_ANALOGUE_GAIN:
+-	case V4L2_CID_GAIN:
+-
+-	#if 0
+-		priv->digital_gain = ctrl->val*5;
+-		ret |= reg_write(client, 0x3015, (priv->digital_gain&0x3000) >> 12);
+-		ret |= reg_write(client, 0x3014, (priv->digital_gain/16) & 0xff);
+-	#else
+-		priv->digital_gain = (ctrl->val + 7)>>3;
+-		if(priv->digital_gain<=32)
+-		{
+-			priv->digital_gain = 0;
+-		}
+-		else
+-		{
+-			priv->digital_gain -= 32;
+-			if(priv->digital_gain>480)
+-			{
+-				priv->digital_gain = 480;
++		case V4L2_CID_HFLIP:
++			priv->hflip = ctrl->val;
++			break;
++
++		case V4L2_CID_VFLIP:
++			priv->vflip = ctrl->val;
++			break;
++
++		case V4L2_CID_ANALOGUE_GAIN:
++		case V4L2_CID_GAIN:
++			priv->digital_gain = (ctrl->val + 7) >> 3;
++			if (priv->digital_gain <= 32) {
++				priv->digital_gain = 0;
++			} else {
++				priv->digital_gain -= 32;
++				if (priv->digital_gain > 480) {
++					priv->digital_gain = 480;
++				}
+ 			}
+-		}
+-
+-		priv->digital_gain = IMX385_GaindB[priv->digital_gain];
+-//		ret |= reg_write(client, 0x3015, (priv->digital_gain&0x300) >> 8);
+-//		ret |= reg_write(client, 0x3014, (priv->digital_gain) & 0xff);
+-		tempGain = (((priv->digital_gain) & 0xff)<<8) + ((priv->digital_gain&0x300) >> 8);
+-		ret = reg16_write(client, 0x3014, tempGain);
+ 
++			priv->digital_gain = IMX385_GaindB[priv->digital_gain];
++			d_gain = ((priv->digital_gain & 0xff) <<8) + ((priv->digital_gain & 0x300) >> 8);
++			ret = reg16_write(client, 0x3014, d_gain);
++			return ret;
+ 
+-	#endif
+-		return ret;
+-
+-	case V4L2_CID_EXPOSURE:
+-//		priv->exposure_time = 1125 - ctrl->val -1;
+-		priv->exposure_time = 1124 - ctrl->val;
+-//		ret = reg_write(client, 0x3022, (priv->exposure_time >> 16)&0x01);
+-//		ret = reg_write(client, 0x3021, priv->exposure_time >> 8);
+-//		ret |= reg_write(client, 0x3020, priv->exposure_time & 0xff);
+-		tempET = ((priv->exposure_time & 0xff)<<8) + ((priv->exposure_time&0xff00) >> 8);
+-		ret = reg16_write(client, 0x3020, tempET);
+-
+-		return ret;
++		case V4L2_CID_EXPOSURE:
++			if(priv->cur_mode->hdr_mode == NO_HDR) {
++				priv->exposure_time = 1124 - ctrl->val;
++				exp_time = ((priv->exposure_time & 0xff) << 8) + ((priv->exposure_time & 0xff00) >> 8);
++				ret = reg16_write(client, 0x3020, exp_time);
++				return ret;
++			} else if(priv->cur_mode->hdr_mode == HDR_X2) {
++				ret = imx385_set_2frame_dol_hdr_et(client,ctrl->val);
++				return ret;
++			} else {
++				ret = imx385_set_3frame_dol_hdr_et(client,ctrl->val);
++				return ret;
++			}
+ 
+-	case V4L2_CID_TEST_PATTERN:
+-		return imx385_s_ctrl_test_pattern(ctrl);
++		case V4L2_CID_TEST_PATTERN:
++			return imx385_s_ctrl_test_pattern(ctrl);
+ 
+-	case V4L2_CID_VBLANK:
+-		if (ctrl->val < priv->cur_mode->vts_def)
+-			ctrl->val = priv->cur_mode->vts_def;
+-		if ((ctrl->val - IMX385_EXP_LINES_MARGIN) != priv->cur_vts)
+-			priv->cur_vts = ctrl->val - IMX385_EXP_LINES_MARGIN;
+-		ret = reg_write(client, 0x3019, ((priv->cur_vts >> 8) & 0xff));
+-		ret |= reg_write(client, 0x3018, (priv->cur_vts & 0xff));
+-		return ret;
++		case V4L2_CID_VBLANK:
++			if (ctrl->val < priv->cur_mode->vts_def)
++				ctrl->val = priv->cur_mode->vts_def;
++			if ((ctrl->val - IMX385_EXP_LINES_MARGIN) != priv->cur_vts)
++				priv->cur_vts = ctrl->val - IMX385_EXP_LINES_MARGIN;
++			ret = reg_write(client, 0x3019, ((priv->cur_vts >> 8) & 0xff));
++			ret |= reg_write(client, 0x3018, (priv->cur_vts & 0xff));
++			return ret;
+ 
+-	default:
+-		return -EINVAL;
++		default:
++			return -EINVAL;
+ 	}
+ 	/* If enabled, apply settings immediately */
+-	reg = reg_read(client, 0x3000);
+-	if ((reg & 0x01) != 0x01)
+-		imx385_s_stream(&priv->subdev, 1);
++	//reg = reg_read(client, 0x3000);
++	//if ((reg & 0x01) != 0x01)
++	//	imx385_s_stream(&priv->subdev, 1);
+ 
+ 	return 0;
+ }
+@@ -819,12 +1045,15 @@ static int imx385_s_ctrl(struct v4l2_ctrl *ctrl)
+  * @return int
+  */
+ static int imx385_enum_mbus_code(struct v4l2_subdev *sd,
+-				 struct v4l2_subdev_pad_config *cfg,
+-				 struct v4l2_subdev_mbus_code_enum *code)
++		struct v4l2_subdev_pad_config *cfg,
++		struct v4l2_subdev_mbus_code_enum *code)
+ {
++	struct i2c_client *client = v4l2_get_subdevdata(sd);
++	struct imx385 *imx385 = to_imx385(client);
++
+ 	if (code->index != 0)
+ 		return -EINVAL;
+-	code->code = MEDIA_BUS_FMT_SRGGB12_1X12;
++	code->code = imx385->cur_mode->bus_fmt;
+ 
+ 	return 0;
+ }
+@@ -836,10 +1065,10 @@ static int imx385_enum_mbus_code(struct v4l2_subdev *sd,
+  * @return int
+  */
+ static int imx385_get_reso_dist(const struct imx385_mode *mode,
+-				struct v4l2_mbus_framefmt *framefmt)
++		struct v4l2_mbus_framefmt *framefmt)
+ {
+ 	return abs(mode->width - framefmt->width) +
+-	       abs(mode->height - framefmt->height);
++		abs(mode->height - framefmt->height);
+ }
+ /**
+  * @brief
+@@ -848,7 +1077,7 @@ static int imx385_get_reso_dist(const struct imx385_mode *mode,
+  * @return const struct imx385_mode*
+  */
+ static const struct imx385_mode *imx385_find_best_fit(
+-					struct v4l2_subdev_format *fmt)
++		struct v4l2_subdev_format *fmt)
+ {
+ 	struct v4l2_mbus_framefmt *framefmt = &fmt->format;
+ 	int dist;
+@@ -866,6 +1095,15 @@ static const struct imx385_mode *imx385_find_best_fit(
+ 
+ 	return &supported_modes[cur_best_fit];
+ }
++
++static void imx385_change_mode(struct imx385 *imx385, const struct imx385_mode *mode)
++{
++	imx385->cur_mode = mode;
++	imx385->cur_vts = imx385->cur_mode->vts_def;
++	dev_dbg(&imx385->client->dev, "set fmt: cur_mode: %dx%d, hdr: %d\n",
++			mode->width, mode->height, mode->hdr_mode);
++}
++
+ /**
+  * @brief
+  *
+@@ -875,50 +1113,42 @@ static const struct imx385_mode *imx385_find_best_fit(
+  * @return int
+  */
+ static int imx385_set_fmt(struct v4l2_subdev *sd,
+-			  struct v4l2_subdev_pad_config *cfg,
+-			  struct v4l2_subdev_format *fmt)
++		struct v4l2_subdev_pad_config *cfg,
++		struct v4l2_subdev_format *fmt)
+ {
+ 	struct i2c_client *client = v4l2_get_subdevdata(sd);
+-	struct imx385 *priv = to_imx385(client);
++	struct imx385 *imx385 = to_imx385(client);
+ 	const struct imx385_mode *mode;
+-	s64 h_blank, v_blank, pixel_rate;
+-	u32 fps = 0;
++	s64 h_blank, vblank_def;
+ 
+-	dev_info(&client->dev,"%s:start\n",__func__);
+-	if (fmt->which == V4L2_SUBDEV_FORMAT_TRY)
+-		return 0;
++	mutex_lock(&imx385->lock);
+ 
+ 	mode = imx385_find_best_fit(fmt);
+-	fmt->format.code = MEDIA_BUS_FMT_SRGGB12_1X12;
++	fmt->format.code = mode->bus_fmt;
+ 	fmt->format.width = mode->width;
+ 	fmt->format.height = mode->height;
+ 	fmt->format.field = V4L2_FIELD_NONE;
+-	priv->cur_mode = mode;
+-	h_blank = mode->hts_def - mode->width;
+-	__v4l2_ctrl_modify_range(priv->hblank, h_blank,
+-					h_blank, 1, h_blank);
+-	v_blank = mode->vts_def - mode->height;
+-	__v4l2_ctrl_modify_range(priv->vblank, v_blank,
+-					v_blank,
+-					1, v_blank);
+-	fps = DIV_ROUND_CLOSEST(mode->max_fps.denominator,
+-		mode->max_fps.numerator);
+-	pixel_rate = mode->vts_def * mode->hts_def * fps;
+-	__v4l2_ctrl_modify_range(priv->pixel_rate, pixel_rate,
+-					pixel_rate, 1, pixel_rate);
+-
+-	/* reset crop window */
+-	priv->crop_rect.left = 1920/2 - (mode->width / 2);
+-	if (priv->crop_rect.left < 0)
+-		priv->crop_rect.left = 0;
+-	priv->crop_rect.top = 1080/2 - (mode->height / 2);
+-	if (priv->crop_rect.top < 0)
+-		priv->crop_rect.top = 0;
+-	priv->crop_rect.width = mode->width;
+-	priv->crop_rect.height = mode->height;
++	dev_info(&imx385->client->dev, "%s, width:%u, height:%u, hdr_mode:%u.\n", \
++		__func__, mode->width, mode->height, mode->hdr_mode);
++
++	if (fmt->which == V4L2_SUBDEV_FORMAT_TRY) {
++		*v4l2_subdev_get_try_format(sd, cfg, fmt->pad) = fmt->format;
++	} else {
++		imx385_change_mode(imx385, mode);
++		h_blank = mode->hts_def - mode->width;
++		__v4l2_ctrl_modify_range(imx385->hblank, h_blank,
++					 h_blank, 1, h_blank);
++		vblank_def = mode->vts_def - mode->height;
++		__v4l2_ctrl_modify_range(imx385->vblank, vblank_def,
++					 IMX385_VTS_MAX - mode->height,
++					 1, vblank_def);
++	}
++
++	mutex_unlock(&imx385->lock);
+ 
+ 	return 0;
+ }
++
+ /**
+  * @brief
+  *
+@@ -928,26 +1158,93 @@ static int imx385_set_fmt(struct v4l2_subdev *sd,
+  * @return int
+  */
+ static int imx385_get_fmt(struct v4l2_subdev *sd,
+-			  struct v4l2_subdev_pad_config *cfg,
+-			  struct v4l2_subdev_format *fmt)
++		struct v4l2_subdev_pad_config *cfg,
++		struct v4l2_subdev_format *fmt)
+ {
+ 	struct i2c_client *client = v4l2_get_subdevdata(sd);
+-	struct imx385 *priv = to_imx385(client);
+-	const struct imx385_mode *mode = priv->cur_mode;
++	struct imx385 *imx385 = to_imx385(client);
++	const struct imx385_mode *mode = imx385->cur_mode;
+ 
+-	dev_info(&client->dev,"%s:start\n",__func__);
++	mutex_lock(&imx385->lock);
++	if (fmt->which == V4L2_SUBDEV_FORMAT_TRY) {
++		fmt->format = *v4l2_subdev_get_try_format(sd, cfg, fmt->pad);
++	} else {
++		fmt->format.width = mode->width;
++		fmt->format.height = mode->height;
++		fmt->format.code = mode->bus_fmt;
++		fmt->format.field = V4L2_FIELD_NONE;
++	}
++	mutex_unlock(&imx385->lock);
+ 
+-	if (fmt->which == V4L2_SUBDEV_FORMAT_TRY)
+-		return 0;
++	dev_info(&imx385->client->dev, "%s, width:%u, height:%u, hdr_mode:%u.\n", \
++		__func__, fmt->format.width, fmt->format.height, mode->hdr_mode);
+ 
+-	fmt->format.width = mode->width;
+-	fmt->format.height = mode->height;
+-	fmt->format.code = MEDIA_BUS_FMT_SRGGB12_1X12;
+-	fmt->format.field = V4L2_FIELD_NONE;
+-
+-	dev_info(&client->dev,"%s:mode->width(%d),mode->height(%d)end\n",__func__,mode->width,mode->height);
+ 	return 0;
+ }
++
++static int imx385_set_hdrae_2frame(struct imx385 *imx385,
++		struct cnmodule_hdr_ae_cfg *hdr_ae_cfg)
++{
++	struct i2c_client *client = imx385->client;
++	u32 l_exp_time, m_exp_time, s_exp_time;
++	u32 l_a_gain, m_a_gain, s_a_gain;
++	int ret = 0;
++
++	if (!imx385->has_init_exp && !imx385->streaming) {
++		imx385->init_hdrae_exp = *hdr_ae_cfg;
++		imx385->has_init_exp = true;
++		dev_dbg(&client->dev, "imx335 is not streaming, save hdr ae!\n");
++		return ret;
++	}
++
++	l_exp_time = hdr_ae_cfg->long_exp_val;
++	m_exp_time = hdr_ae_cfg->middle_exp_val;
++	s_exp_time = hdr_ae_cfg->short_exp_val;
++	l_a_gain = hdr_ae_cfg->long_gain_val;
++	m_a_gain = hdr_ae_cfg->middle_gain_val;
++	s_a_gain = hdr_ae_cfg->short_gain_val;
++
++	dev_info(&client->dev,
++			"rev exp req: L_exp: 0x%x, 0x%x, M_exp: 0x%x, 0x%x S_exp: 0x%x, 0x%x\n",
++			l_exp_time, l_a_gain, m_exp_time, m_a_gain, s_exp_time, s_a_gain);
++
++	if (imx385->cur_mode->hdr_mode == HDR_X2) {
++		l_a_gain = m_a_gain;
++		l_exp_time = m_exp_time;
++	}
++
++	return ret;
++}
++
++static int imx385_set_hdrae_3frame(struct imx385 *imx385,
++		struct cnmodule_hdr_ae_cfg *hdr_ae_cfg)
++{
++	struct i2c_client *client = imx385->client;
++	u32 l_exp_time, m_exp_time, s_exp_time;
++	u32 l_a_gain, m_a_gain, s_a_gain;
++	int ret = 0;
++
++	if (!imx385->has_init_exp && !imx385->streaming) {
++		imx385->init_hdrae_exp = *hdr_ae_cfg;
++		imx385->has_init_exp = true;
++		dev_dbg(&client->dev, "imx335 is not streaming, save hdr ae!\n");
++		return ret;
++	}
++
++	l_exp_time = hdr_ae_cfg->long_exp_val;
++	m_exp_time = hdr_ae_cfg->middle_exp_val;
++	s_exp_time = hdr_ae_cfg->short_exp_val;
++	l_a_gain = hdr_ae_cfg->long_gain_val;
++	m_a_gain = hdr_ae_cfg->middle_gain_val;
++	s_a_gain = hdr_ae_cfg->short_gain_val;
++
++	dev_info(&client->dev,
++			"rev exp req: L_exp: 0x%x, 0x%x, M_exp: 0x%x, 0x%x S_exp: 0x%x, 0x%x\n",
++			l_exp_time, l_a_gain, m_exp_time, m_a_gain, s_exp_time, s_a_gain);
++
++	return ret;
++}
++
+ /**
+  * @brief
+  *
+@@ -960,26 +1257,151 @@ static long imx385_ioctl(struct v4l2_subdev *sd, unsigned int cmd, void *arg)
+ {
+ 	struct i2c_client *client = v4l2_get_subdevdata(sd);
+ 	struct imx385 *imx385 = to_imx385(client);
++
++	struct cnmodule_hdr_cfg *hdr_cfg;
++	u32 i, h, w;
+ 	long ret = 0;
+ 
+ 	switch (cmd) {
+-	//case CANAANMODULE_GET_MODULE_INFO:
+-	//	imx385_get_module_inf(imx385, (struct CANAANMODULE_inf *)arg);
+-	//	break;
+-	default:
+-		ret = -ENOIOCTLCMD;
+-		break;
++		case CNMODULE_HDR_AE_EXP_CFG:
++			dev_info(&imx385->client->dev, "set hdr ae exp.\n");
++			if (imx385->cur_mode->hdr_mode == HDR_X2)
++				ret = imx385_set_hdrae_2frame(imx385, arg);
++			else if (imx385->cur_mode->hdr_mode == HDR_X3)
++				ret = imx385_set_hdrae_3frame(imx385, arg);
++			break;
++
++		case CNMODULE_GET_MODULE_INFO:
++			break;
++		case CNMODULE_GET_HDR_CFG:
++			dev_info(&imx385->client->dev, "get hdr cfg.\n");
++			hdr_cfg = (struct cnmodule_hdr_cfg *)arg;
++			hdr_cfg->hdr_mode = imx385->cur_mode->hdr_mode;
++			break;
++		case CNMODULE_SET_HDR_CFG:
++			hdr_cfg = (struct cnmodule_hdr_cfg *)arg;
++			w = imx385->cur_mode->width;
++			h = imx385->cur_mode->height;
++			for (i = 0; i < imx385->cfg_num; i++) {
++				if (w == supported_modes[i].width &&
++						h == supported_modes[i].height &&
++						supported_modes[i].hdr_mode == hdr_cfg->hdr_mode) {
++					imx385_change_mode(imx385, &supported_modes[i]);
++					break;
++				}
++			}
++			dev_info(&imx385->client->dev, "set hdr mode:%d %ux%u\n",
++						hdr_cfg->hdr_mode, w, h);
++
++			if (i == imx385->cfg_num) {
++				dev_err(&imx385->client->dev,
++						"not find hdr mode:%d %dx%d config\n",
++						hdr_cfg->hdr_mode, w, h);
++				ret = -EINVAL;
++			} else {
++				w = imx385->cur_mode->hts_def - imx385->cur_mode->width;
++				h = imx385->cur_mode->vts_def - imx385->cur_mode->height;
++				__v4l2_ctrl_modify_range(imx385->hblank, w, w, 1, w);
++				__v4l2_ctrl_modify_range(imx385->vblank, h,
++						IMX385_VTS_MAX - imx385->cur_mode->height,
++						1, h);
++			}
++			break;
++
++		default:
++			ret = -ENOIOCTLCMD;
++			break;
+ 	}
+ 
+ 	return ret;
+ }
++
++static int __imx385_start_stream(struct imx385 *imx385)
++{
++	int ret;
++	u8 reg = 0x00;
++	dev_info(&imx385->client->dev, "%s enter\n",__func__);
++
++	ret = reg_write_table(imx385->client, imx385->cur_mode->reg_list);
++	if (ret)
++		return ret;
++
++	if (imx385->has_init_exp && imx385->cur_mode->hdr_mode != NO_HDR) {
++		ret = imx385_ioctl(&imx385->subdev, CNMODULE_HDR_AE_EXP_CFG,
++				&imx385->init_hdrae_exp);
++		if (ret) {
++			dev_err(&imx385->client->dev,
++					"init exp fail in hdr mode\n");
++			return ret;
++		}
++	}
++
++	if (imx385->vflip)
++		reg |= 0x1;
++	if (imx385->hflip)
++		reg |= 0x2;
++
++	ret = reg_write(imx385->client, 0x3007, reg);
++	if (ret) {
++		dev_err(&imx385->client->dev,"%s:reg(0x3007) failed,ret(%d)\n", __func__, ret);
++		return ret;
++	}
++
++	ret = reg_write(imx385->client, 0x300a, 0xf0);
++	ret |= reg_write(imx385->client, 0x300b, 0x00);
++	ret |= reg_write(imx385->client, 0x300e, 0x01);
++	ret |= reg_write(imx385->client, 0x3089, 0xff);
++	ret |= reg_write(imx385->client, 0x308c, 0x00);
++	if (ret) {
++		dev_err(&imx385->client->dev,"%s:ret(%d)\n",__func__,ret);
++		return ret;
++	}
++	imx385->cur_vts = imx385->cur_mode->vts_def - IMX385_EXP_LINES_MARGIN;
++
++	return reg_write_table(imx385->client, start);
++}
++
++static int __imx385_stop_stream(struct imx385 *imx385)
++{
++	imx385->has_init_exp = false;
++	return reg_write_table(imx385->client, stop);
++}
++
++static int imx385_s_stream(struct v4l2_subdev *sd, int on)
++{
++	struct i2c_client *client = v4l2_get_subdevdata(sd);
++	struct imx385 *imx385 = to_imx385(client);
++	int ret = 0;
++
++	mutex_lock(&imx385->lock);
++	on = !!on;
++	if (on == imx385->streaming)
++		goto unlock_and_return;
++
++	if (on) {
++		ret = __imx385_start_stream(imx385);
++		if (ret) {
++			dev_err(&imx385->client->dev, "Failed to start imx385 stream\n");
++			goto unlock_and_return;
++		}
++	} else {
++		__imx385_stop_stream(imx385);
++	}
++
++	imx385->streaming = on;
++
++unlock_and_return:
++	mutex_unlock(&imx385->lock);
++	return 0;
++}
++
+ /**
+  * @brief
+  *
+  */
+ #ifdef CONFIG_COMPAT
+ static long imx385_compat_ioctl32(struct v4l2_subdev *sd,
+-				  unsigned int cmd, unsigned long arg)
++		unsigned int cmd, unsigned long arg)
+ {
+ 	void __user *up = compat_ptr(arg);
+ 	struct module_inf *inf;
+@@ -987,33 +1409,33 @@ static long imx385_compat_ioctl32(struct v4l2_subdev *sd,
+ 	long ret;
+ 
+ 	switch (cmd) {
+-	case CANAANMODULE_GET_MODULE_INFO:
+-		inf = kzalloc(sizeof(*inf), GFP_KERNEL);
+-		if (!inf) {
+-			ret = -ENOMEM;
+-			return ret;
+-		}
++		case CANAANMODULE_GET_MODULE_INFO:
++			inf = kzalloc(sizeof(*inf), GFP_KERNEL);
++			if (!inf) {
++				ret = -ENOMEM;
++				return ret;
++			}
+ 
+-		ret = imx385_ioctl(sd, cmd, inf);
+-		if (!ret)
+-			ret = copy_to_user(up, inf, sizeof(*inf));
+-		kfree(inf);
+-		break;
+-	case CANAANMODULE_AWB_CFG:
+-		cfg = kzalloc(sizeof(*cfg), GFP_KERNEL);
+-		if (!cfg) {
+-			ret = -ENOMEM;
+-			return ret;
+-		}
++			ret = imx385_ioctl(sd, cmd, inf);
++			if (!ret)
++				ret = copy_to_user(up, inf, sizeof(*inf));
++			kfree(inf);
++			break;
++		case CANAANMODULE_AWB_CFG:
++			cfg = kzalloc(sizeof(*cfg), GFP_KERNEL);
++			if (!cfg) {
++				ret = -ENOMEM;
++				return ret;
++			}
+ 
+-		ret = copy_from_user(cfg, up, sizeof(*cfg));
+-		if (!ret)
+-			ret = imx385_ioctl(sd, cmd, cfg);
+-		kfree(cfg);
+-		break;
+-	default:
+-		ret = -ENOIOCTLCMD;
+-		break;
++			ret = copy_from_user(cfg, up, sizeof(*cfg));
++			if (!ret)
++				ret = imx385_ioctl(sd, cmd, cfg);
++			kfree(cfg);
++			break;
++		default:
++			ret = -ENOIOCTLCMD;
++			break;
+ 	}
+ 
+ 	return ret;
+@@ -1028,8 +1450,8 @@ static long imx385_compat_ioctl32(struct v4l2_subdev *sd,
+  * @return int
+  */
+ static int imx385_enum_frame_interval(struct v4l2_subdev *sd,
+-				       struct v4l2_subdev_pad_config *cfg,
+-				       struct v4l2_subdev_frame_interval_enum *fie)
++		struct v4l2_subdev_pad_config *cfg,
++		struct v4l2_subdev_frame_interval_enum *fie)
+ {
+ 	struct i2c_client *client = v4l2_get_subdevdata(sd);
+ 	struct imx385 *priv = to_imx385(client);
+@@ -1037,14 +1459,15 @@ static int imx385_enum_frame_interval(struct v4l2_subdev *sd,
+ 	if (fie->index >= priv->cfg_num)
+ 		return -EINVAL;
+ 
+-	if (fie->code != MEDIA_BUS_FMT_SRGGB12_1X12)
+-		return -EINVAL;
+-
++	fie->code = supported_modes[fie->index].bus_fmt;
+ 	fie->width = supported_modes[fie->index].width;
+ 	fie->height = supported_modes[fie->index].height;
+ 	fie->interval = supported_modes[fie->index].max_fps;
++	fie->reserved[0] = supported_modes[fie->index].hdr_mode;
++
+ 	return 0;
+ }
++
+ /**
+  * @brief
+  *
+@@ -1052,28 +1475,21 @@ static int imx385_enum_frame_interval(struct v4l2_subdev *sd,
+  * @param config
+  * @return int
+  */
+-static int IMX385_g_mbus_config(struct v4l2_subdev *sd,
+-				struct v4l2_mbus_config *config)
+-{
+-	u32 val = 0;
+-
+-	val = 1 << (IMX385_LANES - 1) |
+-	      V4L2_MBUS_CSI2_CHANNEL_0 |
+-	      V4L2_MBUS_CSI2_CONTINUOUS_CLOCK;
+-	config->type = V4L2_MBUS_CSI2;
+-	config->flags = val;
+-
+-	return 0;
+-}
+-
+ static int imx385_g_mbus_config(struct v4l2_subdev *sd,
+-				struct v4l2_mbus_config *config)
++		struct v4l2_mbus_config *config)
+ {
+ 	u32 val = 0;
++	struct i2c_client *client = v4l2_get_subdevdata(sd);
++	struct imx385 *priv = to_imx385(client);
++	const struct imx385_mode *mode = priv->cur_mode;
+ 
+ 	val = 1 << (IMX385_LANES - 1) |
+-	      V4L2_MBUS_CSI2_CHANNEL_0 |
+-	      V4L2_MBUS_CSI2_CONTINUOUS_CLOCK;
++		V4L2_MBUS_CSI2_CHANNEL_0 |
++		V4L2_MBUS_CSI2_CONTINUOUS_CLOCK;
++	if (mode->hdr_mode != NO_HDR)
++		val |= V4L2_MBUS_CSI2_CHANNEL_1;
++	if (mode->hdr_mode == HDR_X3)
++		val |= V4L2_MBUS_CSI2_CHANNEL_2;
+ 	config->type = V4L2_MBUS_CSI2;
+ 	config->flags = val;
+ 
+@@ -1150,7 +1566,7 @@ static int imx385_video_probe(struct i2c_client *client)
+ 		dev_err(&client->dev, "Failure to read Lot ID (mid byte)\n");
+ 		goto done;
+ 	}
+-	lot_id |= ret << 8;
++	lot_id = ret << 8;
+ 
+ 	ret = reg_read(client, 0x339B);
+ 	if (ret < 0) {
+@@ -1182,13 +1598,13 @@ static int imx385_video_probe(struct i2c_client *client)
+ 
+ 	if (model_id != 0x0385) {
+ 		dev_err(&client->dev, "Model ID: %x not supported!\n",
+-			model_id);
++				model_id);
+ 		ret = -ENODEV;
+ 		goto done;
+ 	}
+ 	dev_info(&client->dev,
+-		 "Model ID 0x%04x, Lot ID 0x%06x, Chip ID 0x%04x,data_format 0x%x\n",
+-		 model_id, lot_id, chip_id,data_format);
++			"Model ID 0x%04x, Lot ID 0x%06x, Chip ID 0x%04x,data_format 0x%x\n",
++			model_id, lot_id, chip_id,data_format);
+ done:
+ 	imx385_s_power(subdev, 0);
+ 	return ret;
+@@ -1210,60 +1626,61 @@ static int imx385_ctrls_init(struct v4l2_subdev *sd)
+ 
+ 	v4l2_ctrl_handler_init(&priv->ctrl_handler, 10);
+ 	v4l2_ctrl_new_std(&priv->ctrl_handler, &imx385_ctrl_ops,
+-			  V4L2_CID_HFLIP, 0, 1, 1, 0);
++			V4L2_CID_HFLIP, 0, 1, 1, 0);
+ 	v4l2_ctrl_new_std(&priv->ctrl_handler, &imx385_ctrl_ops,
+-			  V4L2_CID_VFLIP, 0, 1, 1, 0);
++			V4L2_CID_VFLIP, 0, 1, 1, 0);
+ 
+ 	/* exposure */
+ 	v4l2_ctrl_new_std(&priv->ctrl_handler, &imx385_ctrl_ops,
+-			  V4L2_CID_ANALOGUE_GAIN,
+-			  IMX385_ANALOGUE_GAIN_MIN,
+-			  IMX385_ANALOGUE_GAIN_MAX,
+-			  1, IMX385_ANALOGUE_GAIN_DEFAULT);
++			V4L2_CID_ANALOGUE_GAIN,
++			IMX385_ANALOGUE_GAIN_MIN,
++			IMX385_ANALOGUE_GAIN_MAX,
++			1, IMX385_ANALOGUE_GAIN_DEFAULT);
+ 	v4l2_ctrl_new_std(&priv->ctrl_handler, &imx385_ctrl_ops,
+-			  V4L2_CID_GAIN,
+-			  IMX385_DIGITAL_GAIN_MIN,
+-			  IMX385_DIGITAL_GAIN_MAX, 1,
+-			  IMX385_DIGITAL_GAIN_DEFAULT);
++			V4L2_CID_GAIN,
++			IMX385_DIGITAL_GAIN_MIN,
++			IMX385_DIGITAL_GAIN_MAX, 1,
++			IMX385_DIGITAL_GAIN_DEFAULT);
+ 	v4l2_ctrl_new_std(&priv->ctrl_handler, &imx385_ctrl_ops,
+-			  V4L2_CID_EXPOSURE,
+-			  IMX385_DIGITAL_EXPOSURE_MIN,
+-			  IMX385_DIGITAL_EXPOSURE_MAX, 1,
+-			  IMX385_DIGITAL_EXPOSURE_DEFAULT);
++			V4L2_CID_EXPOSURE,
++			IMX385_DIGITAL_EXPOSURE_MIN,
++			IMX385_DIGITAL_EXPOSURE_MAX, 1,
++			IMX385_DIGITAL_EXPOSURE_DEFAULT);
+ 
+ 	/* blank */
+ 	h_blank = mode->hts_def - mode->width;
+ 	priv->hblank = v4l2_ctrl_new_std(&priv->ctrl_handler, NULL, V4L2_CID_HBLANK,
+-			  h_blank, h_blank, 1, h_blank);
++			h_blank, h_blank, 1, h_blank);
+ 	v_blank = mode->vts_def - mode->height;
+ 	priv->vblank = v4l2_ctrl_new_std(&priv->ctrl_handler, NULL, V4L2_CID_VBLANK,
+-			  v_blank, v_blank, 1, v_blank);
++			v_blank, v_blank, 1, v_blank);
+ 
+ 	/* freq */
+ 	v4l2_ctrl_new_int_menu(&priv->ctrl_handler, NULL, V4L2_CID_LINK_FREQ,
+-			       0, 0, link_freq_menu_items);
++			0, 0, link_freq_menu_items);
+ 	fps = DIV_ROUND_CLOSEST(mode->max_fps.denominator,
+-		mode->max_fps.numerator);
++			mode->max_fps.numerator);
+ 	pixel_rate = mode->vts_def * mode->hts_def * fps;
+ 	priv->pixel_rate = v4l2_ctrl_new_std(&priv->ctrl_handler, NULL, V4L2_CID_PIXEL_RATE,
+-			  0, pixel_rate, 1, pixel_rate);
++			0, pixel_rate, 1, pixel_rate);
+ 
+ 	v4l2_ctrl_new_std_menu_items(&priv->ctrl_handler, &imx385_ctrl_ops,
+-				     V4L2_CID_TEST_PATTERN,
+-				     ARRAY_SIZE(tp_qmenu) - 1, 0, 0, tp_qmenu);
++			V4L2_CID_TEST_PATTERN,
++			ARRAY_SIZE(tp_qmenu) - 1, 0, 0, tp_qmenu);
+ 
+ 	priv->subdev.ctrl_handler = &priv->ctrl_handler;
+ 	if (priv->ctrl_handler.error) {
+ 		dev_err(&client->dev, "Error %d adding controls\n",
+-			priv->ctrl_handler.error);
++				priv->ctrl_handler.error);
+ 		ret = priv->ctrl_handler.error;
+ 		goto error;
+ 	}
++	priv->has_init_exp = false;
+ 
+ 	ret = v4l2_ctrl_handler_setup(&priv->ctrl_handler);
+ 	if (ret < 0) {
+ 		dev_err(&client->dev, "Error %d setting default controls\n",
+-			ret);
++				ret);
+ 		goto error;
+ 	}
+ 
+@@ -1280,7 +1697,7 @@ static int imx385_ctrls_init(struct v4l2_subdev *sd)
+  * @return int
+  */
+ static int imx385_probe(struct i2c_client *client,
+-			const struct i2c_device_id *did)
++		const struct i2c_device_id *did)
+ {
+ 	struct imx385 *priv;
+ 	struct i2c_adapter *adapter = to_i2c_adapter(client->dev.parent);
+@@ -1291,49 +1708,51 @@ static int imx385_probe(struct i2c_client *client,
+ 	int ret;
+ 
+ 	dev_info(dev, "driver version: %02x.%02x.%02x",
+-		DRIVER_VERSION >> 16,
+-		(DRIVER_VERSION & 0xff00) >> 8,
+-		DRIVER_VERSION & 0x00ff);
++			DRIVER_VERSION >> 16,
++			(DRIVER_VERSION & 0xff00) >> 8,
++			DRIVER_VERSION & 0x00ff);
+ 
+ 	if (!i2c_check_functionality(adapter, I2C_FUNC_SMBUS_BYTE_DATA)) {
+ 		dev_warn(&adapter->dev,
+-			 "I2C-Adapter doesn't support I2C_FUNC_SMBUS_BYTE\n");
++				"I2C-Adapter doesn't support I2C_FUNC_SMBUS_BYTE\n");
+ 		return -EIO;
+ 	}
+ 	priv = devm_kzalloc(&client->dev, sizeof(struct imx385), GFP_KERNEL);
+ 	if (!priv)
+ 		return -ENOMEM;
+ 
++	priv->client = client;
++
+ 	ret = of_property_read_u32(node, CANAANMODULE_CAMERA_MODULE_INDEX,
+-				   &priv->module_index);
++			&priv->module_index);
+ 	ret |= of_property_read_string(node, CANAANMODULE_CAMERA_MODULE_FACING,
+-				       &priv->module_facing);
++			&priv->module_facing);
+ 	ret |= of_property_read_string(node, CANAANMODULE_CAMERA_MODULE_NAME,
+-				       &priv->module_name);
++			&priv->module_name);
+ 	ret |= of_property_read_string(node, CANAANMODULE_CAMERA_LENS_NAME,
+-				       &priv->len_name);
++			&priv->len_name);
+ 	if (ret) {
+ 		dev_err(dev, "could not get module information!\n");
+ 		return -EINVAL;
+ 	}
+ 
+-    //priv->imx385_powerdown = devm_gpiod_get(dev, "powerdown-gpios", GPIOD_OUT_HIGH);
+-    //if(IS_ERR(priv->imx385_powerdown))
+-    //{
++	//priv->imx385_powerdown = devm_gpiod_get(dev, "powerdown-gpios", GPIOD_OUT_HIGH);
++	//if(IS_ERR(priv->imx385_powerdown))
++	//{
+ 	//	dev_err(dev, "get imx385_powerdown err !\n");
+-    //    return -EINVAL;
+-    //}
++	//    return -EINVAL;
++	//}
+ 
+-    priv->imx385_reset = devm_gpiod_get_optional(dev,"reset-gpios",GPIOD_OUT_HIGH);
+-    if(IS_ERR(priv->imx385_reset))
+-    {
++	priv->imx385_reset = devm_gpiod_get(dev, "reset", GPIOD_OUT_HIGH);
++	if(IS_ERR(priv->imx385_reset))
++	{
+ 		ret = PTR_ERR(priv->imx385_reset);
+ 		dev_err(dev, "%s:Reset imx385 GPIO not setup in DT ret(%d)\n",__func__,ret);
+-        return ret;
+-    }
++		return ret;
++	}
++
++	__imx385_power_on(priv);
+ 
+-	/* pull sensor out of reset */
+-	imx385_reset(priv, 1);
+ 
+ 	/* 1920 * 1080 by default */
+ 	priv->cur_mode = &supported_modes[0];
+@@ -1353,7 +1772,7 @@ static int imx385_probe(struct i2c_client *client,
+ 		return ret;
+ 
+ 	priv->subdev.flags |= V4L2_SUBDEV_FL_HAS_DEVNODE |
+-		     V4L2_SUBDEV_FL_HAS_EVENTS;
++		V4L2_SUBDEV_FL_HAS_EVENTS;
+ 
+ 	priv->pad.flags = MEDIA_PAD_FL_SOURCE;
+ 	priv->subdev.entity.function = MEDIA_ENT_F_CAM_SENSOR;
+@@ -1369,8 +1788,8 @@ static int imx385_probe(struct i2c_client *client,
+ 		facing[0] = 'f';
+ 
+ 	snprintf(sd->name, sizeof(sd->name), "m%02d_%s_%s %s",
+-		 priv->module_index, facing,
+-		 IMX385_NAME, dev_name(sd->dev));
++			priv->module_index, facing,
++			IMX385_NAME, dev_name(sd->dev));
+ 	ret = v4l2_async_register_subdev_sensor_common(sd);
+ 	if (ret < 0)
+ 		return ret;
+diff --git a/drivers/media/platform/canaan-isp/isp_2k/isp_f2k.c b/drivers/media/platform/canaan-isp/isp_2k/isp_f2k.c
+index d96141c9..d041fd8a 100644
+--- a/drivers/media/platform/canaan-isp/isp_2k/isp_f2k.c
++++ b/drivers/media/platform/canaan-isp/isp_2k/isp_f2k.c
+@@ -122,25 +122,25 @@ void isp_f2k_wrap_SetWdr(struct k510_isp_device *isp,struct isp_wrap_wdr_info *w
+ 	{
+ 		stWdrClkCtl->wdr_2_frame_clk_en = 1;
+ 		stWdrClkCtl->wdr_3_frame_clk_en = 0;
+-		stWdrDmaEn->wdr_short_dma_en = 1;//1
++		stWdrDmaEn->wdr_short_dma_en = 0;//1
+ 		stWdrDmaEn->wdr_long_dma_en  = 0;
+ 		stWdrModeCtl->wdr_dynamic_switch_en = 0;
+-		stWdrModeCtl->wdr_long_l2_buf_depth = 0;
++		stWdrModeCtl->wdr_long_l2_buf_depth = 20;
+ 		stWdrModeCtl->wdr_long_ch_mode = 0;
+-		stWdrModeCtl->wdr_long_l2_buf_en = 0;
++		stWdrModeCtl->wdr_long_l2_buf_en = 1;
+ 		stWdrModeCtl->wdr_short_s1_buf_en = 0;//1
+ 	}
+ 	else if(ISP_PIPE_WDR_3_FRAME == wdrInfo->wdr_mode)
+ 	{
+ 		stWdrClkCtl->wdr_2_frame_clk_en = 1;//0;
+ 		stWdrClkCtl->wdr_3_frame_clk_en = 1;//0;//1;
+-		stWdrDmaEn->wdr_short_dma_en = 1; //1?
+-		stWdrDmaEn->wdr_long_dma_en  = 1;
+-		stWdrModeCtl->wdr_dynamic_switch_en = 1;//0;
++		stWdrDmaEn->wdr_short_dma_en = 0; //1?
++		stWdrDmaEn->wdr_long_dma_en  = 0;
++		stWdrModeCtl->wdr_dynamic_switch_en = 0;//0;
+ 		stWdrModeCtl->wdr_long_l2_buf_depth = 20;
+ 		stWdrModeCtl->wdr_long_ch_mode = 0;
+-		stWdrModeCtl->wdr_long_l2_buf_en = 0; //1?
+-		stWdrModeCtl->wdr_short_s1_buf_en = 0;//1
++		stWdrModeCtl->wdr_long_l2_buf_en = 1; //1?
++		stWdrModeCtl->wdr_short_s1_buf_en = 1;//1
+ 	}
+ 	else
+ 	{
+@@ -2932,7 +2932,7 @@ static void video_buffer_next(struct isp_f2k_device *f2k, enum video_type dsNum)
+ 	buf = list_first_entry(&video->dmaqueue, struct k510isp_buffer, irqlist);
+ 
+ 	if ((f2k->profile[dsNum].drop_threshold > 0LL)
+-		 && (dsNum == DS0_VIDEO || dsNum == DS1_VIDEO))
++			&& (dsNum == DS0_VIDEO || dsNum == DS1_VIDEO))
+ 	{
+ 		if(f2k->profile[dsNum].cur_int_interval > f2k->profile[dsNum].drop_threshold ||
+ 				f2k->profile[dsNum].cur_int_interval < f2k->profile[dsNum].drop_threshold/2)
+@@ -3458,8 +3458,9 @@ static int f2k_set_stream(struct v4l2_subdev *sd, int enable)
+ 			memset(&f2k->profile,0,sizeof(struct k510_isp_profile)*VIDEO_NUM_MAX);
+ 			for(i=0; i<VIDEO_NUM_MAX; i++)
+ 			{
+-				if(isp_cfg->isp_ds_cfg.dsInSizeInfo.Width == 1920 &&
+-						isp_cfg->isp_ds_cfg.dsInSizeInfo.Height >= 1080)
++				if(!isp_cfg->isp_core_cfg.wdrInfo.wdr_en
++						&& (isp_cfg->isp_ds_cfg.dsInSizeInfo.Width == 1920 &&
++							isp_cfg->isp_ds_cfg.dsInSizeInfo.Height >= 1080))
+ 				{
+ 					f2k->profile[i].drop_threshold = 1000000LL/30 + DROP_THRESHOLD_GAP;
+ 					f2k->profile[i].min_int_interval = 0xfffffLL;
+diff --git a/include/uapi/linux/canaan-camera-module.h b/include/uapi/linux/canaan-camera-module.h
+old mode 100755
+new mode 100644
+index df5fee97..60444e14
+--- a/include/uapi/linux/canaan-camera-module.h
++++ b/include/uapi/linux/canaan-camera-module.h
+@@ -10,6 +10,7 @@
+ 
+ #include <linux/types.h>
+ 
++#define CNMODULE_NAME_LEN		64
+ 
+ #define CANAANMODULE_CAMERA_MODULE_INDEX	"canaanchip,camera-module-index"
+ #define CANAANMODULE_CAMERA_MODULE_FACING	"canaanchip,camera-module-facing"
+@@ -17,4 +18,76 @@
+ #define CANAANMODULE_CAMERA_LENS_NAME	"canaanchip,camera-module-lens-name"
+ 
+ 
++#define CNMODULE_GET_MODULE_INFO	\
++		_IOR('V', BASE_VIDIOC_PRIVATE + 0, struct cnmodule_inf)
++
++#define CNMODULE_NORMAL_AE_EXP_CFG	\
++		_IOW('V', BASE_VIDIOC_PRIVATE + 1, struct cnmodule_normal_ae_cfg)
++
++#define CNMODULE_HDR_AE_EXP_CFG	\
++		_IOW('V', BASE_VIDIOC_PRIVATE + 2, struct cnmodule_hdr_ae_cfg)
++
++#define CNMODULE_GET_HDR_CFG	\
++		_IOR('V', BASE_VIDIOC_PRIVATE + 3, struct cnmodule_hdr_cfg)
++
++#define CNMODULE_SET_HDR_CFG	\
++		_IOW('V', BASE_VIDIOC_PRIVATE + 4, struct cnmodule_hdr_cfg)
++
++
++
++/**
++ * struct cnmodule_base_inf - module base information
++ *
++ */
++struct cnmodule_base_inf {
++	char sensor[CNMODULE_NAME_LEN];
++	char module[CNMODULE_NAME_LEN];
++	char lens[CNMODULE_NAME_LEN];
++};
++
++/**
++ * struct cnmodule_inf - module information
++ *
++ */
++struct cnmodule_inf {
++	struct cnmodule_base_inf base;
++};
++
++/**
++ * struct cnmodule_hdr_ae_exp_cfg
++ *
++ */
++struct cnmodule_normal_ae_cfg {
++	__u32 exp_val;
++	__u32 gain_val;
++};
++
++/**
++ * struct cnmodule_hdr_ae_exp_cfg
++ *
++ */
++struct cnmodule_hdr_ae_cfg {
++	__u32 long_exp_val;
++	__u32 long_gain_val;
++	__u32 middle_exp_val;
++	__u32 middle_gain_val;
++	__u32 short_exp_val;
++	__u32 short_gain_val;
++};
++
++struct cnmodule_hdr_cfg {
++	__u32 hdr_mode;
++};
++
++/**
++ * NO_HDR: linear mode
++ * HDR_X2: hdr two frame mode
++ * HDR_X3: hdr three frame mode
++ */
++enum cnmodule_hdr_mode {
++	NO_HDR = 0,
++	HDR_X2 = 1,
++	HDR_X3 = 2,
++};
++
+ #endif /* _CANAAN_CAMERA_MODULE__H */
+-- 
+2.25.1
+

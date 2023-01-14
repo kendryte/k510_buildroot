@@ -25,7 +25,7 @@
 #ifndef __MEDIACTL_H__
 #define __MEDIACTL_H__
 
-#ifdef __cplusplus  
+#ifdef __cplusplus
 extern "C"{
 #endif
 
@@ -78,15 +78,98 @@ struct video_info
 	unsigned int video_out_format[4];
 };
 
+enum ae_select_e
+{
+	AE_SELECT_SW_MODE,
+	AE_SELECT_HW_MODE,
+};
+
+enum adaptive_enable_select_e
+{
+	ADAPTIVE_SELECT_DISABLE,
+	ADAPTIVE_SELECT_ENABLE,
+};
+
+enum ae_hist_mode_e
+{
+	AE_HIST_MODE_WHOLE_PICTURE,
+	AE_HIST_MODE_CENTRAL_AERA,
+};
+
+typedef struct __AE_HIST_WINDOW_T
+{
+	int nHStart;
+	int nVStart;
+	int nHEnd;
+	int nVEnd;
+} AE_HIST_WINDOW_T;
+
+enum isp_callback_id
+{
+    ISP_CALLBACK_ID_START = -1, // -1
+    ISP_CALLBACK_ID_BLC, // 0
+    ISP_CALLBACK_ID_LSC, // 1
+    ISP_CALLBACK_ID_SHARPNESS, // 2
+    ISP_CALLBACK_ID_LTM, // 3
+    ISP_CALLBACK_ID_2DNR, // 4
+    ISP_CALLBACK_ID_3DNR, // 5
+    ISP_CALLBACK_ID_WDR, // 6
+    ISP_CALLBACK_ID_CCM, // 7
+    ISP_CALLBACK_ID_AWB, // 8
+    ISP_CALLBACK_ID_GAMMA, // 9
+    ISP_CALLBACK_ID_IRCUT, // 10
+    ISP_CALLBACK_ID_SATURATION, // 11
+    ISP_CALLBACK_ID_COLOR2BW, // 12
+    ISP_CALLBACK_ID_ADA, // 13
+    ISP_CALLBACK_ID_END, // 14
+};
+
+enum ir_cut_mode_e {
+	USER_IR_CUT_NIGHT,
+ 	USER_IR_CUT_DAY,
+};
+
+/* user callback function */
+typedef int (* __IspCallBack)(void *);
+
+/* callback struct */
+typedef struct __ISP_CB_T
+{
+    __IspCallBack pIspfunc; // callback function
+    int nSize; // such as sizeof(CB_IR_CUT_T), depth copy need
+    enum isp_callback_id nIcbId; // callback moudel id, adap need know which use it
+} ISP_CB_T;
+
 int mediactl_init(char *video_cfg_file,struct video_info *dev_info);
 void mediactl_exit(void);
+void mediactl_disable_ae(enum isp_pipeline_e pipeline);
+int mediactl_rect(enum isp_pipeline_e pipeline, unsigned layer, unsigned area, unsigned x, unsigned y, unsigned width, unsigned height, unsigned line_width, unsigned color, unsigned border_mask);
 int mediactl_set_ae(enum isp_pipeline_e pipeline);
 int mediactl_set_ae_single(enum isp_pipeline_e pipeline);
 int mediactl_set_ae_sync(enum isp_pipeline_e pipeline);
 int mediactl_set_awb_sync(enum isp_pipeline_e pipeline);
+int mediactl_sw_set_ae(enum isp_pipeline_e pipeline);
+int mediactl_hw_set_ae(enum isp_pipeline_e pipeline);
 
+int adaptive_enable(int scl);
+int ae_select_init(int scl);
+int anti_flicker_init(int scl);
+int ae_enable_set(enum isp_pipeline_e pipeline, void * pipe);
+/* AE HIST MODE API */
+int ae_hist_mode_scl(enum isp_pipeline_e pipeline, enum ae_hist_mode_e ae_hist_mode, AE_HIST_WINDOW_T * hist_window);
+/* attr page API */
+int attr_page_params_setting(enum isp_pipeline_e pipeline, void * attr_page);
+int attr_page_get_written_stat(enum isp_pipeline_e pipeline);
+int isp_module_callback_register(ISP_CB_T * icb);
+int isp_module_callback_ctl_stat(enum isp_pipeline_e pipeline, enum isp_callback_id cbid);
 unsigned int mediactl_get_isp_modules(enum isp_pipeline_e pipeline,enum isp_modules module);
+/* ir cut API */
+int ir_cut_ev_get(enum isp_pipeline_e pipeline, enum ir_cut_mode_e ir_cut_mode);
+int ir_cut_ev_set(enum isp_pipeline_e pipeline, enum ir_cut_mode_e ir_cut_mode, int level);
+float ir_cut_hold_time_get(enum isp_pipeline_e pipeline, enum ir_cut_mode_e ir_cut_mode);
+int ir_cut_hold_time_set(enum isp_pipeline_e pipeline, enum ir_cut_mode_e ir_cut_mode, float hold_time);
+
 #ifdef __cplusplus
-} 
+}
 #endif
 #endif /*__MEDIACTL_H__*/

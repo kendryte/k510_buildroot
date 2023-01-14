@@ -167,8 +167,8 @@ void objectDetect::post_process(std::vector<BoxInfo> &result)
     nms(result, nms_thresh);
 }
 
-objectDetect::objectDetect(float obj_thresh, float nms_thresh)
-:obj_thresh(obj_thresh), nms_thresh(nms_thresh)
+objectDetect::objectDetect(float obj_thresh, float nms_thresh, int net_len, Framesize frame_size)
+:obj_thresh(obj_thresh), nms_thresh(nms_thresh), net_len(net_len), frame_size(frame_size)
 {
     int first_len = net_len / 8;
     first_size = first_len * first_len;

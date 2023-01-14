@@ -1,0 +1,13 @@
+Index: b/libavcodec/libk510_h264.c
+===================================================================
+--- a/libavcodec/libk510_h264.c
++++ b/libavcodec/libk510_h264.c
+@@ -409,7 +409,7 @@ static const AVOption options[] =
+   //{ option name,            description,                            offset in the context object,    type             default, min, max, flags, unit}
+   // ***** GOP options ******
+   { "g",                    "Set gop size",                                   OFFSET(gop_size),        AV_OPT_TYPE_INT,  {.i64 = 25}, 0, 1000, FLAGS },
+-  { "b",                    "Set video bitrate",                              OFFSET(bit_rate),        AV_OPT_TYPE_INT,  {.i64 = 4000000}, 0, 20000000, FLAGS },
++  { "b",                    "Set video bitrate",                              OFFSET(bit_rate),        AV_OPT_TYPE_INT,  {.i64 = 4000000}, 1000, 20000000, FLAGS },
+   { "r",                    "Set video framerate",                            OFFSET(framerate),       AV_OPT_TYPE_INT,  {.i64 = 30}, 30, 30, FLAGS },
+   { "ch",                   "Set encode channel ",                            OFFSET(channel),         AV_OPT_TYPE_INT,  {.i64 = 0}, 0, (VENC_MAX_CHANNELS-1), FLAGS },
+   { "idr_freq",             "IDR frequency. -1=No IDRs",                      OFFSET(idrFreq),         AV_OPT_TYPE_INT,  {.i64 = 25 }, -1, 256, FLAGS },
