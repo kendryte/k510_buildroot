@@ -87,7 +87,7 @@ jobs:
           cp -r --sparse=always $CONF/images/* $CI_ROOT/$VER/$HW/
           cp -r --sparse=always $CONF/target/etc/version/release_version $CI_ROOT/$VER/$HW/
           test -d $CI_ROOT/latest && rm $CI_ROOT/latest
-          ln -s $CI_ROOT/$VER $CI_ROOT/latest
+          ln -s -f $CI_ROOT/$VER $CI_ROOT/latest
 
       - name: Save image to TFTP
         id: save_tftp

@@ -72,4 +72,4 @@ jobs:
           cp -r --sparse=always $CONF/images/* $DEV_RELEASE/$VER/$HW/
           cp -r --sparse=always $CONF/target/etc/version/release_version $DEV_RELEASE/$VER/$HW/
           test -d $DEV_RELEASE/latest && rm $DEV_RELEASE/latest
-          ln -s $DEV_RELEASE/$VER $DEV_RELEASE/latest
+          ln -s -f $DEV_RELEASE/$VER $DEV_RELEASE/latest
