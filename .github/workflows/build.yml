@@ -192,7 +192,7 @@ jobs:
           echo "Run Test start"
           test -d bin || mkdir ./bin
           test -f ./bin/airobot && rm -rf ./bin/airobot
-          wget -qc https://ai.b-bug.orgk510/downloads/github/airobot -O ./bin/airobot
+          wget -qc https://ai.b-bug.org/k510/downloads/github/airobot -O ./bin/airobot
           chmod +x ./bin/airobot
           test -f ./k510.robot && rm -rf ./k510.robot
           wget -qc https://ai.b-bug.org/k510/downloads/github/k510.robot -O ./k510.robot
