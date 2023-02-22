@@ -111,7 +111,7 @@ jobs:
           echo $HW
           echo $SAVE_DIR
           mkdir -p $NFS_ROOT/k510/$HW/$SAVE_DIR/
-          tar -xf $CONF/images/rootfs.tar -C $NFS_ROOT/k510/$HW/$PULL_REQUEST_ID"_"$GITHUB_RUN_ID
+          tar -xf -no-same-owner $CONF/images/rootfs.tar -C $NFS_ROOT/k510/$HW/$PULL_REQUEST_ID"_"$GITHUB_RUN_ID
 
   test_image:
     name: Test
