@@ -142,7 +142,7 @@ jobs:
           if [[ $available =~ "k510" ]]; then
             echo "Get Available DUT pass"
           else
-            echo "ERROR: No Available DUT"
+            echo "ERROR: No Available DUT, Please rerun to check it again"
             exit 1
           fi
 
