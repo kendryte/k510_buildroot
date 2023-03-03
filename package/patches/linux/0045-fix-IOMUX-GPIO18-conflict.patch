@@ -1,0 +1,30 @@
+From 56da9d07224dc5709d844c2b28b79f47ef294b63 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=E9=BB=84=E5=AD=90=E6=87=BF?=
+ <huangziyi@canaan-creative.com>
+Date: Thu, 2 Mar 2023 17:36:00 +0800
+Subject: [PATCH] fix IOMUX GPIO18 conflict
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Signed-off-by: 黄子懿 <huangziyi@canaan-creative.com>
+---
+ arch/riscv/boot/dts/canaan/k510_crb_lp3_v1_2.dts | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/riscv/boot/dts/canaan/k510_crb_lp3_v1_2.dts b/arch/riscv/boot/dts/canaan/k510_crb_lp3_v1_2.dts
+index dc5f58933..34c762dc4 100644
+--- a/arch/riscv/boot/dts/canaan/k510_crb_lp3_v1_2.dts
++++ b/arch/riscv/boot/dts/canaan/k510_crb_lp3_v1_2.dts
+@@ -221,7 +221,7 @@
+             (70) (FUNC_GPIO3) /*BT_RST_IN*/
+             (71) (FUNC_GPIO4) /*KEY_1*/
+             (72) (FUNC_GPIO17)
+-            (73) (FUNC_GPIO18)
++            (73) (FUNC_GPIO26)
+             (74) (FUNC_GPIO24)
+             (75) (FUNC_GPIO5) /*HP_INSERT_DET*/
+             (76) (FUNC_GPIO6) /*KEY_2*/
+-- 
+2.39.1
+
