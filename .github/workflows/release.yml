@@ -35,20 +35,20 @@ jobs:
 
       - name: Install toolchain
         run: |
-          test -f toolchain/nds64le-linux-glibc-v5d.txz || wget -c https://ai.b-bug.org/k510_buildroot/toolchain/nds64le-linux-glibc-v5d.txz -O toolchain/nds64le-linux-glibc-v5d.txz
-          test -f toolchain/nds64le-elf-mculib-v5d.txz || wget -c https://ai.b-bug.org/k510_buildroot/toolchain/nds64le-elf-mculib-v5d.txz -O toolchain/nds64le-elf-mculib-v5d.txz          
+          test -f toolchain/nds64le-linux-glibc-v5d.txz || wget -c https://ai.b-bug.org/k510/toolchain/nds64le-linux-glibc-v5d.txz -O toolchain/nds64le-linux-glibc-v5d.txz
+          test -f toolchain/nds64le-elf-mculib-v5d.txz || wget -c https://ai.b-bug.org/k510/toolchain/nds64le-elf-mculib-v5d.txz -O toolchain/nds64le-elf-mculib-v5d.txz          
 
       - name: Download cache package
         run: |
           test -f pkg-download/dl.tar.gz && rm pkg-download/dl.tar.gz
-          wget -qc https://ai.b-bug.org/k510_buildroot/pkg-download/dl.tar.gz -O pkg-download/dl.tar.gz
+          wget -qc https://ai.b-bug.org/k510/downloads/pkg-download/dl.tar.gz -O pkg-download/dl.tar.gz
           echo "dl.tar.gz file md5 check"
           md5sum pkg-download/dl.tar.gz
           test -d dl_bak && rm -rf dl_bak
           test -d dl && mv dl dl_bak
           tar -xf pkg-download/dl.tar.gz
           test -d dl/ai/ || mkdir -p dl/ai/
-          wget -qc https://ai.b-bug.org/k510_buildroot/pkg-download/ai_kmodel_data.tar.xz -O dl/ai/ai_kmodel_data.tar.xz
+          wget -qc https://ai.b-bug.org/k510/downloads/pkg-download/ai_kmodel_data.tar.xz -O dl/ai/ai_kmodel_data.tar.xz
           echo "ai_kmodel_data.tar.xz file md5 check"
           md5sum dl/ai/ai_kmodel_data.tar.xz
           test -d dl/riscv-pk-k510 && (test -d dl/riscv-pk-k510 || mv dl_bak/riscv-pk-k510 dl/)
@@ -68,7 +68,7 @@ jobs:
           VER=$(echo ${{github.ref}} | sed 's/refs\/tags\/\(v*.*\)/\1/g') || exit 1
           echo $VER
           mkdir -p $RELEASE/$VER/$HW/
-          cp -r $CONF/images/* $RELEASE/$VER/$HW/
-          cp -r $CONF/target/etc/version/release_version $RELEASE/$VER/$HW/
+          cp -r --sparse=always $CONF/images/* $RELEASE/$VER/$HW/
+          cp -r --sparse=always $CONF/target/etc/version/release_version $RELEASE/$VER/$HW/
           test -d $RELEASE/latest && rm $RELEASE/latest
-          ln -s $RELEASE/$VER $RELEASE/latest
+          ln -s -f $RELEASE/$VER $RELEASE/latest

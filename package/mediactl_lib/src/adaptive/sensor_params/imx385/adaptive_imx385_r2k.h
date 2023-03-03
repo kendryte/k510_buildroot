@@ -32,7 +32,7 @@ static ADAPTIVE_ISP_PIPELINE_PARAM_T adap_imx385_r2k =
 
 {
     /* fps */
-    29.97,
+    30,
     {
     /* AE Parameters */
 
@@ -46,21 +46,21 @@ static ADAPTIVE_ISP_PIPELINE_PARAM_T adap_imx385_r2k =
             /* 0 */
             {
                 /* nExposureTime */
-                168, // 10000lux
+                148, // 8800lux
                 /* nExposureGain */
                 512,
                 /* ae ctl */
                 {
                     /* nAeYTarget */
-                    100,
+                    110,
                     /* nAeYTargetRange */
-                    14,
+                    15,
                 },
             },
             /* 1 */
             {
                 /* nExposureTime */
-                2630, // 2500lux
+                533, // 2500lux
                 /* nExposureGain */
                 512,
                 /* ae ctl */
@@ -74,28 +74,28 @@ static ADAPTIVE_ISP_PIPELINE_PARAM_T adap_imx385_r2k =
             /* 2 */
             {
                 /* nExposureTime */
-                12108, // 400lux
+                3048, // 400lux
                 /* nExposureGain */
                 512,
                 /* ae ctl */
                 {
                     /* nAeYTarget */
-                    90,
+                    100,
                     /* AE_YTarget_Range */
-                    13,
+                    14,
                 },
             },
             /* 3 */
             {
                 /* nExposureTime */
-                33333, // 100lux
+                7620, // 100lux
                 /* nExposureGain */
                 1024,
                 {
                     /* nAeYTarget */
-                    80,
+                    90,
                     /* AE_YTarget_Range */
-                    11,
+                    13,
                 },
             },
             /* 4 */
@@ -106,9 +106,9 @@ static ADAPTIVE_ISP_PIPELINE_PARAM_T adap_imx385_r2k =
                 4095,
                 {
                     /* nAeYTarget */
-                    72,
+                    80,
                     /* AE_YTarget_Range */
-                    10,
+                    11,
                 },
             },
         },
@@ -118,7 +118,7 @@ static ADAPTIVE_ISP_PIPELINE_PARAM_T adap_imx385_r2k =
     /* AE gain */
 
     {
-        {256, 768, 1024, 2048, 2304},
+        {256, 768, 1024, 2048, 4095},
     },
 
     {
@@ -130,15 +130,15 @@ static ADAPTIVE_ISP_PIPELINE_PARAM_T adap_imx385_r2k =
         /* blc param */
         {
             /* 0 */
-            {240},
+            {224},
             /* 1 */
-            {240},
+            {224},
             /* 2 */
-            {240},
+            {224},
             /* 3 */
-            {240},
+            {224},
             /* 4 */
-            {240},
+            {224},
         },
     // };
     },
@@ -154,47 +154,47 @@ static ADAPTIVE_ISP_PIPELINE_PARAM_T adap_imx385_r2k =
             /* 0 */
             {
                 /* nLscRedRatio */
-                10,
+                4,
                 /* nLscGreenRatio */
-                6,
+                4,
                 /* nLscBlueRatio */
-                6,
+                4,
             },
             /* 1 */
             {
                 /* nLscRedRatio */
-                10,
+                4,
                 /* nLscGreenRatio */
-                6,
+                4,
                 /* nLscBlueRatio */
-                6,
+                4,
             },
             /* 2 */
             {
                 /* nLscRedRatio */
-                10,
+                4,
                 /* nLscGreenRatio */
-                6,
+                4,
                 /* nLscBlueRatio */
-                6,
+                4,
             },
             /* 3 */
             {
                 /* nLscRedRatio */
-                10,
+                4,
                 /* nLscGreenRatio */
-                6,
+                4,
                 /* nLscBlueRatio */
-                6,
+                4,
             },
             /* 4 */
             {
                 /* nLscRedRatio */
-                10,
+                4,
                 /* nLscGreenRatio */
-                6,
+                4,
                 /* nLscBlueRatio */
-                6,
+                4,
             },
         },
     // };
@@ -215,7 +215,7 @@ static ADAPTIVE_ISP_PIPELINE_PARAM_T adap_imx385_r2k =
                 /* nSharpnessThres[2]; [0]: thres1 [1]: thres2 */
                 {3840, 4095},
                 /* nSharpnessGain */
-                64,
+                160,
             },
             /* 1 */
             {
@@ -224,7 +224,7 @@ static ADAPTIVE_ISP_PIPELINE_PARAM_T adap_imx385_r2k =
                 /* nSharpnessThres[2]; [0]: thres1 [1]: thres2 */
                 {3840, 4095},
                 /* nSharpnessGain */
-                64,
+                160,
             },
             /* 2 */
             {
@@ -233,7 +233,7 @@ static ADAPTIVE_ISP_PIPELINE_PARAM_T adap_imx385_r2k =
                 /* nSharpnessThres[2]; [0]: thres1 [1]: thres2 */
                 {3840, 4095},
                 /* nSharpnessGain */
-                56,
+                150,
             },
             /* 3 */
             {
@@ -242,7 +242,7 @@ static ADAPTIVE_ISP_PIPELINE_PARAM_T adap_imx385_r2k =
                 /* nSharpnessThres[2]; [0]: thres1 [1]: thres2 */
                 {3840, 4095},
                 /* nSharpnessGain */
-                48,
+                140,
             },
             /* 4 */
             {
@@ -251,7 +251,7 @@ static ADAPTIVE_ISP_PIPELINE_PARAM_T adap_imx385_r2k =
                 /* nSharpnessThres[2]; [0]: thres1 [1]: thres2 */
                 {3840, 4095},
                 /* nSharpnessGain */
-                40,
+                130,
             },
         },
     // };
@@ -316,11 +316,11 @@ static ADAPTIVE_ISP_PIPELINE_PARAM_T adap_imx385_r2k =
                 /* nRawDomainIntensity */
                 16,
                 /* n2dAdjacentPixIntensity */
-                511,
+                128,
                 /* n2dEdgeIntensity */
-                48,
+                32,
                 /* n2dLumaIntensity */
-                64,
+                32,
                 /* n2dChromaIntensity */
                 1,
             },
@@ -329,11 +329,11 @@ static ADAPTIVE_ISP_PIPELINE_PARAM_T adap_imx385_r2k =
                 /* nRawDomainIntensity */
                 16,
                 /* n2dAdjacentPixIntensity */
-                511,
+                128,
                 /* n2dEdgeIntensity */
-                48,
+                32,
                 /* n2dLumaIntensit */
-                64,
+                32,
                 /* n2dChromaIntensity */
                 1,
             },
@@ -342,26 +342,26 @@ static ADAPTIVE_ISP_PIPELINE_PARAM_T adap_imx385_r2k =
                 /* nRawDomainIntensity */
                 16,
                 /* n2dAdjacentPixIntensity */
-                511,
+                128,
                 /* n2dEdgeIntensity */
-                48,
+                36,
                 /* n2dLumaIntensit */
-                64,
+                48,
                 /* n2dChromaIntensity */
-                160,
+                80,
             },
             /* 3 */
             {
                 /* nRawDomainIntensity */
                 16,
                 /* n2dAdjacentPixIntensity */
-                511,
+               256,
                 /* n2dEdgeIntensity */
-                48,
+                40,
                 /* n2dLumaIntensit */
                 64,
                 /* n2dChromaIntensity */
-                255,
+                160,
             },
             /* 4 */
             {
@@ -385,17 +385,17 @@ static ADAPTIVE_ISP_PIPELINE_PARAM_T adap_imx385_r2k =
 
     // static ADAPTIVE_ISP_3D_DENOISE_PARAM_T nr3d_param = {
         /* nAdaptiveEnable */
-        1,
+        0,
         /* 3dnr */
         {
             /* 0 */
             {
                 /* nPre3dLumaThres */
-                64,
+                255,
                 /* nPre3dLumaIntensity */
-                64,
+                255,
                 /* nPre3dChromaIntensity */
-                64,
+                32,
                 /* nMain3dMiddleFilterThres */
                 128,
                 /* nMain3dPrevFrameMidFilter */
@@ -403,11 +403,11 @@ static ADAPTIVE_ISP_PIPELINE_PARAM_T adap_imx385_r2k =
                 /* nMain3dCurFrameMidFilterThres */
                 128,
                 /* nMain3dLowPassFilterVal */
-                60,
+                8,
                 /* nMain3dLumaThres */
                 64,
                 /* nMain3dMinimumVal */
-                1,
+                0,
                 /* nMain3dLumaIntensity */
                 128,
                 /* nMain3dChromaIntensity */
@@ -423,11 +423,11 @@ static ADAPTIVE_ISP_PIPELINE_PARAM_T adap_imx385_r2k =
             /* 1 */
             {
                 /* nPre3dLumaThres */
-                64,
+                255,
                 /* nPre3dLumaIntensity */
-                64,
+                255,
                 /* nPre3dChromaIntensity */
-                64,
+                32,
                 /* nMain3dMiddleFilterThres */
                 128,
                 /* nMain3dPrevFrameMidFilter */
@@ -435,7 +435,7 @@ static ADAPTIVE_ISP_PIPELINE_PARAM_T adap_imx385_r2k =
                 /* nMain3dCurFrameMidFilterThres */
                 128,
                 /* nMain3dLowPassFilterVal */
-                60,
+                8,
                 /* nMain3dLumaThres */
                 64,
                 /* nMain3dMinimumVal */
@@ -455,11 +455,11 @@ static ADAPTIVE_ISP_PIPELINE_PARAM_T adap_imx385_r2k =
             /* 2 */
             {
                 /* nPre3dLumaThres */
-                64,
+                128,
                 /* nPre3dLumaIntensity */
-                64,
+                128,
                 /* nPre3dChromaIntensity */
-                64,
+                32,
                 /* nMain3dMiddleFilterThres */
                 128,
                 /* nMain3dPrevFrameMidFilter */
@@ -467,7 +467,7 @@ static ADAPTIVE_ISP_PIPELINE_PARAM_T adap_imx385_r2k =
                 /* nMain3dCurFrameMidFilterThres */
                 128,
                 /* nMain3dLowPassFilterVal */
-                60,
+                8,
                 /* nMain3dLumaThres */
                 64,
                 /* nMain3dMinimumVal */
@@ -491,7 +491,7 @@ static ADAPTIVE_ISP_PIPELINE_PARAM_T adap_imx385_r2k =
                 /* nPre3dLumaIntensity */
                 64,
                 /* nPre3dChromaIntensity */
-                64,
+                32,
                 /* nMain3dMiddleFilterThres */
                 128,
                 /* nMain3dPrevFrameMidFilter */
@@ -499,7 +499,7 @@ static ADAPTIVE_ISP_PIPELINE_PARAM_T adap_imx385_r2k =
                 /* nMain3dCurFrameMidFilterThres */
                 128,
                 /* nMain3dLowPassFilterVal */
-                60,
+                8,
                 /* nMain3dLumaThres */
                 64,
                 /* nMain3dMinimumVal */
@@ -523,7 +523,7 @@ static ADAPTIVE_ISP_PIPELINE_PARAM_T adap_imx385_r2k =
                 /* nPre3dLumaIntensity */
                 64,
                 /* nPre3dChromaIntensity */
-                64,
+                32,
                 /* nMain3dMiddleFilterThres */
                 128,
                 /* nMain3dPrevFrameMidFilter */
@@ -531,7 +531,7 @@ static ADAPTIVE_ISP_PIPELINE_PARAM_T adap_imx385_r2k =
                 /* nMain3dCurFrameMidFilterThres */
                 128,
                 /* nMain3dLowPassFilterVal */
-                60,
+                8,
                 /* nMain3dLumaThres */
                 64,
                 /* nMain3dMinimumVal */
@@ -619,96 +619,96 @@ static ADAPTIVE_ISP_PIPELINE_PARAM_T adap_imx385_r2k =
             /* A */
             {
                 /* nRGain */
-                162,
+                153,
                 /* nBGain */
-                449,
+                485,
                 /* tCcmCtlParam */
                 {
                     /* nCtCcm[3][3] */
                     {
-                        {311, 49, 6},
-                        {62, 343, 26},
-                        {16, 142, 414},
+                        {256, 0, 0},
+                        {83, 341, 2},
+                        {1, 159, 416},
                     },
                 },
             },
             /* U30 */
             {
                 /* nRGain */
-                156,
+                150,
                 /* nBGain */
-                458,
+                489,
                 /* tCcmCtlParam */
                 {
                     /* nCtCcm[3][3] */
                     {
-                        {299, 39, 5},
-                        {56, 336, 24},
-                        {13, 126, 395},
+                        {256, 0, 0},
+                        {83, 341, 2},
+                        {1, 159, 416},
                     },
                 },
             },
             /* U35 */
             {
                 /* nRGain */
-                176,
+                172,
                 /* nBGain */
-                402,
+                449,
                 /* tCcmCtlParam */
                 {
                     /* nCtCcm[3][3] */
                     {
-                        {287, 28, 3},
-                        {50, 328, 22},
-                        {9, 111, 376},
+                        {256, 0, 0},
+                        {83, 341, 2},
+                        {1, 99, 356},
                     },
                 },
             },
             /* TL84 */
             {
                 /* nRGain */
-                194,
+                190,
                 /* nBGain */
-                360,
+                381,
                 /* tCcmCtlParam */
                 {
                     /* nCtCcm[3][3] */
                     {
-                        {259, 2, 1},
-                        {37, 310, 17},
-                        {1, 75, 332},
+                        {256, 0, 0},
+                        {83, 341, 2},
+                        {1, 63, 320},
                     },
                 },
             },
             /* D50 */
             {
                 /* nRGain */
-                234,
+                224,
                 /* nBGain */
-                299,
+                303,
                 /* tCcmCtlParam */
                 {
                     /* nCtCcm[3][3] */
                     {
-                        {277, 19, 3},
-                        {45, 322, 20},
-                        {6, 98, 360},
+                        {256, 0, 0},
+                        {83, 361, 22},
+                        {1,63, 320},
                     },
                 },
             },
             /* D65 */
             {
                 /* nRGain */
-                257,
+                250,
                 /* nBGain */
-                269,
+                270,
                 /* tCcmCtlParam */
                 {
                     /* nCtCcm[3][3] */
                     {
-                        {259, 2, 1},
-                        {37, 310, 17},
-                        {1, 75, 332},
+                        {256, 0, 0},
+                        {83, 361, 22},
+                        {0, 44, 300},
                     },
                 },
             },
@@ -727,37 +727,37 @@ static ADAPTIVE_ISP_PIPELINE_PARAM_T adap_imx385_r2k =
             /* 0 */
             {
             /* nRGain[2]; [0]: Min [1]: Max */
-            {194, 257},
+            {190, 282},
             /* nBGain[2]; [0]: Min [1]: Max */
-            {269, 360},
+            {233, 381},
             },
             /* 1 */
             {
             /* nRGain[2]; [0]: Min [1]: Max */
-            {162, 257},
+            {150, 282},
             /* nBGain[2]; [0]: Min [1]: Max */
-            {269, 449},
+            {233, 493},
             },
             /* 2 */
             {
             /* nRGain[2]; [0]: Min [1]: Max */
-            {162, 257},
+            {150, 282},
             /* nBGain[2]; [0]: Min [1]: Max */
-            {269, 449},
+            {233, 493},
             },
             /* 3 */
             {
             /* nRGain[2]; [0]: Min [1]: Max */
-            {194, 257},
+            {172, 252},
             /* nBGain[2]; [0]: Min [1]: Max */
-            {269, 360},
+            {265, 449},
             },
             /* 4 */
             {
             /* nRGain[2]; [0]: Min [1]: Max */
-            {194, 257},
+            {172, 252},
             /* nBGain[2]; [0]: Min [1]: Max */
-            {269, 360},
+            {265, 449},
             },
         },
     // };
@@ -837,7 +837,7 @@ static ADAPTIVE_ISP_PIPELINE_PARAM_T adap_imx385_r2k =
     {
     // static ADAPTIVE_ISP_IR_CUT_PARAM_T ir_cut_param = {
         /* nAutoSwitchEnable */
-        1,
+        0,
         /* tIrCutParam */
         {
             /* Day2Night */

@@ -48,21 +48,21 @@ jobs:
       - name: Install toolchain
         id: install_toolchain
         run: |
-          test -f toolchain/nds64le-linux-glibc-v5d.txz || wget -c https://ai.b-bug.org/k510_buildroot/toolchain/nds64le-linux-glibc-v5d.txz -O toolchain/nds64le-linux-glibc-v5d.txz
-          test -f toolchain/nds64le-elf-mculib-v5d.txz || wget -c https://ai.b-bug.org/k510_buildroot/toolchain/nds64le-elf-mculib-v5d.txz -O toolchain/nds64le-elf-mculib-v5d.txz          
+          test -f toolchain/nds64le-linux-glibc-v5d.txz || wget -c https://ai.b-bug.org/k510/toolchain/nds64le-linux-glibc-v5d.txz -O toolchain/nds64le-linux-glibc-v5d.txz
+          test -f toolchain/nds64le-elf-mculib-v5d.txz || wget -c https://ai.b-bug.org/k510/toolchain/nds64le-elf-mculib-v5d.txz -O toolchain/nds64le-elf-mculib-v5d.txz          
 
       - name: Download cache package
         id: download_cache
         run: |
           test -f pkg-download/dl.tar.gz && rm pkg-download/dl.tar.gz
-          wget -qc https://ai.b-bug.org/k510_buildroot/pkg-download/dl.tar.gz -O pkg-download/dl.tar.gz
+          wget -qc https://ai.b-bug.org/k510/downloads/pkg-download/dl.tar.gz -O pkg-download/dl.tar.gz
           echo "dl.tar.gz file md5 check"
           md5sum pkg-download/dl.tar.gz
           test -d dl_bak && rm -rf dl_bak
           test -d dl && mv dl dl_bak
           tar -xf pkg-download/dl.tar.gz
           test -d dl/ai/ || mkdir -p dl/ai/
-          wget -qc https://ai.b-bug.org/k510_buildroot/pkg-download/ai_kmodel_data.tar.xz -O dl/ai/ai_kmodel_data.tar.xz
+          wget -qc https://ai.b-bug.org/k510/downloads/pkg-download/ai_kmodel_data.tar.xz -O dl/ai/ai_kmodel_data.tar.xz
           echo "ai_kmodel_data.tar.xz file md5 check"
           md5sum dl/ai/ai_kmodel_data.tar.xz
           test -d dl/riscv-pk-k510 && (test -d dl/riscv-pk-k510 || mv dl_bak/riscv-pk-k510 dl/)
@@ -84,34 +84,37 @@ jobs:
           VER=$(cat $CONF/target/etc/version/release_version | grep ".*CST-github-pull-request" | sed 's/\(.*\)CST-github-pull-request/\1/g') || exit 1
           echo $VER
           mkdir -p $CI_ROOT/$VER/$HW/
-          cp -r $CONF/images/* $CI_ROOT/$VER/$HW/
-          cp -r $CONF/target/etc/version/release_version $CI_ROOT/$VER/$HW/
+          cp -r --sparse=always $CONF/images/* $CI_ROOT/$VER/$HW/
+          cp -r --sparse=always $CONF/target/etc/version/release_version $CI_ROOT/$VER/$HW/
           test -d $CI_ROOT/latest && rm $CI_ROOT/latest
-          ln -s $CI_ROOT/$VER $CI_ROOT/latest
+          ln -s -f $CI_ROOT/$VER $CI_ROOT/latest
 
       - name: Save image to TFTP
         id: save_tftp
         run: |
-          export FILE_SUFFIX=`echo ${{ matrix.cfg }}|awk -F '_' '{print $1"-"$3"."$4}'`-$PULL_REQUEST_ID-$GITHUB_RUN_ID
-          echo $FILE_SUFFIX
-          cp $CONF/images/bootm-bbl.img $TFTP_ROOT/bootm-bbl-$FILE_SUFFIX.img
-          cp $CONF/images/k510.dtb $TFTP_ROOT/k510-$FILE_SUFFIX.dtb
-          md5_bbl=$(md5sum $TFTP_ROOT/bootm-bbl-$FILE_SUFFIX.img | awk '{print $1}')
-          md5_dtb=$(md5sum $TFTP_ROOT/k510-$FILE_SUFFIX.dtb | awk '{print $1}')
+          export HW=`echo ${{ matrix.cfg }}|awk -F '_' '{print $1"_"$3"."$4}'`
+          export SAVE_DIR=$TFTP_ROOT/k510/$HW/$PULL_REQUEST_ID"_"$GITHUB_RUN_ID
+          echo $HW
+          echo $SAVE_DIR
+          mkdir -p $SAVE_DIR/
+          cp --sparse=always $CONF/images/bootm-bbl.img $SAVE_DIR/bootm-bbl.img
+          cp --sparse=always $CONF/images/k510.dtb $SAVE_DIR/k510.dtb
+          md5_bbl=$(md5sum $SAVE_DIR/bootm-bbl.img | awk '{print $1}')
+          md5_dtb=$(md5sum $SAVE_DIR/k510.dtb | awk '{print $1}')
           echo $md5_bbl
           echo $md5_dtb
-          echo "::set-output name=md5_bbl::$md5_bbl"
-          echo "::set-output name=md5_dtb::$md5_dtb"
+          echo "md5_bbl=$md5_bbl" >> $GITHUB_OUTPUT
+          echo "md5_dtb=$md5_dtb" >> $GITHUB_OUTPUT
       
       - name: Save image to NFS
         id: save_nfs
         run: |
           export HW=`echo ${{ matrix.cfg }}|awk -F '_' '{print $1"_"$3"."$4}'`
-          export SAVE_DIR=$PULL_REQUEST_ID"_"$GITHUB_RUN_ID
+          export SAVE_DIR=$NFS_ROOT/k510/$HW/$PULL_REQUEST_ID"_"$GITHUB_RUN_ID
           echo $HW
           echo $SAVE_DIR
-          mkdir -p $NFS_ROOT/k510/$HW/$SAVE_DIR/
-          tar -xf $CONF/images/rootfs.tar -C $NFS_ROOT/k510/$HW/$PULL_REQUEST_ID"_"$GITHUB_RUN_ID
+          mkdir -p $SAVE_DIR/
+          tar -xf $CONF/images/rootfs.tar -C $SAVE_DIR/
 
   test_image:
     name: Test
@@ -134,7 +137,7 @@ jobs:
           export HW_VER=`echo ${{ matrix.cfg }}|awk -F '_' '{print $3"."$4}'`
           test -d bin || mkdir ./bin
           test -f ./bin/ailab && rm -rf ./bin/ailab
-          wget -qc https://ai.b-bug.org/k510_buildroot/github/ailab -O ./bin/ailab
+          wget -qc https://ai.b-bug.org/k510/downloads/github/ailab -O ./bin/ailab
           chmod +x ./bin/ailab
           available=$(./bin/ailab show --dest available --hw_type k510 --hw_model $HW_MODEL --hw_ver $HW_VER --format args)
           echo $available
@@ -142,7 +145,7 @@ jobs:
           if [[ $available =~ "k510" ]]; then
             echo "Get Available DUT pass"
           else
-            echo "ERROR: No Available DUT"
+            echo "ERROR: No Available DUT, Please rerun to check it again"
             exit 1
           fi
 
@@ -179,7 +182,7 @@ jobs:
           echo "dtb md5: ${{needs.build_image.outputs.md5_dtb}}"
           test -d bin || mkdir ./bin
           test -f ./bin/aiload && rm -rf ./bin/aiload
-          wget -qc https://ai.b-bug.org/k510_buildroot/github/aiload -O ./bin/aiload
+          wget -qc https://ai.b-bug.org/k510/downloads/github/aiload -O ./bin/aiload
           chmod +x ./bin/aiload
           echo $PULL_REQUEST_ID
           echo $GITHUB_RUN_ID
@@ -192,10 +195,10 @@ jobs:
           echo "Run Test start"
           test -d bin || mkdir ./bin
           test -f ./bin/airobot && rm -rf ./bin/airobot
-          wget -qc https://ai.b-bug.org/k510_buildroot/github/airobot -O ./bin/airobot
+          wget -qc https://ai.b-bug.org/k510/downloads/github/airobot -O ./bin/airobot
           chmod +x ./bin/airobot
           test -f ./k510.robot && rm -rf ./k510.robot
-          wget -qc https://ai.b-bug.org/k510_buildroot/github/k510.robot -O ./k510.robot
+          wget -qc https://ai.b-bug.org/k510/downloads/github/k510.robot -O ./k510.robot
           ./bin/ailab convert --dest=script --format yaml --file_name=var.yml ${{ env.available }}
           test -f var.yml || exit 1
           echo "Run test case start"
