@@ -1197,7 +1197,7 @@ int mediactl_hw_set_ae(enum isp_pipeline_e pipeline)
 		}
 		control_s.id = V4L2_CID_GAIN;
 		control_s.value = ae_stats.ae_agco;
-		
+
 		ret = ioctl(sensor0->fd,VIDIOC_S_CTRL,&control_s);
 		if (ret < 0)
 		{
@@ -1310,7 +1310,7 @@ int mediactl_hw_set_ae(enum isp_pipeline_e pipeline)
 int sw_ae_value_set(enum isp_pipeline_e pipeline, struct media_entity *pipe)
 {
 	int ret = 0;
-	static int y_everage_temp = 0;
+	static int y_average_temp = 0;
 	struct k510isp_ae_stats ae_stats;
 	struct media_entity *sensor_n = NULL;
 	ret = v4l2_subdev_open(pipe);
@@ -1320,7 +1320,7 @@ int sw_ae_value_set(enum isp_pipeline_e pipeline, struct media_entity *pipe)
 	{
 		ioctl(pipe->fd,VIDIOC_K510ISP_F2K_AE_STAT_REQ, &ae_stats);
 		v4l2_subdev_close(pipe);
-		y_everage_temp = ae_stats.y_av;
+		y_average_temp = ae_stats.y_av;
 		sensor_n = v4l_isp.sensor0;
 	}
 	else if(ISP_R2K_PIPELINE == pipeline)
@@ -1331,7 +1331,7 @@ int sw_ae_value_set(enum isp_pipeline_e pipeline, struct media_entity *pipe)
 			v4l2_subdev_close(pipe);
 		}
 		else{
-			ae_stats.y_av = y_everage_temp;
+			ae_stats.y_av = y_average_temp;
 		}
 		sensor_n = v4l_isp.sensor1;
 	}
@@ -1500,7 +1500,7 @@ int mediactl_sw_set_ae(enum isp_pipeline_e pipeline)
 	ae_ctl_manual_set(AE_CTL_MANUAL_SET_TARGET_RANGE_MODE, NULL, pipeline, adaptive_ex_gt_target_range_stat(pipeline), NULL);
 	attr_page_flag_u[pipeline].u32 = 0;
 	adap_attr_page[pipeline].nWritten = 3;
-	return ret;
+    return ret;
 }
 
 #endif
@@ -2455,4 +2455,65 @@ float ir_cut_hold_time_get(enum isp_pipeline_e pipeline, enum ir_cut_mode_e ir_c
 int ir_cut_hold_time_set(enum isp_pipeline_e pipeline, enum ir_cut_mode_e ir_cut_mode, float hold_time)
 {
     return adap_ir_cut_hold_time_set(pipeline, ir_cut_mode, hold_time);
+}
+
+int ae_y_average_get(enum isp_pipeline_e pipeline, unsigned int *value)
+{
+    int ret = 0;
+    struct media_entity *pipe;
+    if(value == NULL)
+    {
+        printf("%s, pipeline: %d, *value is NULL !\n", __func__, pipeline);
+        return -1;
+    }
+
+    if(ISP_F2K_PIPELINE == pipeline)
+    {
+        pipe = v4l_isp.f2k;
+    }
+    else if(ISP_R2K_PIPELINE == pipeline)
+    {
+        pipe = v4l_isp.r2k;
+    }
+    else{
+        printf("%s, pipeline: %d, is not support!\n", __func__, pipeline);
+        return -1;
+    }
+
+	struct k510isp_reg_val ae_y_average_reg =
+    {
+        .reg_addr = ISP_CORE_AE_CUR_AVE_BRIGHTNESS,
+        .reg_value = 0,
+    };
+
+	ret = v4l2_subdev_open(pipe);
+	if (ret < 0)
+	{
+        printf("%s, pipeline: %d, open failed, error code: %d!\n", __func__, pipeline, ret);
+		return ret;
+	}
+
+    if(pipeline == ISP_F2K_PIPELINE)
+    {
+        ret = ioctl(pipe->fd, VIDIOC_K510ISP_F2K_CORE_REG_GET, &ae_y_average_reg);
+        if (ret < 0)
+        {
+            printf("%s, pipeline %d, get y average failed, error code %d\n", __func__, pipeline, ret);
+            v4l2_subdev_close(pipe);
+            return ret;
+        }
+    }
+    else if(pipeline == ISP_R2K_PIPELINE)
+    {
+        ret = ioctl(pipe->fd,VIDIOC_K510ISP_R2K_CORE_REG_GET, &ae_y_average_reg);
+        if (ret < 0)
+        {
+            printf("%s, pipeline %d, get y average failed, error code %d\n", __func__, pipeline, ret);
+            v4l2_subdev_close(pipe);
+            return ret;
+        }
+    }
+    v4l2_subdev_close(pipe);
+    *value = ae_y_average_reg.reg_value;
+    return 0;
 }

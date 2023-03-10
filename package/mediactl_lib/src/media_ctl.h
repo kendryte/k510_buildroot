@@ -169,6 +169,9 @@ int ir_cut_ev_set(enum isp_pipeline_e pipeline, enum ir_cut_mode_e ir_cut_mode, 
 float ir_cut_hold_time_get(enum isp_pipeline_e pipeline, enum ir_cut_mode_e ir_cut_mode);
 int ir_cut_hold_time_set(enum isp_pipeline_e pipeline, enum ir_cut_mode_e ir_cut_mode, float hold_time);
 
+/* ae state get API */
+int ae_y_average_get(enum isp_pipeline_e pipeline, unsigned int *value);
+
 #ifdef __cplusplus
 }
 #endif
