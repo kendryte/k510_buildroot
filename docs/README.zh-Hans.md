@@ -49,9 +49,29 @@ git clone https://github.com/kendryte/k510_buildroot.git
 
 ### 启动docker
 
-```sh
-sh k510_buildroot/tools/docker/run_k510_docker.sh
-```
+* 用户模式(不需要root权限)
+
+   ```sh
+   sh k510_buildroot/tools/docker/run_k510_docker_user.sh
+   ```
+
+   _**注意:**_ 该模式需要Docker守护程序以rootless模式运行，以下为简化步骤(只需执行一次，详细过程请参考[docker rootless](https://docs.docker.com/engine/security/rootless/#install)):
+
+   ```sh
+   dockerd-rootless-setuptool.sh install
+   ```
+
+   如果`dockerd-rootless-setuptool.sh`命令不存在，需要联系管理员安装软件包`docker-ce-rootless-extras`:
+
+   ```sh
+   sudo apt-get install docker-ce-rootless-extras
+   ```
+
+* root模式(需要root权限)
+
+   ```sh
+   sh k510_buildroot/tools/docker/run_k510_docker.sh
+   ```
 
 ### 编译代码库
 
