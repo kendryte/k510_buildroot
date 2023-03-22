@@ -49,9 +49,29 @@ git clone https://github.com/kendryte/k510_buildroot.git
 
 ### Start Docker
 
-```sh
-sh k510_buildroot/tools/docker/run_k510_docker.sh
-```
+* user mode(not require root privileges)
+
+   ```sh
+   sh k510_buildroot/tools/docker/run_k510_docker_user.sh
+   ```
+
+   _**Note:**_ This mode requires the Docker daemon to run in rootless mode, the following are simplified steps (only need to execute it once, for the detailed process, please refer to [docker rootless](https://docs.docker.com/engine/security/rootless/#install)):
+
+   ```sh
+   dockerd-rootless-setuptool.sh install
+   ```
+
+   If `dockerd-rootless-setuptool.sh` is not present, you may need to install the `docker-ce-rootless-extras` package manually:
+
+   ```sh
+   sudo apt-get install docker-ce-rootless-extras
+   ```
+
+* root mode(require root privileges)
+
+   ```sh
+   sh k510_buildroot/tools/docker/run_k510_docker.sh
+   ```
 
 ### Compile the code base
 
