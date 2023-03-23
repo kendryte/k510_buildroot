@@ -1,0 +1,73 @@
+From 8d77e828b8a452b68ea140740f73b2064aaa6da7 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=E9=BB=84=E5=AD=90=E6=87=BF?=
+ <huangziyi@canaan-creative.com>
+Date: Wed, 22 Mar 2023 11:41:57 +0800
+Subject: [PATCH] fix #453: RTC driver, write time
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Signed-off-by: 黄子懿 <huangziyi@canaan-creative.com>
+---
+ drivers/rtc/rtc-kendryte.c | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/drivers/rtc/rtc-kendryte.c b/drivers/rtc/rtc-kendryte.c
+index bcb490595..5a046b68c 100755
+--- a/drivers/rtc/rtc-kendryte.c
++++ b/drivers/rtc/rtc-kendryte.c
+@@ -147,6 +147,7 @@ static void kendryte_rtc_set_clock_count_val(struct kendryte_rtc *rtc, uint32_t
+ 	kendryte_rtc_set_mode(rtc ,RTC_TIMER_SETTING);
+ 	
+ 	writel(count, rtc->base + KENDRYTE_CURRENT_COUNT_REG);
++	udelay(100);
+ 	
+ 	kendryte_rtc_set_mode(rtc ,RTC_TIMER_RUNNING);
+ }
+@@ -160,6 +161,7 @@ static void kendryte_rtc_clear_alarm_irq(struct kendryte_rtc *rtc)
+ 	reg = readl(rtc->base + KENDRYTE_ITERRUPT_CTRL_REG);
+ 	reg = (reg & ~(BIT_MASK(4))) | (1 << 4);
+ 	writel(reg, rtc->base + KENDRYTE_ITERRUPT_CTRL_REG);
++	udelay(100);
+ 	
+ 	kendryte_rtc_set_mode(rtc ,RTC_TIMER_RUNNING);
+ 	
+@@ -227,12 +229,14 @@ static int kendryte_rtc_settime(struct device *dev, struct rtc_time *rtc_tm)
+ 	reg = reg | (((rtc_tm->tm_mon + 1) % 13) << 16);	
+ 	reg = reg | ((rtc_tm->tm_mday % 32) << 8);
+ 	writel(reg, rtc->base + KENDRYTE_DATA_REG);
++	udelay(100);
+ 	
+ 	reg = 0;
+ 	reg = reg | ((rtc_tm->tm_hour % 24) << 24);
+ 	reg = reg | ((rtc_tm->tm_min % 60) << 16);
+ 	reg = reg | ((rtc_tm->tm_sec % 61) << 10);
+ 	writel(reg, rtc->base + KENDRYTE_TIME_REG);
++	udelay(100);
+ 	
+ 	kendryte_rtc_set_mode(rtc, RTC_TIMER_RUNNING);
+ 
+@@ -290,17 +294,20 @@ static int kendryte_rtc_setalarm(struct device *dev, struct rtc_wkalrm *alrm)
+ 	reg = reg | (((alm_tm->tm_mon + 1) % 13) << 16);			// 1 - 12
+ 	reg = reg | ((alm_tm->tm_mday % 32) << 8);
+ 	writel(reg, rtc->base + KENDRYTE_ALARM_DATA_REG);
++	udelay(100);
+ 	
+ 	reg = 0;
+ 	reg = reg | ((alm_tm->tm_hour % 24) << 24);
+ 	reg = reg | ((alm_tm->tm_min % 60) << 16);
+ 	reg = reg | ((alm_tm->tm_sec % 61) << 10);
+ 	writel(reg, rtc->base + KENDRYTE_ALARM_TIME_REG);
++	udelay(100);
+ 
+ 	// set alarm interrupt mask
+ 	reg = readl(rtc->base + KENDRYTE_ITERRUPT_CTRL_REG);
+ 	reg = (reg & ~(val << 25)) | (val << 25);
+ 	writel(reg, rtc->base + KENDRYTE_ITERRUPT_CTRL_REG);
++	udelay(100);
+ 	
+ 	kendryte_rtc_set_mode(rtc, RTC_TIMER_SETTING);
+ 	
+-- 
+2.39.1
+
