@@ -7,14 +7,14 @@
 
 #https://github.com/kendryte/nncase/releases/download/v1.6.0/nncase-k510-1.6.0.tgz
 #https://github.com/kendryte/nncase/releases/download/v1.6.0/nncase-k510-1.6.0.tgz
-NNCASE_PIP_VD = 1.7.1.20220701
-NNCASE_PIP_K510_VD = 1.7.1.20220701
-NNCASE_VSTR = v1.7.1
+NNCASE_PIP_VD = 1.9.0.20230322
+NNCASE_PIP_K510_VD = 1.9.0.20230323
+NNCASE_VSTR = v1.9.0
 
-NNCASE_LINUX_RUNTIME_SOURCE = nncaseruntime-k510-v1.7.1.tgz
+NNCASE_LINUX_RUNTIME_SOURCE = nncaseruntime-k510-$(NNCASE_VSTR).tgz
+#NNCASE_LINUX_RUNTIME_SITE = https://github.com/kendryte/nncase/releases/download/$(NNCASE_VSTR)
 NNCASE_LINUX_RUNTIME_SITE = https://kendryte-download.canaan-creative.com/k510/nncase/release/$(NNCASE_VSTR)
 NNCASE_LINUX_RUNTIME_EXTRA_DOWNLOADS = $(NNCASE_LINUX_RUNTIME_SITE)/nncase-$(NNCASE_PIP_VD)-cp310-cp310-manylinux_2_24_x86_64.whl
-NNCASE_LINUX_RUNTIME_EXTRA_DOWNLOADS += $(NNCASE_LINUX_RUNTIME_SITE)/nncase-$(NNCASE_PIP_VD)-cp36-cp36m-manylinux_2_24_x86_64.whl
 NNCASE_LINUX_RUNTIME_EXTRA_DOWNLOADS += $(NNCASE_LINUX_RUNTIME_SITE)/nncase-$(NNCASE_PIP_VD)-cp37-cp37m-manylinux_2_24_x86_64.whl
 NNCASE_LINUX_RUNTIME_EXTRA_DOWNLOADS += $(NNCASE_LINUX_RUNTIME_SITE)/nncase-$(NNCASE_PIP_VD)-cp38-cp38-manylinux_2_24_x86_64.whl
 NNCASE_LINUX_RUNTIME_EXTRA_DOWNLOADS += $(NNCASE_LINUX_RUNTIME_SITE)/nncase-$(NNCASE_PIP_VD)-cp39-cp39-manylinux_2_24_x86_64.whl
@@ -40,11 +40,11 @@ NNCASE_LINUX_RUNTIME_INSTALL_TARGET = NO
 
 define NNCASE_LINUX_RUNTIME_INSTALL_STAGING_CMDS
 	$(call NNCASE_LINUX_RUNTIME_nncase_nncase_k510_pip3_install)
-	cp -rf $(@D)/riscv64/gsl $(STAGING_DIR)/usr/include/
-	cp -rf $(@D)/riscv64/gsl-lite  $(STAGING_DIR)/usr/include/
-	cp -rf $(@D)/riscv64/mpark  $(STAGING_DIR)/usr/include/
-	cp -rf $(@D)/riscv64/nncase/include/* $(STAGING_DIR)/usr/include/
-	cp -rf $(@D)/riscv64/nncase/lib/*.a $(STAGING_DIR)/usr/lib/
+	cp -rf $(@D)/gsl $(STAGING_DIR)/usr/include/
+	cp -rf $(@D)/gsl-lite  $(STAGING_DIR)/usr/include/
+	cp -rf $(@D)/mpark  $(STAGING_DIR)/usr/include/
+	cp -rf $(@D)/nncase/include/* $(STAGING_DIR)/usr/include/
+	cp -rf $(@D)/nncase/lib/*.a $(STAGING_DIR)/usr/lib/
 endef
 
 $(eval $(generic-package))
