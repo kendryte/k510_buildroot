@@ -1,0 +1,646 @@
+From a4df998a9dc2c2b76b8032f880e762e2eb2053d3 Mon Sep 17 00:00:00 2001
+From: wangquan <wangquan@canaan-creative.com>
+Date: Tue, 9 Aug 2022 19:09:05 +0800
+Subject: [PATCH] Add uboot HDMI logo
+
+---
+ .../controler/video/mipi/dsi/cnds_dsi_test.c  |  27 +--
+ .../controler/video/mipi/dsi/cnds_dsi_test.h  |   4 +-
+ .../dsi_logo/test/log/hw_dev/inc/lt9611.h     |   2 +
+ .../log/hw_dev/src/display_hardware_init.c    |   6 +-
+ .../dsi_logo/test/log/hw_dev/src/lt9611.c     | 207 ++++++++++++++++++
+ board/Canaan/dsi_logo/test/log/vo/vo_app.c    |  89 +++++---
+ board/Canaan/k510_crb_lp3/Makefile            |   2 +-
+ .../k510_crb_lp3/get_display_resolution.c     |  47 ++++
+ include/display_resolution.h                  |  18 ++
+ include/env.h                                 |   2 +
+ 10 files changed, 357 insertions(+), 47 deletions(-)
+ create mode 100644 board/Canaan/k510_crb_lp3/get_display_resolution.c
+ create mode 100644 include/display_resolution.h
+
+diff --git a/board/Canaan/dsi_logo/bsp/controler/video/mipi/dsi/cnds_dsi_test.c b/board/Canaan/dsi_logo/bsp/controler/video/mipi/dsi/cnds_dsi_test.c
+index 08d2c3ad..aef99734 100755
+--- a/board/Canaan/dsi_logo/bsp/controler/video/mipi/dsi/cnds_dsi_test.c
++++ b/board/Canaan/dsi_logo/bsp/controler/video/mipi/dsi/cnds_dsi_test.c
+@@ -38,6 +38,7 @@
+ #include "sysctl_rst.h"
+ 
+ #include "k510.h"
++#include "display_resolution.h"
+ 
+ void wait_phy_pll_locked()
+ {
+@@ -2256,30 +2257,30 @@ void dsi_prepare(void)
+ static int32_t lcd_id = 0;
+ int32_t get_lcd_id(void)
+ {
++    dsi_prepare();
++    DsiRegWr(DPI_IRQ_EN_OFFSET, 0); // enable dpi overflow int
++    msleep(100);
++    lcd_id = hx8399_read_id();
+     return lcd_id;
+ }
+ 
+-void dsi_init_1080x1920()
++void dsi_init_1080x1920(struct display_resolution *resolution)
+ {
+-        int HACT = 1080;
+-        int VACT = 1920;
+-        int HSA = 20;
+-        int HBP = 20;
+-        int HFP = 134;
++        uint32_t HACT = resolution->hdisplay;
++        uint32_t VACT = resolution->vdisplay;
++        uint32_t HSA = resolution->hsync_len;
++        uint32_t HBP = resolution->hback_porch;
++        uint32_t HFP = resolution->hfront_porch;
+ 
+-        int VSA = 5;
+-        int VBP = 8;
+-        int VFP = 5;
++        uint32_t VSA = resolution->vsync_len;
++        uint32_t VBP = resolution->vback_porch;
++        uint32_t VFP = resolution->vfront_porch;
+ 
+         int i = 0;
+         uint32_t reg = 0;
+         uint32_t val = 0;
+ 
+-        dsi_prepare();
+-        DsiRegWr(DPI_IRQ_EN_OFFSET, 0); // enable dpi overflow int
+-        msleep(100);
+ 
+-        lcd_id = hx8399_read_id();
+         if (lcd_id == -1) {
+                 sysctl_reset(SYSCTL_RESET_DSI);
+                 mipi_txdphy_init();
+diff --git a/board/Canaan/dsi_logo/bsp/include/controler/video/mipi/dsi/cnds_dsi_test.h b/board/Canaan/dsi_logo/bsp/include/controler/video/mipi/dsi/cnds_dsi_test.h
+index b510e853..a448c7d2 100755
+--- a/board/Canaan/dsi_logo/bsp/include/controler/video/mipi/dsi/cnds_dsi_test.h
++++ b/board/Canaan/dsi_logo/bsp/include/controler/video/mipi/dsi/cnds_dsi_test.h
+@@ -31,6 +31,7 @@
+ 
+ #ifndef CNDS_DSI_TEST_H_
+ #define CNDS_DSI_TEST_H_
++#include "display_resolution.h"
+  void wait_phy_pll_locked();
+  void wait_cklane_rdy();
+  void wait_dat1_rdy();
+@@ -39,7 +40,8 @@
+  void wait_dat4_rdy();
+ void  dsc_cmd_send(int par, int data1, int data2);
+ void  aml_lcd_init();
+-void dsi_init_1080x1920();
++void dsi_init_1080x1920(struct display_resolution *resolution);
++int get_lcd_id();
+ 
+ 
+ #endif /* CNDS_DSI_TEST_H_ */
+diff --git a/board/Canaan/dsi_logo/test/log/hw_dev/inc/lt9611.h b/board/Canaan/dsi_logo/test/log/hw_dev/inc/lt9611.h
+index 198d6448..43f95317 100644
+--- a/board/Canaan/dsi_logo/test/log/hw_dev/inc/lt9611.h
++++ b/board/Canaan/dsi_logo/test/log/hw_dev/inc/lt9611.h
+@@ -25,6 +25,8 @@
+ #ifndef _LT9611_H_
+ #define _LT9611_H_
+ 
++#include "display_resolution.h"
+ int lt9611_get_hpd_state(void);
++int lt9611_init(struct display_resolution *resolution);
+ 
+ #endif
+diff --git a/board/Canaan/dsi_logo/test/log/hw_dev/src/display_hardware_init.c b/board/Canaan/dsi_logo/test/log/hw_dev/src/display_hardware_init.c
+index 0e5f6e81..dd669621 100755
+--- a/board/Canaan/dsi_logo/test/log/hw_dev/src/display_hardware_init.c
++++ b/board/Canaan/dsi_logo/test/log/hw_dev/src/display_hardware_init.c
+@@ -132,9 +132,9 @@ void display_gpio_init(void)
+     gpio_set_drive_mode(HDMI_RESET_IO, GPIO_DM_OUTPUT);
+     gpio_set_pin(HDMI_RESET_IO, GPIO_PV_HIGH);
+ 
+-    muxpin_set_function(MIPI_SWITCH_SEL_PIN, FUNC_GPIO0 + MIPI_SWITCH_OE_IO);
+-    gpio_set_drive_mode(MIPI_SWITCH_OE_IO, GPIO_DM_INPUT);
+-    mipi_select_value = gpio_get_pin(MIPI_SWITCH_OE_IO);
++    muxpin_set_function(MIPI_SWITCH_SEL_PIN, FUNC_GPIO0 + MIPI_SWITCH_SEL_IO);
++    gpio_set_drive_mode(MIPI_SWITCH_SEL_IO, GPIO_DM_INPUT);
++    mipi_select_value = gpio_get_pin(MIPI_SWITCH_SEL_IO);
+ 
+     muxpin_set_function(LCD_RESET_PIN, FUNC_GPIO0 + LCD_RESET_IO);
+     gpio_set_drive_mode(LCD_RESET_IO, GPIO_DM_OUTPUT);
+diff --git a/board/Canaan/dsi_logo/test/log/hw_dev/src/lt9611.c b/board/Canaan/dsi_logo/test/log/hw_dev/src/lt9611.c
+index 8d21275f..3e11d5f2 100755
+--- a/board/Canaan/dsi_logo/test/log/hw_dev/src/lt9611.c
++++ b/board/Canaan/dsi_logo/test/log/hw_dev/src/lt9611.c
+@@ -29,6 +29,7 @@
+ #include <controler/gpio.h>
+ #include  "controler/sysctl_clk.h"
+ #include  "controler/sysctl_boot.h"
++#include "display_resolution.h"
+ 
+ #define LT9611_ADDR (0x76>>1)
+ 
+@@ -63,6 +64,212 @@ uint8_t lt9611_read_id(void)
+     printf("LT9611 ID %02x %02x\n", lt9611_read_byte(0x00), lt9611_read_byte(0x01));
+ }
+ 
++uint8_t lt9611_poweron(void)
++{
++    lt9611_write_byte(0xff, 0x81);
++    lt9611_write_byte(0x01, 0x18);
++
++    /* timer for frequency meter */
++    lt9611_write_byte(0xff, 0x82);
++    lt9611_write_byte(0x1b, 0x69);
++    lt9611_write_byte(0x1c, 0x78);
++    lt9611_write_byte(0xcb, 0x69);
++    lt9611_write_byte(0xcc, 0x78);
++
++    /* power consumption for work */
++    lt9611_write_byte(0xff, 0x80);
++    lt9611_write_byte(0x04, 0xf0);
++    lt9611_write_byte(0x06, 0xf0);
++    lt9611_write_byte(0x0a, 0x80);
++    lt9611_write_byte(0x0b, 0x46);
++    lt9611_write_byte(0x0d, 0xef);
++    lt9611_write_byte(0x11, 0xfa);
++
++}
++
++uint8_t lt9611_mipi_input_digital(void)
++{
++    lt9611_write_byte(0xff, 0x83);
++    lt9611_write_byte(0x00, 0x00);
++    lt9611_write_byte(0x0a, 0x00);
++
++    lt9611_write_byte(0xff, 0x82);
++    lt9611_write_byte(0x4f, 0x80);
++    lt9611_write_byte(0x50, 0x10);
++
++    lt9611_write_byte(0xff, 0x83);
++    lt9611_write_byte(0x03, 0x00);
++    lt9611_write_byte(0x02, 0x08);
++    lt9611_write_byte(0x06, 0x08);
++}
++
++uint8_t lt9611_mipi_input_analog(void)
++{
++    lt9611_write_byte(0xff, 0x81);
++    lt9611_write_byte(0x06, 0x60);
++    lt9611_write_byte(0x07, 0x3f);
++    lt9611_write_byte(0x08, 0x3f);
++    lt9611_write_byte(0x0a, 0xfe);
++    lt9611_write_byte(0x0b, 0xbf);
++    lt9611_write_byte(0x11, 0x60);
++    lt9611_write_byte(0x12, 0x3f);
++    lt9611_write_byte(0x13, 0x3f);
++    lt9611_write_byte(0x15, 0xfe);
++    lt9611_write_byte(0x16, 0xbf);
++    lt9611_write_byte(0x1c, 0x03);
++    lt9611_write_byte(0x20, 0x03);
++}
++
++uint8_t lt9611_pll_setup(void)
++{
++    lt9611_write_byte(0xff, 0x81);
++    lt9611_write_byte(0x23, 0x40);
++    lt9611_write_byte(0x24, 0x62);
++    lt9611_write_byte(0x25, 0x80);
++    lt9611_write_byte(0x26, 0x55);
++    lt9611_write_byte(0x2c, 0x37);
++    lt9611_write_byte(0x2f, 0x01);
++    lt9611_write_byte(0x26, 0x55);
++    lt9611_write_byte(0x27, 0x66);
++    lt9611_write_byte(0x28, 0x88);
++    lt9611_write_byte(0x2a, 0x20);
++    lt9611_write_byte(0x2d, 0xaa);
++
++    lt9611_write_byte(0xff, 0x83);
++    lt9611_write_byte(0x2d, 0x40);
++    lt9611_write_byte(0x31, 0x08);
++    lt9611_write_byte(0x26, 0x80 | 0x36);
++
++    lt9611_write_byte(0xff, 0x82);
++    lt9611_write_byte(0xe3, 0x00);
++    lt9611_write_byte(0xe4, 145);
++    lt9611_write_byte(0xe5, 5);
++
++
++    lt9611_write_byte(0xff, 0x82);
++    lt9611_write_byte(0xde, 0x20);
++    lt9611_write_byte(0xde, 0xe0);
++
++    lt9611_write_byte(0xff, 0x80);
++    lt9611_write_byte(0x18, 0xdc);
++    lt9611_write_byte(0x18, 0xfc);
++    lt9611_write_byte(0x16, 0xf1);
++    lt9611_write_byte(0x16, 0xf3);
++    lt9611_write_byte(0x11, 0x5a);
++    lt9611_write_byte(0x11, 0xfa);
++}
++
++uint8_t lt9611_video_setup(struct display_resolution *resolution)
++{
++    lt9611_write_byte(0xff, 0x83);
++    lt9611_write_byte(0x0d, resolution->vtotal/256);
++    lt9611_write_byte(0x0e, resolution->vtotal%256);
++    lt9611_write_byte(0x0f, resolution->vdisplay/256);
++    lt9611_write_byte(0x10, resolution->vdisplay%256);
++    lt9611_write_byte(0x11, resolution->htotal/256);
++    lt9611_write_byte(0x12, resolution->htotal%256);
++    lt9611_write_byte(0x13, resolution->hdisplay/256);
++    lt9611_write_byte(0x14, resolution->hdisplay%256);
++    lt9611_write_byte(0x15, resolution->vsync_len%256);
++    lt9611_write_byte(0x16, resolution->hsync_len%256);
++    lt9611_write_byte(0x17, resolution->vfront_porch%256);
++    lt9611_write_byte(0x18, (resolution->vsync_len + resolution->vback_porch)%256);
++    lt9611_write_byte(0x19, resolution->hfront_porch%256);
++    lt9611_write_byte(0x1a, (resolution->hfront_porch/256<<4) + (resolution->hsync_len + resolution->hback_porch)/256);
++    lt9611_write_byte(0x1b, (resolution->hsync_len + resolution->hback_porch)%256);
++}
++
++uint8_t lt9611_pcr_setup(void)
++{
++    lt9611_write_byte(0xff, 0x83);
++    lt9611_write_byte(0x0b, 0x01);
++    lt9611_write_byte(0x0c, 0x10);
++    lt9611_write_byte(0x48, 0x00);
++    lt9611_write_byte(0x49, 0x81);
++
++    lt9611_write_byte(0x21, 0x4a);
++    lt9611_write_byte(0x24, 0x71);
++    lt9611_write_byte(0x25, 0x30);
++    lt9611_write_byte(0x2a, 0x01);
++
++    lt9611_write_byte(0x4a, 0x40);
++    lt9611_write_byte(0x1d, 0x10);
++
++    lt9611_write_byte(0x2d, 0x40);
++    lt9611_write_byte(0x31, 0x08);
++
++
++    lt9611_write_byte(0x26, 0x36);
++
++    lt9611_write_byte(0xff, 0x80);
++    lt9611_write_byte(0x11, 0x5a);
++    lt9611_write_byte(0x11, 0xfa);
++}
++
++uint8_t lt9611_hdmi_tx_digital(void)
++{
++    lt9611_write_byte(0xff, 0x84);
++    lt9611_write_byte(0x43, 0x46);
++    lt9611_write_byte(0x47, 0x00);
++    lt9611_write_byte(0x3d, 0x0a);
++
++    lt9611_write_byte(0xff, 0x82);
++    lt9611_write_byte(0xd6, 0x8c);
++    lt9611_write_byte(0xd7, 0x04);
++}
++
++uint8_t lt9611_hdmi_tx_phy(void)
++{
++    lt9611_write_byte(0xff, 0x81);
++    lt9611_write_byte(0x30, 0x6a);
++    lt9611_write_byte(0x31, 0x44);
++    lt9611_write_byte(0x32, 0x4a);
++    lt9611_write_byte(0x33, 0x0b);
++    lt9611_write_byte(0x34, 0x00);
++    lt9611_write_byte(0x35, 0x00);
++    lt9611_write_byte(0x36, 0x00);
++    lt9611_write_byte(0x37, 0x44);
++    lt9611_write_byte(0x3f, 0x0f);
++    lt9611_write_byte(0x40, 0x98);
++    lt9611_write_byte(0x41, 0x98);
++    lt9611_write_byte(0x42, 0x98);
++    lt9611_write_byte(0x43, 0x98);
++    lt9611_write_byte(0x44, 0x0a);
++}
++
++uint8_t lt9611_hdmi_enable()
++{
++    lt9611_write_byte(0xff, 0x81);
++    lt9611_write_byte(0x23, 0x40);
++    lt9611_write_byte(0xff, 0x82);
++    lt9611_write_byte(0xde, 0x20);
++    lt9611_write_byte(0xde, 0xe0);
++    lt9611_write_byte(0xff, 0x80);
++    lt9611_write_byte(0x18, 0xdc);
++    lt9611_write_byte(0x18, 0xfc);
++    lt9611_write_byte(0x16, 0xf1);
++    lt9611_write_byte(0x16, 0xf3);
++    lt9611_write_byte(0x11, 0x5a);
++    lt9611_write_byte(0x11, 0xfa);
++    lt9611_write_byte(0xff, 0x81);
++    lt9611_write_byte(0x30, 0xea);
++}
++
++uint8_t lt9611_init(struct display_resolution *resolution)
++{
++    lt9611_poweron();
++    lt9611_mipi_input_digital();
++    lt9611_mipi_input_analog();
++    lt9611_pll_setup();
++    lt9611_video_setup(resolution);
++    lt9611_pcr_setup();
++
++    lt9611_hdmi_tx_digital();
++    lt9611_hdmi_tx_phy();
++    msleep(500); 
++    lt9611_hdmi_enable();
++}
++
+ int lt9611_get_hpd_state(void)
+ {
+     uint8_t reg_val = 0;
+diff --git a/board/Canaan/dsi_logo/test/log/vo/vo_app.c b/board/Canaan/dsi_logo/test/log/vo/vo_app.c
+index 1087268f..39ed4388 100755
+--- a/board/Canaan/dsi_logo/test/log/vo/vo_app.c
++++ b/board/Canaan/dsi_logo/test/log/vo/vo_app.c
+@@ -35,6 +35,19 @@
+ 
+ #include "interrupt.h"
+ #include "env.h"
++#include "display_resolution.h"
++
++#define DISPLAY_RESOLUTION_1920X1080P30     (0)
++#define DISPLAY_RESOLUTION_1280X720P60      (1)
++#define DISPLAY_RESOLUTION_1280X720P50      (2)
++#define DISPLAY_RESOLUTION_1080X1920P30     (3)
++
++struct display_resolution resolution[4] = {
++    {74250, 2200, 1920, 44, 148, 88, 1125, 1080, 5, 36, 4},
++    {74250, 1650, 1280, 40, 220, 110, 750, 720, 5, 20, 5},
++    {74250, 1980, 1280, 40, 220, 440, 750, 720, 5, 20, 5},
++    {74250, 1254, 1080, 20, 20, 134, 1958, 1920, 5, 8, 25},
++};
+ 
+ /******************************************************************************
+  *  CORE com*
+@@ -1083,7 +1096,7 @@ static int VO_TEST_BRINGUP_BT1120_GetCtl(VO_CTL_S *voCtl)
+ /************************************************************************
+ *VO/DSI/DPHY Bringup*
+ *************************************************************************/
+-static int VO_TEST_BRINGUP_DSI_GetCtl(VO_CTL_S *voCtl)
++static int VO_TEST_BRINGUP_DSI_GetCtl(VO_CTL_S *voCtl, struct display_resolution *resolution)
+ {
+     VO_CHECK_POINTER(voCtl);
+     memset(voCtl,0,sizeof(voCtl));
+@@ -1092,12 +1105,12 @@ static int VO_TEST_BRINGUP_DSI_GetCtl(VO_CTL_S *voCtl)
+     dispCtl->Disp_en = TRUE;
+     dispCtl->SyncMode = VO_SYSTEM_MODE_1080x1920x30P;
+ #if 1
+-    dispCtl->total_size.Width = 1254;//1340;  1125 
+-    dispCtl->total_size.Height = 1958;//1958;//1938???  2200
+-    dispCtl->disp_start.Width = 20 + 20;
+-    dispCtl->disp_stop.Width = 1080 + 20 + 20;
+-    dispCtl->disp_start.Height = (5+8+1);   //14
+-    dispCtl->disp_stop.Height = 1920 + (5+8+1);  // 1958 - 1920 - 14 = 24
++    dispCtl->total_size.Width = resolution->htotal;
++    dispCtl->total_size.Height = resolution->vtotal;
++    dispCtl->disp_start.Width = resolution->hsync_len + resolution->hback_porch;
++    dispCtl->disp_stop.Width = resolution->hdisplay + resolution->hsync_len + resolution->hback_porch;
++    dispCtl->disp_start.Height = resolution->vsync_len + resolution->vback_porch + 1;
++    dispCtl->disp_stop.Height = resolution->vdisplay + resolution->vsync_len + resolution->vback_porch + 1;
+ #else
+     dispCtl->total_size.Width = 1125 ;//1340;  1125 
+     dispCtl->total_size.Height = 2200;//1958;//1938???  2200
+@@ -1115,12 +1128,12 @@ static int VO_TEST_BRINGUP_DSI_GetCtl(VO_CTL_S *voCtl)
+     layer0Ctl->endianuv = VO_VIDEO_LAYER_UV_ENDIAN_MODE2;       //VO_VIDEO_LAYER_UV_ENDIAN_MODE3
+     layer0Ctl->uvswap = FALSE;//;
+     layer0Ctl->ImgInDataMode = VO_VIDEO_LAYER_YUV_MODE_420;
+-    layer0Ctl->active_size.Width = 1080;//1920;
+-    layer0Ctl->active_size.Height = 1920;//1080;
+-    layer0Ctl->out_size.Width = 1080; //1920
+-    layer0Ctl->out_size.Height = 1920; //1080
+-    layer0Ctl->ctl_offset.Width = 46;//198;
+-    layer0Ctl->ctl_offset.Height = 14;//42;
++    layer0Ctl->active_size.Width = resolution->hdisplay;
++    layer0Ctl->active_size.Height = resolution->vdisplay;
++    layer0Ctl->out_size.Width = resolution->hdisplay;
++    layer0Ctl->out_size.Height = resolution->vdisplay;
++    layer0Ctl->ctl_offset.Width = dispCtl->disp_start.Width;
++    layer0Ctl->ctl_offset.Height = dispCtl->disp_start.Height;
+     layer0Ctl->size_offset.Width = 0x0;
+     layer0Ctl->size_offset.Height = 0x0;
+     
+@@ -1128,11 +1141,11 @@ static int VO_TEST_BRINGUP_DSI_GetCtl(VO_CTL_S *voCtl)
+ 
+     layer0Ctl->bufInfo.yAddr0= 0x01000000;
+     layer0Ctl->bufInfo.yAddr1= 0x01000000;
+-    layer0Ctl->bufInfo.uvAddr0= 0x01000000 + 1920*1080;
+-    layer0Ctl->bufInfo.uvAddr1= 0x01000000 + 1920*1080;
++    layer0Ctl->bufInfo.uvAddr0= 0x01000000 + resolution->hdisplay*resolution->vdisplay;
++    layer0Ctl->bufInfo.uvAddr1= 0x01000000 + resolution->hdisplay*resolution->vdisplay;
+ 
+-    layer0Ctl->bufInfo.hsize_stride= 1080/8 -1;//VIDEO_LAYER2_RD_STRIDE;
+-    layer0Ctl->bufInfo.vsize_stride= 1920;//0;
++    layer0Ctl->bufInfo.hsize_stride= resolution->hdisplay/8 -1;
++    layer0Ctl->bufInfo.vsize_stride= resolution->vdisplay;
+     layer0Ctl->layerMix_en = TRUE;
+     layer0Ctl->layerMix_glbalp = 0xff;
+ #else
+@@ -1211,8 +1224,8 @@ static int VO_TEST_BRINGUP_DSI_GetCtl(VO_CTL_S *voCtl)
+     layer4osd0Ctl->ImgInDataMode = VO_VIDEO_LAYER_YUV_MODE_420;
+     layer4osd0Ctl->active_size.Width = 640;
+     layer4osd0Ctl->active_size.Height = 480;
+-    layer4osd0Ctl->ctl_offset.Width = 220 + 46;
+-    layer4osd0Ctl->ctl_offset.Height = 720;
++    layer4osd0Ctl->ctl_offset.Width = (resolution->hdisplay - 640)/2 + dispCtl->disp_start.Width;
++    layer4osd0Ctl->ctl_offset.Height = (resolution->vdisplay - 480)/2 + dispCtl->disp_start.Height;
+     layer4osd0Ctl->osdBufInfo.alp_addr0= 0x1fe00000;
+     layer4osd0Ctl->osdBufInfo.alp_addr1= 0x1fe00000;
+     layer4osd0Ctl->osdBufInfo.alpstride= 2560/8;
+@@ -2571,7 +2584,7 @@ static int VO_TEST_ALL_LAYERS(VO_CTL_S *voCtl,VO_CORE_INFO_S *voCoreInfo)
+ /************************************************************************
+ **
+ *************************************************************************/
+-static int VO_TEST_Core(VO_TEST_CASE_E voTestCase,VO_CORE_INFO_S *voCoreInfo)
++static int VO_TEST_Core(VO_TEST_CASE_E voTestCase,VO_CORE_INFO_S *voCoreInfo, struct display_resolution *resolution)
+ {
+     VO_CHECK_POINTER(voCoreInfo);
+     //printf("zhudalei:VO_TEST_Core start!!!\n");
+@@ -2587,7 +2600,7 @@ static int VO_TEST_Core(VO_TEST_CASE_E voTestCase,VO_CORE_INFO_S *voCoreInfo)
+             //use background only to bringup VO/DSI/DPHY.
+             //aml550_power_on_seq();
+ 
+-            VO_TEST_BRINGUP_DSI_GetCtl(&voCtl);
++            VO_TEST_BRINGUP_DSI_GetCtl(&voCtl, resolution);
+             break;
+         case LAYER0_420_IRS238C:
+             VO_TEST_IRS238C_GetCtl(&voCtl);
+@@ -2904,7 +2917,7 @@ static int VO_TEST_Remap(VO_TEST_CASE_E voTestCase,VO_REMAP_INFO_S *voRemapInfo)
+ }
+ /*
+ */
+-static int dsi_init(VO_TEST_CASE_E voTestCase)
++static int dsi_init(VO_TEST_CASE_E voTestCase, struct display_resolution *resolution)
+ {
+     switch(voTestCase)
+     {
+@@ -2912,7 +2925,7 @@ static int dsi_init(VO_TEST_CASE_E voTestCase)
+      //       aml550_power_on_seq();
+ 
+ //            display_gpio_reset();
+-            dsi_init_1080x1920();
++            dsi_init_1080x1920(resolution);
+             break;
+ 
+         default:
+@@ -2927,9 +2940,12 @@ int VO_TEST_VideoOut(VO_TEST_CASE_E voTestCase)
+ {
+     int hpd_state = 0;
+     int lcd_id = 0;
++    int lcd_resolution_index = 0;
++    int hdmi_resolution_index = 0;
++    struct display_resolution *hdmi_resolution = NULL;
++    struct display_resolution *lcd_resolution = NULL;
+     VO_INFO_S voInfo;
+ 
+-    //
+     VO_TEST_Init();
+     //table
+     VO_TABLE_init();
+@@ -2937,22 +2953,37 @@ int VO_TEST_VideoOut(VO_TEST_CASE_E voTestCase)
+     VO_TEST_Wrap();
+     //core
+     VO_CORE_INFO_S *voCoreInfo = &voInfo.voCoreInfo;
+-    VO_TEST_Core(voTestCase,voCoreInfo);
+ 
+-    //enable dsi output
+-    dsi_init(voTestCase);
++    hdmi_resolution_index = get_hdmi_resolution();
++    if (hdmi_resolution_index == -1)
++        hdmi_resolution_index = DISPLAY_RESOLUTION_1280X720P60;
++    lcd_resolution_index = get_lcd_resolution();
++    if (lcd_resolution_index == -1)
++        lcd_resolution_index = DISPLAY_RESOLUTION_1080X1920P30;
++    hdmi_resolution = &resolution[hdmi_resolution_index];
++    lcd_resolution = &resolution[lcd_resolution_index];
+ 
+     hpd_state = lt9611_get_hpd_state();
+     lcd_id = get_lcd_id();
+     if (hpd_state) {
+-        *(uint32_t *)0x92700118 = 0x80;
++        //*(uint32_t *)0x92700118 = 0x80;
++        VO_TEST_Core(voTestCase,voCoreInfo, hdmi_resolution);
++        //enable dsi output
++        dsi_init(voTestCase, hdmi_resolution);
+         set_bootcmd("k510-hdmi.dtb");
+         display_switch_hdmi_gpio();
+-    } else if (lcd_id == 0x0C9983 || lcd_id == 0x1C9983) {
++        lt9611_init(hdmi_resolution);
+         VO_TEST_Start();
++    } else if (lcd_id == 0x0C9983 || lcd_id == 0x1C9983) {
++        VO_TEST_Core(voTestCase,voCoreInfo, lcd_resolution);
++        //enable dsi output
++        dsi_init(voTestCase, lcd_resolution);
+         set_bootcmd("k510.dtb");
++        VO_TEST_Start();
+     } else {
+         *(uint32_t *)0x92700118 = 0x80;
++        VO_TEST_Core(voTestCase,voCoreInfo, hdmi_resolution);
++        dsi_init(voTestCase, hdmi_resolution);
+         set_bootcmd("k510-hdmi.dtb");
+         display_switch_hdmi_gpio();
+     }
+diff --git a/board/Canaan/k510_crb_lp3/Makefile b/board/Canaan/k510_crb_lp3/Makefile
+index 0c0195f4..82559d98 100755
+--- a/board/Canaan/k510_crb_lp3/Makefile
++++ b/board/Canaan/k510_crb_lp3/Makefile
+@@ -7,4 +7,4 @@ EXTRA_CFLAGS += -I${src}/../dsi_logo/bsp/include   \
+ 				-I${src}/../dsi_logo/bsp/include/controler \
+ 				-I${src}/../dsi_logo/bsp/include/cpu -I${src}/../dsi_logo/bsp/include/utils
+ 
+-obj-y	:= ax25-ae350.o lpddr3_init.o lpddr3_training.o ddr_common.o sysctl_clk.o set_bootcmd.o ../dsi_logo/
++obj-y	:= ax25-ae350.o lpddr3_init.o lpddr3_training.o ddr_common.o sysctl_clk.o set_bootcmd.o get_display_resolution.o ../dsi_logo/
+diff --git a/board/Canaan/k510_crb_lp3/get_display_resolution.c b/board/Canaan/k510_crb_lp3/get_display_resolution.c
+new file mode 100644
+index 00000000..16729c9c
+--- /dev/null
++++ b/board/Canaan/k510_crb_lp3/get_display_resolution.c
+@@ -0,0 +1,47 @@
++#include <common.h>
++#include <env.h>
++#include <stdio.h>
++#include <linux/string.h>
++
++/**
++ * @brief Get hdmi resolution
++ * @return  if return -1, it means something wrong
++ */
++int get_hdmi_resolution(void)
++{
++    char *env = NULL;
++    int resolution_id = 0;
++
++    env = env_get("hdmi_resolution");
++    if (!env)
++        return -1;
++
++    if (!strncmp(env, "1920x1080p30", sizeof("1920x1080p30")))
++        resolution_id = 0;
++    else if (!strncmp(env, "1280x720p60", sizeof("1280x720p60")))
++        resolution_id = 1;
++    else if (!strncmp(env, "1280x720p50", sizeof("1280x720p50")))
++        resolution_id = 2;
++
++    return resolution_id;
++}
++
++/**
++ * @brief Get lcd resolution
++ * @return  if return -1, it means something wrong
++ */
++int get_lcd_resolution(void)
++{
++    char *env = NULL;
++    int resolution_id = 0;
++
++    env = env_get("lcd_resolution");
++    if (!env)
++        return -1;
++
++    if (!strncmp(env, "1080x1920p30", sizeof("1080x1920p30")))
++        resolution_id = 3;
++
++    return resolution_id;
++}
++
+diff --git a/include/display_resolution.h b/include/display_resolution.h
+new file mode 100644
+index 00000000..eb7feb06
+--- /dev/null
++++ b/include/display_resolution.h
+@@ -0,0 +1,18 @@
++#ifndef __DISPLAY_RESOLUTION_H
++#define __DISPLAY_RESOLUTION_H
++
++struct display_resolution {
++    uint32_t pclk;
++    uint32_t htotal;
++    uint32_t hdisplay;
++    uint32_t hsync_len;
++    uint32_t hback_porch;
++    uint32_t hfront_porch;
++    uint32_t vtotal;
++    uint32_t vdisplay;
++    uint32_t vsync_len;
++    uint32_t vback_porch;
++    uint32_t vfront_porch;
++};
++
++#endif /* __DISPLAY_RESOLUTION_H */
+diff --git a/include/env.h b/include/env.h
+index e8b2825b..10e59bb5 100644
+--- a/include/env.h
++++ b/include/env.h
+@@ -344,5 +344,7 @@ int env_get_char(int index);
+ void env_reloc(void);
+ 
+ int set_bootcmd(const char *str);
++int get_lcd_resolution(void);
++int get_hdmi_resolution(void);
+ 
+ #endif
+-- 
+2.17.1
+
