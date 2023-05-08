@@ -1,0 +1,30 @@
+From 98894ef148644ac23d1335d7e2b5a7ddc544be0c Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=E9=BB=84=E5=AD=90=E6=87=BF?=
+ <huangziyi@canaan-creative.com>
+Date: Wed, 22 Mar 2023 11:12:35 +0800
+Subject: [PATCH] fix RTC frequency settings
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Signed-off-by: 黄子懿 <huangziyi@canaan-creative.com>
+---
+ drivers/rtc/rtc-kendryte.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/rtc/rtc-kendryte.c b/drivers/rtc/rtc-kendryte.c
+index e6f5ec528..bcb490595 100755
+--- a/drivers/rtc/rtc-kendryte.c
++++ b/drivers/rtc/rtc-kendryte.c
+@@ -462,7 +462,7 @@ static int kendryte_rtc_probe(struct platform_device *pdev)
+ 	
+ 	kendryte_rtc_change_status(rtc, 1);
+ 	kendryte_rtc_set_clock_count_val(rtc, 1);
+-	kendryte_set_freq(rtc, 32768);		//62.5m	
++	kendryte_set_freq(rtc, 32767);		//62.5m	
+ 
+ 	return 0;
+ 
+-- 
+2.39.1
+

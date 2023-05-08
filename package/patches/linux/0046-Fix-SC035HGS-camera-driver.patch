@@ -1,0 +1,116 @@
+From 556acd3e8f28d0dac457f146ed9849d6c9ff5435 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?=E9=BB=84=E5=AD=90=E6=87=BF?=
+ <huangziyi@canaan-creative.com>
+Date: Wed, 8 Mar 2023 16:13:30 +0800
+Subject: [PATCH] Fix SC035HGS camera driver
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Signed-off-by: 黄子懿 <huangziyi@canaan-creative.com>
+---
+ .../canaan/k510_common/camera-sc035hgs.dtsi   |  4 --
+ arch/riscv/configs/k510_defconfig             |  1 +
+ .../i2c/soc_camera/canaanchip/sc035hgs.c      | 38 -------------------
+ 3 files changed, 1 insertion(+), 42 deletions(-)
+
+diff --git a/arch/riscv/boot/dts/canaan/k510_common/camera-sc035hgs.dtsi b/arch/riscv/boot/dts/canaan/k510_common/camera-sc035hgs.dtsi
+index 0ffd5eaec..7d2792276 100644
+--- a/arch/riscv/boot/dts/canaan/k510_common/camera-sc035hgs.dtsi
++++ b/arch/riscv/boot/dts/canaan/k510_common/camera-sc035hgs.dtsi
+@@ -8,10 +8,6 @@
+         reg = <0x30>;
+         reset-gpios = <&porta 8 GPIO_ACTIVE_LOW>;
+         strobe-gpios = <&porta 9 GPIO_ACTIVE_HIGH>;
+-        led1-gpios = <&porta 23 GPIO_ACTIVE_HIGH>;
+-        led2-gpios = <&porta 17 GPIO_ACTIVE_HIGH>;
+-        key1-gpios = <&porta 18 GPIO_ACTIVE_HIGH>;
+-        key2-gpios = <&porta 24 GPIO_ACTIVE_HIGH>;
+ 
+         canaanchip,camera-module-index = <0>;
+         canaanchip,camera-module-facing = "front";
+diff --git a/arch/riscv/configs/k510_defconfig b/arch/riscv/configs/k510_defconfig
+index 8eb077350..38bcd17fc 100644
+--- a/arch/riscv/configs/k510_defconfig
++++ b/arch/riscv/configs/k510_defconfig
+@@ -138,6 +138,7 @@ CONFIG_ALLEGRO_CODEC_DRIVER=y
+ CONFIG_VIDEO_CANAAN_K510=y
+ CONFIG_VIDEO_IMX219_0=y
+ CONFIG_VIDEO_IMX219_1=y
++CONFIG_VIDEO_SC035HGS=y
+ CONFIG_DRM=y
+ CONFIG_DRM_KENDRYTE=y
+ CONFIG_KENDRYTE_CADENCE_MIPI_DSI=y
+diff --git a/drivers/media/i2c/soc_camera/canaanchip/sc035hgs.c b/drivers/media/i2c/soc_camera/canaanchip/sc035hgs.c
+index 3a7b27377..51b303dc7 100644
+--- a/drivers/media/i2c/soc_camera/canaanchip/sc035hgs.c
++++ b/drivers/media/i2c/soc_camera/canaanchip/sc035hgs.c
+@@ -99,10 +99,6 @@ struct sc035hgs {
+ 	struct gpio_desc	*reset_gpio;
+ 	struct gpio_desc	*pwdn_gpio;
+ 	struct gpio_desc	*strobe_gpio;
+-	struct gpio_desc	*led1_gpio;
+-	struct gpio_desc	*led2_gpio;
+-	struct gpio_desc	*key1_gpio;
+-	struct gpio_desc	*key2_gpio;
+ 
+ 	struct v4l2_subdev	subdev;
+ 	struct media_pad	pad;
+@@ -738,11 +734,6 @@ static int __sc035hgs_start_stream(struct sc035hgs *sc035hgs)
+ 
+ 	dev_info(&sc035hgs->client->dev, "__sc035hgs_start_stream\n");
+ 
+-	if (!IS_ERR(sc035hgs->led1_gpio))
+-		gpiod_set_value_cansleep(sc035hgs->led1_gpio, 1);
+-	if (!IS_ERR(sc035hgs->led2_gpio))
+-		gpiod_set_value_cansleep(sc035hgs->led2_gpio, 1);
+-
+ 	ret = sc035hgs_write_array(sc035hgs->client, sc035hgs->cur_mode->reg_list);
+ 	if (ret < 0) {
+ 		dev_err(&sc035hgs->client->dev, "sc035 reg init error\n");
+@@ -775,11 +766,6 @@ static int __sc035hgs_start_stream(struct sc035hgs *sc035hgs)
+ static int __sc035hgs_stop_stream(struct sc035hgs *sc035hgs)
+ {
+ 	dev_info(&sc035hgs->client->dev, "__sc035hgs_stop_stream\n");
+-	if (!IS_ERR(sc035hgs->led1_gpio))
+-		gpiod_set_value_cansleep(sc035hgs->led1_gpio, 0);
+-	if (!IS_ERR(sc035hgs->led2_gpio))
+-		gpiod_set_value_cansleep(sc035hgs->led2_gpio, 0);
+-
+ 
+ 	return sc035hgs_write_reg(sc035hgs->client, SC035HGS_REG_CTRL_MODE,
+ 				  SC035HGS_REG_VALUE_08BIT, SC035HGS_MODE_SW_STANDBY);
+@@ -1212,30 +1198,6 @@ static int sc035hgs_probe(struct i2c_client *client,
+ 	if (IS_ERR(sc035hgs->strobe_gpio))
+ 		dev_warn(dev, "Failed to get strobe-gpios\n");
+ 
+-	sc035hgs->led1_gpio = devm_gpiod_get(dev, "led1", GPIOD_OUT_LOW);
+-	if (IS_ERR(sc035hgs->led1_gpio))
+-		dev_warn(dev, "Failed to get led1-gpios\n");
+-
+-	sc035hgs->led2_gpio = devm_gpiod_get(dev, "led2", GPIOD_OUT_LOW);
+-	if (IS_ERR(sc035hgs->led2_gpio))
+-		dev_warn(dev, "Failed to get led2-gpios\n");
+-
+-	sc035hgs->key1_gpio = devm_gpiod_get(dev, "key1", GPIOD_IN);
+-	if (IS_ERR(sc035hgs->key1_gpio))
+-		dev_warn(dev, "Failed to get key1-gpios\n");
+-
+-	sc035hgs->key2_gpio = devm_gpiod_get(dev, "key2", GPIOD_IN);
+-	if (IS_ERR(sc035hgs->key2_gpio))
+-		dev_warn(dev, "Failed to get key2-gpios\n");
+-
+-	if (gpiod_export(sc035hgs->led1_gpio, 0)) {
+-		dev_err(dev, "gpiod export sc035hgs led1 failed.");
+-	}
+-
+-	if (gpiod_export(sc035hgs->led2_gpio, 0)) {
+-		dev_err(dev, "gpiod export sc035hgs led2 failed.");
+-	}
+-
+ 	mutex_init(&sc035hgs->mutex);
+ 
+ 	sd = &sc035hgs->subdev;
+-- 
+2.39.1
+
