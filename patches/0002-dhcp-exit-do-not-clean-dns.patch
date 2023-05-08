@@ -1,0 +1,25 @@
+From c5b545f3c20d0b639431a8619648faffae578911 Mon Sep 17 00:00:00 2001
+From: wangjianxin <wangjianxin@canaan-creative.com>
+Date: Mon, 9 Jan 2023 14:41:12 +0800
+Subject: [PATCH] dhcp exit do not clean dns
+
+---
+ package/busybox/udhcpc.script | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/package/busybox/udhcpc.script b/package/busybox/udhcpc.script
+index d375b34..9d3f693 100755
+--- a/package/busybox/udhcpc.script
++++ b/package/busybox/udhcpc.script
+@@ -38,7 +38,7 @@ case "$1" in
+ 		# resolv.conf may be a symlink to /tmp/, so take care
+ 		TMPFILE=$(mktemp)
+ 		grep -vE "# $interface\$" $RESOLV_CONF > $TMPFILE
+-		cat $TMPFILE > $RESOLV_CONF
++		#cat $TMPFILE > $RESOLV_CONF
+ 		rm -f $TMPFILE
+ 
+ 		if [ -x /usr/sbin/avahi-autoipd ]; then
+-- 
+2.30.2
+
