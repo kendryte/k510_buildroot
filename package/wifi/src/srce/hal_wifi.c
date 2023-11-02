@@ -54,7 +54,7 @@ void *hal_wifi_open (const char* iface, int type, mode_t mode)
     wpa_handle_t *handle = (wpa_handle_t *) calloc (num, sizeof(wpa_handle_t));
     if (NULL == handle)
     {
-        dbgmsg ("calloc memory %lu bytes faild\n", num * sizeof(wpa_handle_t));
+        dbgmsg ("calloc memory %lu bytes failed\n", num * sizeof(wpa_handle_t));
         goto EXIT;
     }
 
@@ -209,7 +209,7 @@ int hal_wifi_connect (void *handle, wpa_connet_t *connect)
     cmd = (char *) calloc (max_cmd_len, sizeof(char));
     if (NULL == cmd)
     {
-        dbgmsg ("malloc memory lenght %lu failed: %s\n", max_cmd_len, strerror(errno));
+        dbgmsg ("malloc memory length %lu failed: %s\n", max_cmd_len, strerror(errno));
         ret = HAL_FAILURE;
         goto EXIT;
     }
